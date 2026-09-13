@@ -57,6 +57,7 @@ const API_ROUTES: ReadonlyArray<{ pattern: RegExp; bodyLimit: number }> = [
   { pattern: new RegExp(`^/api/v1/members/${ID}$`), bodyLimit: AUTH_BODY_LIMIT },
   { pattern: /^\/api\/v1\/recovery\/(phrase|operator)\/(start|confirm)$/, bodyLimit: AUTH_BODY_LIMIT },
   { pattern: /^\/api\/v1\/account\/credentials\/(start|confirm)$/, bodyLimit: AUTH_BODY_LIMIT },
+  { pattern: /^\/api\/v1\/me\/preferences$/, bodyLimit: AUTH_BODY_LIMIT },
   { pattern: /^\/api\/v1\/board$/, bodyLimit: BOARD_BODY_LIMIT },
   { pattern: /^\/api\/v1\/columns$/, bodyLimit: BOARD_BODY_LIMIT },
   { pattern: new RegExp(`^/api/v1/columns/${ID}(/move)?$`), bodyLimit: BOARD_BODY_LIMIT },

@@ -235,4 +235,31 @@ export const en = {
 } as const;
 
 export type TranslationKey = keyof typeof en;
+
+/** Every dictionary must supply all of these, whatever its plural rules are. */
 export type Dictionary = Readonly<Record<TranslationKey, string>>;
+
+export type PluralCategory = 'zero' | 'one' | 'two' | 'few' | 'many' | 'other';
+
+/** Key families that take a plural form, derived from the English key set. */
+export type PluralBase = TranslationKey extends infer Key
+  ? Key extends `${infer Base}.${PluralCategory}`
+    ? Base
+    : never
+  : never;
+
+export type NonPluralKey = TranslationKey extends infer Key
+  ? Key extends `${PluralBase}.${PluralCategory}`
+    ? never
+    : Key
+  : never;
+
+/**
+ * A translated dictionary.
+ *
+ * Plural categories differ by language — English needs two forms, Hebrew four, Russian four —
+ * so plural keys are optional here and the `check:i18n` script is what verifies each locale
+ * supplies exactly the categories its own rules require.
+ */
+export type LocaleDictionary = Readonly<Record<NonPluralKey, string>> &
+  Readonly<Partial<Record<`${PluralBase}.${PluralCategory}`, string>>>;

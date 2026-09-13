@@ -2,7 +2,7 @@ import { type FormEvent, useState } from 'react';
 import type { CredentialRotationStartResponse } from '../../../shared/api';
 import { confirmCredentialChange, startCredentialChange } from '../api/endpoints';
 import { errorText, fieldErrorText } from '../components/errors';
-import { Alert, Field, Submit } from '../components/ui';
+import { Alert, Field, Submit, WithValue } from '../components/ui';
 import { useTranslation } from '../i18n';
 import { useRouter } from '../router';
 import { PhraseStep } from './PhraseStep';
@@ -62,10 +62,11 @@ export function AccountPage() {
       <h1>{t('account.heading')}</h1>
       {state.status === 'active' ? (
         <p className="help">
-          {t('nav.signedInAs', { email: '' })}
-          <span className="isolate" dir="ltr">
-            {state.user.email}
-          </span>
+          <WithValue template={t('nav.signedInAs')} name="email">
+            <span className="isolate" dir="ltr">
+              {state.user.email}
+            </span>
+          </WithValue>
         </p>
       ) : null}
 

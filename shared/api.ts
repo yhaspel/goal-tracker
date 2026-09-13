@@ -22,6 +22,7 @@ export type SessionUser = {
 };
 
 export type AuthenticatedResponse = { user: SessionUser; csrfToken: string };
+export type PreferencesResponse = { language: Locale };
 export type BootstrapStatusResponse = { bootstrapAvailable: boolean };
 export type PreparedRegistrationResponse = { pendingToken: string; recoveryPhrase: string; expiresAt: string };
 export type SignedOutResponse = { signedOut: true };

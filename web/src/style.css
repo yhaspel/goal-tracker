@@ -121,6 +121,17 @@ h3 {
   margin: 0;
 }
 
+.language-selector {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.language-selector select {
+  min-height: 2.5rem;
+}
+
 a {
   color: var(--accent);
 }

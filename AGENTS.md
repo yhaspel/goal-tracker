@@ -33,7 +33,8 @@ For each stage, run the relevant local checks, commit candidate code, verify CI 
 | `web/` | React/TypeScript/Vite application and generated Static Assets (`web/dist/`) |
 | `web/src/api/` | Typed same-origin client and the one place `/api/v1` URLs are written down |
 | `web/src/auth/`, `web/src/members/`, `web/src/board/` | Account, owner-settings, and board screens |
-| `web/src/i18n/` | Typed translation keys, the English dictionary, and the locale mechanism |
+| `web/src/i18n/` | Typed translation keys, the `en`/`he`/`ru` dictionaries, and the locale mechanism |
+| `scripts/check-i18n.ts` | Release check for dictionary completeness, placeholders, and plural categories |
 | `worker/src/index.ts` | API-first routing, explicit API and SPA route allowlists, body and content-type bounds |
 | `worker/src/household-do.ts` | Durable Object request dispatch, SQLite migration startup, and test-only diagnostics |
 | `worker/src/http.ts` | Shared body parsing, exact same-origin check, and typed error mapping |
@@ -57,7 +58,7 @@ For each stage, run the relevant local checks, commit candidate code, verify CI 
 | `docs/stages-2-6-execution-log.md` | Running record for the active Stages 2–6 handoff |
 | `.github/workflows/ci.yml`, `docs/ci.md` | GitHub checks and the gated test-deployment setup |
 
-Use Node 25.2.1 and npm 11.12.1 (`.node-version` and `packageManager`). Dependencies and Wrangler are exact-pinned in `package-lock.json`. From the repository root, run `npm ci`, `npm run lint`, `npm run typecheck`, `npm run check:links`, `npm test` (which builds the web shell), and `npm run build` for changes that affect the app. `npm run check:links` also runs in CI, so a stage plan that moves to `archived/` fails the build until every reference is repaired. Add focused Workers-runtime tests for changed routing, SQL, authentication, or KDF behavior; run the relevant deployed-test smoke checks required by the active stage plan.
+Use Node 25.2.1 and npm 11.12.1 (`.node-version` and `packageManager`). Dependencies and Wrangler are exact-pinned in `package-lock.json`. From the repository root, run `npm ci`, `npm run lint`, `npm run typecheck`, `npm run check:links`, `npm run check:i18n`, `npm test` (which builds the web app), and `npm run build` for changes that affect the app. `check:links` and `check:i18n` also run in CI, so a stage plan that moves to `archived/` fails the build until every reference is repaired, and a visible string added without Hebrew and Russian fails it too. Add focused Workers-runtime tests for changed routing, SQL, authentication, or KDF behavior; run the relevant deployed-test smoke checks required by the active stage plan.
 
 Revise the root [`README.md`](README.md) whenever a change affects how someone installs, configures, runs, builds, tests, or deploys the project. Keep its prerequisites, commands, environment descriptions, and links accurate in the same change.
 

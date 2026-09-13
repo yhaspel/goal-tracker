@@ -248,6 +248,40 @@ export function CopyButton({ value, label }: { value: string; label: string }) {
   );
 }
 
+/**
+ * Renders a translated sentence with one value substituted as an element rather than as text.
+ *
+ * Interpolating an email address or a code into a right-to-left sentence reorders it visibly.
+ * Splitting the template keeps each language's own word order while the value sits in its own
+ * isolated, left-to-right span.
+ */
+export function WithValue({
+  template,
+  name,
+  children
+}: {
+  template: string;
+  name: string;
+  children: ReactNode;
+}) {
+  const marker = `{${name}}`;
+  const index = template.indexOf(marker);
+  if (index < 0) {
+    return (
+      <>
+        {template} {children}
+      </>
+    );
+  }
+  return (
+    <>
+      {template.slice(0, index)}
+      {children}
+      {template.slice(index + marker.length)}
+    </>
+  );
+}
+
 export function useFormattedDate(): (iso: string) => string {
   const { locale } = useTranslation();
   return useMemo(() => {

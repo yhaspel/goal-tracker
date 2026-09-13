@@ -6,7 +6,9 @@ import { RegisterPage } from './auth/RegisterPage';
 import { useSession } from './auth/session';
 import { SignInPage } from './auth/SignInPage';
 import { BoardPage } from './board/BoardPage';
+import { WithValue } from './components/ui';
 import { useTranslation } from './i18n';
+import { LanguageSelector } from './i18n/LanguageSelector';
 import { SettingsPage } from './members/SettingsPage';
 import { Link, type RoutePath, useRouter } from './router';
 import { WelcomePage } from './WelcomePage';
@@ -17,10 +19,23 @@ const GUEST_ONLY: ReadonlySet<RoutePath> = new Set(['/login', '/register', '/rec
 const MEMBER_ONLY: ReadonlySet<RoutePath> = new Set(['/board', '/account', '/members']);
 
 export default function App() {
-  const { t } = useTranslation();
+  const { t, locale, setLocale } = useTranslation();
   const { state, signOutNow } = useSession();
   const { path, navigate } = useRouter();
   const heading = useRef<HTMLDivElement>(null);
+  const adoptedFor = useRef<string | null>(null);
+
+  // A signed-in member's stored preference takes precedence over the guest cookie, once per
+  // sign-in. Their own later switches go through the selector and are not undone here.
+  useEffect(() => {
+    if (state.status !== 'active') {
+      adoptedFor.current = null;
+      return;
+    }
+    if (adoptedFor.current === state.user.id) return;
+    adoptedFor.current = state.user.id;
+    if (state.user.language !== locale) setLocale(state.user.language);
+  }, [state, locale, setLocale]);
 
   // Guards run after the first session read, so protected content never flashes.
   useEffect(() => {
@@ -62,12 +77,15 @@ export default function App() {
             <Link to="/login">{t('nav.signIn')}</Link>
           )}
         </nav>
+        <LanguageSelector />
         {signedIn ? (
           <p className="help who">
-            {t('nav.signedInAs', { email: '' })}
-            <span className="isolate" dir="ltr">
-              {state.user.email}
-            </span>
+            {/* The address keeps its own direction inside a right-to-left sentence. */}
+            <WithValue template={t('nav.signedInAs')} name="email">
+              <span className="isolate" dir="ltr">
+                {state.user.email}
+              </span>
+            </WithValue>
           </p>
         ) : null}
       </header>

@@ -119,6 +119,10 @@ export function insertUser(sql: SqlStorage, user: UserRow): void {
   );
 }
 
+export function setUserLanguage(sql: SqlStorage, userId: string, language: Locale, at: string): void {
+  sql.exec('UPDATE users SET language = ?, updated_at = ? WHERE id = ?', language, at, userId);
+}
+
 export function deactivateUser(sql: SqlStorage, userId: string, at: string): void {
   sql.exec(`UPDATE users SET status = 'inactive', updated_at = ? WHERE id = ?`, at, userId);
 }

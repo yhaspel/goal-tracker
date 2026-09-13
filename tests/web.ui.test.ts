@@ -4,8 +4,11 @@ import { ApiError } from '../web/src/api/client';
 import { withMovedCard } from '../web/src/board/reorder';
 import { errorText, fieldErrorText } from '../web/src/components/errors';
 import { en } from '../web/src/i18n/en';
-import { localeFromTags } from '../web/src/i18n';
-import { createTranslate, interpolate } from '../web/src/i18n/translate';
+import { he } from '../web/src/i18n/he';
+import { ru } from '../web/src/i18n/ru';
+import { directionOf, localeFromTags } from '../web/src/i18n';
+import { createTranslate, DICTIONARIES, interpolate } from '../web/src/i18n/translate';
+import { LOCALES } from '../shared/api';
 import { ROUTES } from '../web/src/router';
 import { SPA_ROUTES } from '../worker/src/index';
 
@@ -97,6 +100,45 @@ describe('translation', () => {
     }
   });
 
+  it('registers exactly the supported locales, so the release check sees them all', () => {
+    // `scripts/check-i18n.ts` imports the dictionary modules directly; this keeps the
+    // registry the application actually reads from drifting away from that list.
+    expect(Object.keys(DICTIONARIES).sort()).toEqual([...LOCALES].sort());
+    expect(DICTIONARIES.en).toBe(en);
+    expect(DICTIONARIES.he).toBe(he);
+    expect(DICTIONARIES.ru).toBe(ru);
+  });
+
+  it('uses each language’s own plural rules', () => {
+    const hebrew = createTranslate('he');
+    expect(hebrew.plural('board.cardCount', 1)).toBe(he['board.cardCount.one']);
+    expect(hebrew.plural('board.cardCount', 2)).toBe(he['board.cardCount.two']);
+    expect(hebrew.plural('board.cardCount', 7)).toBe('7 כרטיסים');
+
+    const russian = createTranslate('ru');
+    expect(russian.plural('board.cardCount', 1)).toBe('1 карточка');
+    expect(russian.plural('board.cardCount', 3)).toBe('3 карточки');
+    expect(russian.plural('board.cardCount', 5)).toBe('5 карточек');
+    expect(russian.plural('board.cardCount', 21)).toBe('21 карточка');
+  });
+
+  it('translates every screen into Hebrew and Russian, never falling back to English', () => {
+    // A key that silently renders English is the exact failure the release check exists to
+    // prevent; this asserts the same property from the application's own lookup path.
+    for (const [locale, dictionary] of [
+      ['he', he],
+      ['ru', ru]
+    ] as const) {
+      const translate = createTranslate(locale);
+      for (const key of Object.keys(en) as Array<keyof typeof en>) {
+        if (key.startsWith('board.cardCount.')) continue;
+        const translated = translate.t(key);
+        expect(translated, `${locale}:${key}`).toBe((dictionary as Record<string, string>)[key]);
+        expect(translated, `${locale}:${key}`).not.toBe(en[key]);
+      }
+    }
+  });
+
   it('maps browser language tags onto the three supported locales', () => {
     expect(localeFromTags(['he-IL', 'en-US'])).toBe('he');
     expect(localeFromTags(['iw'])).toBe('he');
@@ -104,6 +146,12 @@ describe('translation', () => {
     expect(localeFromTags(['fr-FR', 'en'])).toBe('en');
     expect(localeFromTags(['fr-FR'])).toBe('en');
     expect(localeFromTags([])).toBe('en');
+  });
+
+  it('sets the document direction from the locale', () => {
+    expect(directionOf('he')).toBe('rtl');
+    expect(directionOf('en')).toBe('ltr');
+    expect(directionOf('ru')).toBe('ltr');
   });
 });
 

@@ -16,7 +16,7 @@ import {
 } from '../api/endpoints';
 import { useSession } from '../auth/session';
 import { errorText } from '../components/errors';
-import { Alert, Dialog, Field, Submit, useAnnounce } from '../components/ui';
+import { Alert, Dialog, Field, Submit, useAnnounce, WithValue } from '../components/ui';
 import { useTranslation } from '../i18n';
 import { CardDialog, type CardDraft, draftFromCard } from './CardDialog';
 import { withMovedCard } from './reorder';
@@ -310,7 +310,12 @@ export function BoardPage() {
             </>
           }
         >
-          <p>{t('card.deleteConfirm', { title: deletingCard.title })}</p>
+          <p>
+            {/* The title is whatever the member typed, so it keeps its own direction. */}
+            <WithValue template={t('card.deleteConfirm')} name="title">
+              <span dir="auto">{deletingCard.title}</span>
+            </WithValue>
+          </p>
         </Dialog>
       ) : null}
 
@@ -337,7 +342,11 @@ export function BoardPage() {
             </>
           }
         >
-          <p>{t('board.deleteColumnConfirm', { name: columnLabel(deletingColumn, t) })}</p>
+          <p>
+            <WithValue template={t('board.deleteColumnConfirm')} name="name">
+              <span dir="auto">{columnLabel(deletingColumn, t)}</span>
+            </WithValue>
+          </p>
         </Dialog>
       ) : null}
 

@@ -16,7 +16,7 @@ import {
   revokeInvitation
 } from '../api/endpoints';
 import { errorText, fieldErrorText } from '../components/errors';
-import { Alert, CopyButton, Dialog, Field, Submit, useAnnounce, useFormattedDate } from '../components/ui';
+import { Alert, CopyButton, Dialog, Field, Submit, useAnnounce, useFormattedDate, WithValue } from '../components/ui';
 import { useTranslation } from '../i18n';
 import { useSession } from '../auth/session';
 
@@ -198,7 +198,13 @@ export function SettingsPage() {
       <section aria-labelledby="allowed-heading" className="card">
         <h2 id="allowed-heading">{t('settings.allowedHeading')}</h2>
         <p>{t('settings.allowedBody', { max: MAX_ALLOWED })}</p>
-        <p className="help">{t('settings.ownerLocked', { email: ownerEmail })}</p>
+        <p className="help">
+          <WithValue template={t('settings.ownerLocked')} name="email">
+            <span className="isolate" dir="ltr">
+              {ownerEmail}
+            </span>
+          </WithValue>
+        </p>
 
         {notice ? <Alert tone="notice">{notice}</Alert> : null}
         {saveError ? (
@@ -255,7 +261,13 @@ export function SettingsPage() {
 
         {issued ? (
           <div className="callout">
-            <h3>{t('invitations.codeHeading', { email: issued.email })}</h3>
+            <h3>
+              <WithValue template={t('invitations.codeHeading')} name="email">
+                <span className="isolate" dir="ltr">
+                  {issued.email}
+                </span>
+              </WithValue>
+            </h3>
             <p className="warning">{t('invitations.codeOnce')}</p>
             <p className="code isolate" dir="ltr">
               {issued.inviteCode}
@@ -335,7 +347,13 @@ export function SettingsPage() {
             </>
           }
         >
-          <p>{t('members.deactivateConfirm', { email: confirmDeactivate.email })}</p>
+          <p>
+            <WithValue template={t('members.deactivateConfirm')} name="email">
+              <span className="isolate" dir="ltr">
+                {confirmDeactivate.email}
+              </span>
+            </WithValue>
+          </p>
         </Dialog>
       ) : null}
     </div>

@@ -70,27 +70,19 @@ export type Translator = {
 
 const TranslationContext = createContext<Translator | null>(null);
 
-export function TranslationProvider({
-  children,
-  initialLocale,
-  onLocaleChange
-}: {
-  children: ReactNode;
-  initialLocale: Locale;
-  /** Stage 6 uses this to persist a signed-in member's preference. */
-  onLocaleChange?: (locale: Locale) => void;
-}) {
+export function TranslationProvider({ children, initialLocale }: { children: ReactNode; initialLocale: Locale }) {
   const [locale, setLocaleState] = useState<Locale>(initialLocale);
 
-  const setLocale = useCallback(
-    (next: Locale) => {
-      setLocaleState(next);
-      applyDocumentLocale(next);
-      writeLocaleCookie(next);
-      onLocaleChange?.(next);
-    },
-    [onLocaleChange]
-  );
+  /**
+   * Switches text and direction immediately and records the choice in the guest cookie, so
+   * signing out keeps the selected language. Persisting a signed-in member's preference is
+   * the caller's job, because only it knows whether the server accepted the change.
+   */
+  const setLocale = useCallback((next: Locale) => {
+    setLocaleState(next);
+    applyDocumentLocale(next);
+    writeLocaleCookie(next);
+  }, []);
 
   const value = useMemo<Translator>(() => {
     const translate = createTranslate(locale);

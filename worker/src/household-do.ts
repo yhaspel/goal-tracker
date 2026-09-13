@@ -9,6 +9,7 @@ import { handleBoardRoute } from './routes/board';
 import type { RouteContext } from './routes/context';
 import { handleInvitationRoute } from './routes/invitations';
 import { handleMemberRoute } from './routes/members';
+import { handlePreferencesRoute } from './routes/preferences';
 import { handleRecoveryRoute } from './routes/recovery';
 import type { Env } from './index';
 
@@ -142,6 +143,7 @@ export class HouseholdImplementation extends DurableObject<Env> {
         handleInvitationRoute(ctx, request, path) ??
         handleMemberRoute(ctx, request, path) ??
         handleRecoveryRoute(ctx, request, path) ??
+        handlePreferencesRoute(ctx, request, path) ??
         handleBoardRoute(ctx, request, path);
       if (handled) return await handled;
 

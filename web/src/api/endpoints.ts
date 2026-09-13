@@ -11,6 +11,7 @@ import type {
   Locale,
   MemberListResponse,
   MemberResponse,
+  PreferencesResponse,
   PreparedRegistrationResponse,
   RevokedInvitationResponse,
   SignedOutResponse
@@ -42,6 +43,9 @@ export const readSession = (options?: RequestOptions) =>
   api.get<AuthenticatedResponse>('/api/v1/auth/session', options);
 
 export const signOut = () => api.post<SignedOutResponse>('/api/v1/auth/logout');
+
+export const updateLanguage = (language: Locale) =>
+  api.patch<PreferencesResponse>('/api/v1/me/preferences', { language });
 
 export const readAllowedEmails = (options?: RequestOptions) =>
   api.get<AllowedEmailsResponse>('/api/v1/settings/allowed-emails', options);

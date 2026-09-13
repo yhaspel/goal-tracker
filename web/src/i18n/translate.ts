@@ -1,14 +1,18 @@
 import type { Locale } from '../../../shared/api';
-import { type Dictionary, en, type TranslationKey } from './en';
+import { en, type LocaleDictionary, type TranslationKey } from './en';
+import { he } from './he';
+import { ru } from './ru';
 
 /**
  * The translation logic, with no React and no browser APIs, so it can be tested directly.
  * `index.tsx` wraps it in a provider.
  *
- * Stage 5 ships only the English source dictionary. Stage 6 adds `he` and `ru` here plus the
- * release check that every key and interpolation parameter matches.
+ * `npm run check:i18n` verifies that every locale covers the whole English key set, uses the
+ * same interpolation parameters, and supplies exactly the plural categories its own language
+ * requires. English is a development fallback only; the check is what keeps it from being one
+ * in a release.
  */
-export const DICTIONARIES: Partial<Record<Locale, Dictionary>> = { en };
+export const DICTIONARIES: Record<Locale, LocaleDictionary> = { en, he, ru };
 
 export type PluralCategory = 'zero' | 'one' | 'two' | 'few' | 'many' | 'other';
 

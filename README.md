@@ -74,6 +74,7 @@ ignored by Git) so a later run can sign in again once bootstrap has been consume
 | `npm run lint` | Lint Worker, web, shared, test, and script code |
 | `npm run typecheck` | Type-check TypeScript |
 | `npm run check:links` | Verify every relative Markdown link in the repository resolves |
+| `npm run check:i18n` | Verify the English, Hebrew, and Russian dictionaries are complete and consistent |
 | `npm test` | Build the web shell and run tests in the Cloudflare Workers runtime |
 
 Run `npm run lint`, `npm run typecheck`, and `npm test` before submitting application changes, and `npm run check:links` when you move or rename a document. Dependencies are locked in `package-lock.json`; use `npm ci` for a clean install. `web/dist/` and local Wrangler state are generated and ignored by Git.
@@ -83,6 +84,8 @@ Run `npm run lint`, `npm run typecheck`, and `npm test` before submitting applic
 The app is a Vite/React frontend (`web/`) served as Static Assets by one Cloudflare Worker (`worker/`). The Worker handles `/api` routes before assets and serves `index.html` only for an explicit list of client-side paths, which `tests/web.ui.test.ts` compares against the router's own list. A single SQLite-backed Durable Object owns household data and migrations; shared API types live in `shared/`, and Workers-runtime tests live in `tests/`. [`wrangler.jsonc`](wrangler.jsonc) defines separate `test`, `production`, and `restore` Workers and Durable Object namespaces. The restore Worker has no public route.
 
 Card dragging uses the pinned [`@dnd-kit/react`](https://dndkit.com/react/guides/sensors/) 0.5.0 for pointer, touch, and keyboard input. Every card also carries explicit **Move up**, **Move down**, and **Move to column** controls, so nothing on the board needs a drag.
+
+The interface is available in English, Hebrew, and Russian. Hebrew renders right to left, while email addresses, invitation codes, reset codes, and recovery words stay left to right inside their own isolated spans. A guest's choice lives in a non-sensitive `kanban_locale` cookie; a signed-in member's choice is stored on their account and takes precedence at the next sign-in. `npm run check:i18n` fails the build if any locale is missing a key, drops an interpolation placeholder, or lacks a plural form its language requires.
 
 The deployed [test Worker](https://family-board-test.yuval3000.workers.dev) is used for stage work and holds only disposable accounts. The [production shell](https://family-board-production.yuval3000.workers.dev) has no accounts or real user data and stays on the Stage 1 placeholder until the Stage 7 release gate. Test-only diagnostic endpoints require a disposable secret and are currently disabled in the deployed test Worker.
 

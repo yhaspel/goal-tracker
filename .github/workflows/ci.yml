@@ -28,6 +28,8 @@ jobs:
         run: npm run typecheck
       - name: Check Markdown links
         run: npm run check:links
+      - name: Check interface dictionaries
+        run: npm run check:i18n
       - name: Build and test in Workers runtime
         run: npm test
       - name: Audit dependencies
