@@ -50,6 +50,33 @@ def data(response, status=200):
     return json.loads(response['body'])['data']
 
 
+def expected_schema_version():
+    """The schema version this checkout would apply, read from the migration module."""
+    source = (ROOT / 'worker' / 'src' / 'db' / 'migrations.ts').read_text()
+    match = re.search(r'export const SCHEMA_VERSION\s*=\s*(\d+)', source)
+    assert match, 'SCHEMA_VERSION not found in worker/src/db/migrations.ts'
+    return int(match.group(1))
+
+
+def await_schema_version(base, expected, timeout_s=60):
+    """Wait for the deployed Worker to report this checkout's schema version.
+
+    A fresh `wrangler deploy` needs a few seconds to propagate, so an immediate health read
+    can still come from the previous version. Polling turns that race into a real check that
+    the code under test is the code that is live.
+    """
+    deadline = time.monotonic() + timeout_s
+    seen = None
+    while True:
+        health = request(base, '/api/v1/health')
+        seen = data(health)
+        if seen.get('schemaVersion') == expected:
+            return health
+        if time.monotonic() >= deadline:
+            raise RuntimeError(f'deployed schemaVersion {seen.get("schemaVersion")!r} never reached {expected}')
+        time.sleep(2)
+
+
 def percentile(values, p):
     ordered = sorted(values)
     rank = (len(ordered) - 1) * p
@@ -59,6 +86,8 @@ def percentile(values, p):
 
 
 def routing(base):
+    expected_version = expected_schema_version()
+    health = await_schema_version(base, expected_version)
     for path in ['/', '/login', '/board']:
         for navigate in [False, True]:
             response = request(base, path, navigate=navigate)
@@ -74,12 +103,11 @@ def routing(base):
             assert response['status'] == 404 and 'text/html' not in response['content_type'], path
             if path.startswith('/api'):
                 assert json.loads(response['body']) == {'error': {'code': 'not_found', 'message': 'Not found'}}
-    health = request(base, '/api/v1/health')
-    assert data(health) == {'status': 'ok', 'schemaVersion': 1}
+    assert data(health) == {'status': 'ok', 'schemaVersion': expected_version}
     assert health['headers'].get('Cache-Control') == 'no-store'
     wrong = request(base, '/api/v1/health', method='POST')
     assert wrong['status'] == 405 and wrong['headers'].get('Allow') == 'GET'
-    return {'passed': True, 'asset': match.group(1)}
+    return {'passed': True, 'asset': match.group(1), 'schema_version': expected_version}
 
 
 def probe_write(base, secret):
