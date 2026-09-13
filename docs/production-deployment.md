@@ -95,6 +95,28 @@ prescribes), except the last two rows:
 | Browser: `localStorage`, `sessionStorage`, `document.cookie` | **Not verified**, for the same reason — the browser automation tool's own safety redaction also declines cookie/session-storage reads on a page it recognizes as holding a live session, and this session did not attempt to bypass that |
 | Cloudflare dashboard | Production and test remain distinct Durable Object namespaces with distinct secret stores; production still has no Workers Builds connection — matches |
 
+### Re-verified after the documentation push, 2026-09-13
+
+Commit `94a123e`, CI run
+[34756958780](https://github.com/yhaspel/goal-tracker/actions/runs/34756958780) —
+`checks: success`, `deploy-test: success`. That push changed documentation only; no application
+code moved, and nothing was deployed to production.
+
+The whole checklist above was re-run afterwards with plain unauthenticated `curl`. **Every row
+still matches**, with two rows now reading differently for known reasons:
+
+- `GET /api/v1/auth/bootstrap/status` returns `{"bootstrapAvailable":false}`, which is correct
+  and expected — an owner exists.
+- `POST /api/v1/auth/bootstrap/prepare` now answers `403` for **any** value, not only a wrong
+  one, because `BOOTSTRAP_SECRET` has been deleted. Repeats reached `429` with a decreasing
+  `Retry-After` (231s, 231s, 230s), so the per-address limit is working.
+
+The 401 bodies were read in full and disclose nothing:
+`{"error":{"code":"unauthenticated","message":"Sign in to continue."}}` from all three
+protected routes, with no address named. The two rows left unverified above — the guest
+redirect from `/board` and browser storage contents — remain unverified here, for the same
+reason: checking them needs a browser holding no production session.
+
 ### Confirmed: a production owner account exists
 
 Two independent observations this session, both unexpected: `GET /api/v1/auth/bootstrap/status`
