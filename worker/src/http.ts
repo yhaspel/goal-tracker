@@ -5,6 +5,13 @@ import { QueueFullError } from './auth/kdf-queue';
 export const MAX_AUTH_BODY = 16 * 1024;
 
 /**
+ * Stage 7's operator restore import, and nothing else. A 500-card board whose descriptions are
+ * all 4,000 four-byte code points is roughly 8.4 MB of card text before JSON overhead, so this
+ * bounds a maximum-size household with room to spare.
+ */
+export const MAX_BACKUP_BODY = 16 * 1024 * 1024;
+
+/**
  * Every failure path throws one of these, so a route never half-applies a change and a
  * transaction callback can abort by throwing. `message` must always be safe to display.
  */
@@ -75,14 +82,11 @@ export function assertSameOrigin(request: Request): void {
 }
 
 /**
- * Reads a bounded JSON object body. The front Worker already applies the same cap; the
- * Durable Object repeats it so a direct stub call cannot bypass it.
+ * Reads a bounded UTF-8 body. The declared length is checked first so an oversized request is
+ * refused before a byte is read, and the running total is checked again while streaming so a
+ * chunked body with no declared length meets the same cap.
  */
-export async function readJsonObject(request: Request, limit = MAX_AUTH_BODY): Promise<Record<string, unknown>> {
-  const contentType = request.headers.get('Content-Type') ?? '';
-  if (!/^application\/json\s*(;|$)/i.test(contentType)) {
-    throw new HttpError(415, 'unsupported_media_type', 'Send application/json.');
-  }
+export async function readTextBody(request: Request, limit: number): Promise<string> {
   if (Number(request.headers.get('Content-Length') ?? 0) > limit) {
     throw new HttpError(413, 'payload_too_large', 'Payload too large');
   }
@@ -102,7 +106,19 @@ export async function readJsonObject(request: Request, limit = MAX_AUTH_BODY): P
     }
     text += decoder.decode(value, { stream: true });
   }
-  text += decoder.decode();
+  return text + decoder.decode();
+}
+
+/**
+ * Reads a bounded JSON object body. The front Worker already applies the same cap; the
+ * Durable Object repeats it so a direct stub call cannot bypass it.
+ */
+export async function readJsonObject(request: Request, limit = MAX_AUTH_BODY): Promise<Record<string, unknown>> {
+  const contentType = request.headers.get('Content-Type') ?? '';
+  if (!/^application\/json\s*(;|$)/i.test(contentType)) {
+    throw new HttpError(415, 'unsupported_media_type', 'Send application/json.');
+  }
+  const text = await readTextBody(request, limit);
 
   let parsed: unknown;
   try {

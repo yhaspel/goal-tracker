@@ -21,7 +21,18 @@ npx wrangler deploy --env production --dry-run --outdir /tmp/family-board-produc
 npx wrangler deploy --env restore --dry-run --outdir /tmp/family-board-restore-dry-run
 ```
 
-Inspect each dry run's bindings and `index.js`. Test must bind `TestHouseholdDO`; production must bind `HouseholdDO`; restore must bind `RestoreHouseholdDO`. The production and restore `index.js` must have no `diagnostics/probe`, `diagnostics/scrypt`, or `X-Diagnostic-Secret` strings. The `diagnostic_probe` table name remains in all three because schema version 1 is identical. `npm run deploy:restore` creates its separate namespace without a public target: `workers_dev` is false and it has no route until Stage 7.
+Inspect each dry run's bindings and `index.js`. Test must bind `TestHouseholdDO`; production must bind `HouseholdDO`; restore must bind `RestoreHouseholdDO`. The production and restore `index.js` must have no `diagnostics/probe`, `diagnostics/scrypt`, or `X-Diagnostic-Secret` strings. The `diagnostic_probe` table name remains in all three because schema version 1 is identical. `npm run deploy:restore` creates its separate namespace without a public target: `workers_dev` is false and it has no route.
+
+Since Stage 7, the same dry runs also prove where the backup import can and cannot exist. CI runs these two checks on every push; run them by hand when you deploy by hand:
+
+```sh
+grep -F 'operator/import'       /tmp/family-board-production-dry-run/index.js && echo 'FAIL: import route in production'
+grep -F 'restore_import_marker' /tmp/family-board-production-dry-run/index.js && echo 'FAIL: marker table in production'
+grep -qF 'operator/export'      /tmp/family-board-production-dry-run/index.js && echo 'ok: export present in production'
+grep -qF 'operator/import'      /tmp/family-board-restore-dry-run/index.js    && echo 'ok: import present in restore'
+```
+
+Read `index.js`, the script that is actually uploaded, not the whole directory: the `index.js.map` beside it embeds the original TypeScript sources and therefore names every route in the repository regardless of what the build stripped. It is not uploaded. The first two commands must print nothing. `__ENABLE_RESTORE_IMPORT__` is a build-time `define`, true only for the `restore` environment, so the import route's path, handler and SQL are absent from the production and test bundles rather than merely unreachable. The Durable Object additionally refuses an import when `DEPLOYMENT_ENV` is `production`, so the guarantee does not rest on the build alone.
 
 Create only the disposable **test** diagnostic secret. Never print it, pass it on a command line, commit it, or put it in `.dev.vars` for production. The local file is ignored by Git and has mode 0600.
 
@@ -48,6 +59,16 @@ For 20 confirmed cold sessions, run `npm run deploy:test` and then `python3 scri
 The benchmark generates a random test password in process memory, never prints it, and sends it only to the secret-guarded test diagnostic route. It returns p50/p95 request latency, DO operation time, queue wait, and the seven-request burst duration. Cloudflare does not expose precise per-operation peak memory to this route; use dashboard analytics for runtime CPU and memory failures.
 
 After gathering evidence, disable the test diagnostic route by removing its test secret with `npx wrangler secret delete TEST_DIAGNOSTIC_SECRET --env test`. The source remains reusable, but an unguarded request is always 404. Keep `.secrets.test` only while repeating the feasibility check; remove it from the local machine when done.
+
+The operator backup routes need their own configuration in each environment. `BACKUP_HOUSEHOLD_ID` is a tracked `var` for production and test; `BACKUP_OPERATOR_SECRET` is a Cloudflare secret, distinct per environment, and the restore environment also takes `BACKUP_HOUSEHOLD_ID` as a per-drill secret. Provision them the same way as every other secret, through stdin:
+
+```sh
+umask 077
+openssl rand -hex 32 > .secrets.backup-operator.production
+npx wrangler secret put BACKUP_OPERATOR_SECRET --env production < .secrets.backup-operator.production
+```
+
+Until that secret exists, `GET /api/v1/operator/export` answers `404` — the same answer a wrong secret gets, so a visitor learns nothing. [The operator runbook](operator-runbook.md) covers escrow, the weekly backup, and the restore drill.
 
 Production now runs the application rather than the Stage 1 shell; [the production deployment record](production-deployment.md) describes what is deployed there, which secrets exist, and which guarantees are still missing. The paragraph below is the original Stage 1 procedure and still describes how a production deploy is performed.
 

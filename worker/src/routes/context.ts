@@ -13,6 +13,8 @@ export type RouteContext = {
   kdf: KdfQueue;
   now: Date;
   nowIso: string;
+  /** The applied migration version. The backup envelope records it and import compares it. */
+  schemaVersion: number;
 };
 
 export type Secrets = { csrf: string; recoveryDigest: string; rateLimit: string };

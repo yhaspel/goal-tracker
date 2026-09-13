@@ -9,6 +9,7 @@ import { handleBoardRoute } from './routes/board';
 import type { RouteContext } from './routes/context';
 import { handleInvitationRoute } from './routes/invitations';
 import { handleMemberRoute } from './routes/members';
+import { handleOperatorRoute } from './routes/operator';
 import { handlePreferencesRoute } from './routes/preferences';
 import { handleRecoveryRoute } from './routes/recovery';
 import type { Env } from './index';
@@ -113,7 +114,8 @@ export class HouseholdImplementation extends DurableObject<Env> {
       env: this.env,
       kdf: this.kdf,
       now,
-      nowIso: now.toISOString()
+      nowIso: now.toISOString(),
+      schemaVersion: this.schemaVersion
     };
   }
 
@@ -144,7 +146,8 @@ export class HouseholdImplementation extends DurableObject<Env> {
         handleMemberRoute(ctx, request, path) ??
         handleRecoveryRoute(ctx, request, path) ??
         handlePreferencesRoute(ctx, request, path) ??
-        handleBoardRoute(ctx, request, path);
+        handleBoardRoute(ctx, request, path) ??
+        handleOperatorRoute(ctx, request, path);
       if (handled) return await handled;
 
       return jsonError('not_found', 'Not found', 404);

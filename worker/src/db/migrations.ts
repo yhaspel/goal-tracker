@@ -1,6 +1,23 @@
 export const SCHEMA_VERSION = 4;
 
 /**
+ * The three columns migration 4 seeds into a fresh object, in position order.
+ *
+ * A pristine restore target is allowed to hold exactly these and nothing else, so the restore
+ * import has to know them. They are declared here, next to the statements that insert them,
+ * and `tests/backup.test.ts` asserts that a freshly migrated object matches this list — a
+ * silent drift between the two would let a non-pristine object pass the import check.
+ */
+export const SEED_COLUMNS: ReadonlyArray<{ id: string; nameKey: string; position: number }> = [
+  { id: '6254d1c5-4638-4516-b645-dcbd1d0ad144', nameKey: 'todo', position: 0 },
+  { id: '5edbb2b8-8385-4391-8481-8424fed06378', nameKey: 'in_progress', position: 1 },
+  { id: 'd972b74f-e630-4f81-a1c3-44f908dae82d', nameKey: 'done', position: 2 }
+];
+
+/** A fresh object's board revision, before anything has changed the board. */
+export const SEED_BOARD_REVISION = 1;
+
+/**
  * UTC ISO-8601 with milliseconds, identical in shape to `new Date().toISOString()`.
  * Used where a migration needs a timestamp without bound parameters.
  */

@@ -6,7 +6,11 @@ import { defineConfig } from 'vitest/config';
 const secret = () => Buffer.from(randomBytes(32)).toString('hex');
 
 export default defineConfig({
-  define: { __ENABLE_DIAGNOSTICS__: 'true' },
+  // These win over the per-environment `define` in `wrangler.jsonc`, which is what lets the
+  // suite exercise the restore-only import route while the deployed test Worker still has it
+  // compiled out. The Durable Object's own `DEPLOYMENT_ENV !== 'production'` check is the
+  // guarantee that survives this override.
+  define: { __ENABLE_DIAGNOSTICS__: 'true', __ENABLE_RESTORE_IMPORT__: 'true' },
   plugins: [cloudflareTest({
     wrangler: { configPath: './wrangler.jsonc', environment: 'test' },
     miniflare: {
@@ -15,7 +19,8 @@ export default defineConfig({
         BOOTSTRAP_SECRET: secret(),
         RECOVERY_DIGEST_KEY: secret(),
         CSRF_SECRET: secret(),
-        RATE_LIMIT_KEY: secret()
+        RATE_LIMIT_KEY: secret(),
+        BACKUP_OPERATOR_SECRET: secret()
       }
     }
   })],

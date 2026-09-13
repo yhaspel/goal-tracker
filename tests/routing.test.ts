@@ -50,6 +50,53 @@ describe('front Worker routing', () => {
     expect(await response.json()).toEqual({ error: { code: 'payload_too_large', message: 'Payload too large' } });
   });
 
+  it('sends the document security headers with the SPA shell, and never stores it', async () => {
+    // The same index.html serves /register and /recover, so no cache may hold it.
+    for (const path of ['/', '/login', '/register', '/recover', '/bootstrap', '/board']) {
+      const response = await fetchRoute(path, { headers: { 'Sec-Fetch-Mode': 'navigate' } });
+      expect(response.status).toBe(200);
+      expect(response.headers.get('cache-control')).toBe('no-store');
+      expect(response.headers.get('x-content-type-options')).toBe('nosniff');
+      expect(response.headers.get('referrer-policy')).toBe('no-referrer');
+      expect(response.headers.get('x-frame-options')).toBe('DENY');
+      expect(response.headers.get('strict-transport-security')).toBe('max-age=31536000');
+      expect(response.headers.get('cross-origin-opener-policy')).toBe('same-origin');
+      const csp = response.headers.get('content-security-policy') ?? '';
+      expect(csp).toContain("default-src 'none'");
+      expect(csp).toContain("script-src 'self'");
+      expect(csp).toContain("frame-ancestors 'none'");
+      expect(csp).toContain("base-uri 'none'");
+      expect(csp).toContain("object-src 'none'");
+      // The one allowance, and the only one: inline style attributes. Never scripts, never eval.
+      expect(csp).toContain("style-src 'self' 'unsafe-inline'");
+      expect(csp).not.toContain('unsafe-eval');
+      expect(csp).not.toMatch(/script-src[^;]*unsafe-inline/);
+    }
+  });
+
+  it('sends them with real assets too, without forcing those out of cache', async () => {
+    const index = await (await fetchRoute('/')).text();
+    const asset = index.match(/src="(\/assets\/[^\"]+\.js)"/)?.[1];
+    expect(asset).toBeTruthy();
+    const response = await fetchRoute(asset!);
+    expect(response.status).toBe(200);
+    expect(response.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(response.headers.get('content-security-policy')).toContain("default-src 'none'");
+    expect(response.headers.get('cache-control')).not.toBe('no-store');
+  });
+
+  it('keeps API responses unsniffable and unstored', async () => {
+    for (const path of ['/api/v1/health', '/api/v1/unknown', '/api/v1/board']) {
+      const response = await fetchRoute(path);
+      expect(response.headers.get('x-content-type-options')).toBe('nosniff');
+      expect(response.headers.get('referrer-policy')).toBe('no-referrer');
+      expect(response.headers.get('strict-transport-security')).toBe('max-age=31536000');
+      expect(response.headers.get('cache-control')).toBe('no-store');
+      expect(response.headers.get('content-type') ?? '').toContain('application/json');
+      await response.json();
+    }
+  });
+
   it('rejects unsupported content types on API routes before the DO runs', async () => {
     const response = await fetchRoute('/api/v1/auth/login', { method: 'POST', body: 'email=x' });
     expect(response.status).toBe(415);

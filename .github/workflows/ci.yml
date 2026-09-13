@@ -37,6 +37,40 @@ jobs:
       - name: Check production Worker bundle
         run: npx wrangler deploy --env production --dry-run --outdir /tmp/family-board-production-dry-run
 
+      # Stage 7 keeps the restore import out of production by build, not only by a runtime
+      # check. If this step ever fails, a production deployment could be made to accept a
+      # backup import, which is the one thing the restore environment exists to prevent.
+      #
+      # The check reads `index.js`, the script that is actually uploaded. The `index.js.map`
+      # beside it embeds the original TypeScript sources, so it names every route in the
+      # repository whatever the build stripped; it is not uploaded, and grepping it would
+      # only ever report the source tree back.
+      - name: Prove the restore import is absent from the production bundle
+        run: |
+          set -eu
+          bundle=/tmp/family-board-production-dry-run/index.js
+          test -f "$bundle"
+          if grep -qF 'operator/import' "$bundle"; then
+            echo '::error::The production bundle contains the restore import route.'
+            exit 1
+          fi
+          if grep -qF 'restore_import_marker' "$bundle"; then
+            echo '::error::The production bundle contains the restore import marker table.'
+            exit 1
+          fi
+          grep -qF 'operator/export' "$bundle"
+
+      - name: Check restore Worker bundle
+        run: npx wrangler deploy --env restore --dry-run --outdir /tmp/family-board-restore-dry-run
+
+      - name: Prove the restore bundle does carry the import route
+        run: |
+          set -eu
+          bundle=/tmp/family-board-restore-dry-run/index.js
+          test -f "$bundle"
+          grep -qF 'operator/import' "$bundle"
+          grep -qF 'restore_import_marker' "$bundle"
+
   deploy-test:
     needs: checks
     if: ${{ vars.CLOUDFLARE_TEST_DEPLOY_ENABLED == 'true' && github.ref_name == github.event.repository.default_branch && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}

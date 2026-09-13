@@ -2,7 +2,7 @@
 
 A private, shared Kanban board for one household or small working group, planned for up to seven active users including the owner. The owner will manage an allowed-email list; joining will also require an invitation. The intended release has recovery phrases and an English, Hebrew, and Russian interface. The master plan (`development-plans/personal-business-goals-dashboard-master-plan.md`) defines the product scope and architecture.
 
-**Current status:** the first release is feature-complete apart from Stage 7's backup, hardening, and release work. The app has the shared board, cards and columns, invitations and accounts, recovery phrases with a manual operator rescue, and an English, Hebrew, and Russian interface. Stages 1 through 6 are closed; Stage 6 closed on 2026-09-13 by owner decision rather than a passed exit gate — its manual screen-reader review was never performed — see [the Stage 6 completion report](docs/stage-6-completion.md). The application is deployed to both the isolated test Worker and production. **Production runs the current code and now has a real owner account**, created directly by the owner on 2026-09-13, and it has no backup or restore path — that is Stage 7's remaining work. Read [the production deployment record](docs/production-deployment.md) for the current state there. The development-plan index (`development-plans/README.md`) tracks the stages, and `docs/` holds the per-stage evidence.
+**Current status:** the first release is feature-complete, and Stage 7's backup, hardening, and release work is implemented but not yet closed — its remaining steps all need the deployed Free runtime, and they are listed in [the operator runbook](docs/operator-runbook.md#stage-7-release-checklist). The app has the shared board, cards and columns, invitations and accounts, recovery phrases with a manual operator rescue, and an English, Hebrew, and Russian interface. Stages 1 through 6 are closed; Stage 6 closed on 2026-09-13 by owner decision rather than a passed exit gate — its manual screen-reader review was never performed — see [the Stage 6 completion report](docs/stage-6-completion.md). The application is deployed to both the isolated test Worker and production. **Production runs the current code and now has a real owner account**, created directly by the owner on 2026-09-13. The encrypted backup path now exists in the code, but **no production backup has been taken yet**, so production still holds the only copy of its data. Read [the production deployment record](docs/production-deployment.md) for the current state there. The development-plan index (`development-plans/README.md`) tracks the stages, and `docs/` holds the per-stage evidence.
 
 ## Local setup
 
@@ -22,8 +22,8 @@ cd goal-tracker
 npm ci
 ```
 
-The account API needs four local secrets. Create a throwaway `.dev.vars` file, which Git
-ignores and Wrangler loads automatically for `npm run dev`:
+The account API needs four local secrets, and the operator backup routes need two more. Create a
+throwaway `.dev.vars` file, which Git ignores and Wrangler loads automatically for `npm run dev`:
 
 ```sh
 umask 077
@@ -32,13 +32,19 @@ umask 077
   echo "RECOVERY_DIGEST_KEY=$(openssl rand -hex 32)"
   echo "CSRF_SECRET=$(openssl rand -hex 32)"
   echo "RATE_LIMIT_KEY=$(openssl rand -hex 32)"
+  echo "BACKUP_OPERATOR_SECRET=$(openssl rand -hex 32)"
+  echo "BACKUP_HOUSEHOLD_ID=goal-tracker-local"
 } > .dev.vars
 ```
 
 `BOOTSTRAP_SECRET` opens one-time owner creation. `RECOVERY_DIGEST_KEY` keys recovery-phrase
 digests, `CSRF_SECRET` signs the session-bound CSRF value, and `RATE_LIMIT_KEY` pseudonymises
 rate-limit buckets. Without them the account routes answer `503 unavailable` rather than
-falling back to a weaker derivation. Use values like these only locally; deployed
+falling back to a weaker derivation. `BACKUP_OPERATOR_SECRET` authorises
+`GET /api/v1/operator/export` and, in the `restore` environment only,
+`POST /api/v1/operator/import`; `BACKUP_HOUSEHOLD_ID` names the household a backup belongs to, so
+a restore target can refuse a copy from somewhere else. Both are only needed to rehearse
+[`scripts/backup.ts`](scripts/backup.ts) locally; without them the operator routes answer `404`. Use values like these only locally; deployed
 environments get their own separate Cloudflare secrets. `npm test` generates its own
 disposable values and needs no `.dev.vars`.
 
@@ -99,7 +105,11 @@ The interface is available in English, Hebrew, and Russian. Hebrew renders right
 
 The deployed [test Worker](https://family-board-test.yuval3000.workers.dev) is used for stage work and holds only disposable accounts. [Production](https://family-board-production.yuval3000.workers.dev) runs the same code, deployed manually on 2026-09-13, with its own Durable Object namespace and its own secrets; the owner bootstrapped a real owner account there the same day, so owner setup is now closed and production holds real data. Test-only diagnostic endpoints require a disposable secret, are disabled in the deployed test Worker, and are compiled out of the production bundle entirely. See [the production deployment record](docs/production-deployment.md) for what is and is not in place there.
 
-Each deployed environment keeps its own secrets. `BOOTSTRAP_SECRET` opens one-time owner creation, and `RECOVERY_DIGEST_KEY`, `CSRF_SECRET`, and `RATE_LIMIT_KEY` are required for the account routes to work at all — without them those routes answer `503 unavailable` rather than weakening a derivation. Do not put secrets, passwords, recovery phrases, invitation codes, or session tokens in source, logs, URLs, or snapshots.
+Each deployed environment keeps its own secrets. `BOOTSTRAP_SECRET` opens one-time owner creation, and `RECOVERY_DIGEST_KEY`, `CSRF_SECRET`, and `RATE_LIMIT_KEY` are required for the account routes to work at all — without them those routes answer `503 unavailable` rather than weakening a derivation. `BACKUP_OPERATOR_SECRET` authorises the operator backup routes and is different in every environment. Do not put secrets, passwords, recovery phrases, invitation codes, or session tokens in source, logs, URLs, or snapshots.
+
+The backup import route exists **only in the `restore` build**. `__ENABLE_RESTORE_IMPORT__` is a build-time `define` that is true for `restore` and false everywhere else, so the route's path, handler and SQL are absent from the production and test bundles rather than merely unreachable — CI fails if those strings ever appear in the production dry run. Export is available in every environment because a drill needs a source, and it is gated by the bearer secret alone: it never accepts a session cookie, and an unauthorised call gets the same `404` an unknown path gets.
+
+Every response carries `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer` and HSTS; the SPA shell and static assets also carry a `Content-Security-Policy` of `default-src 'none'` with `'self'` for script, style, font, image and connect, `frame-ancestors 'none'` and `object-src 'none'`. `style-src` additionally allows `'unsafe-inline'`, which React and the board's drag projection require because they set `style=` attributes; there is no inline script and no `eval` anywhere in the bundle. The SPA shell is served `no-store` on every route, since the same `index.html` serves registration and recovery; hashed assets and fonts keep their own caching.
 
 ## Host your own copy on Cloudflare
 
@@ -179,6 +189,27 @@ For repeatable manual deployment, diagnostic-secret handling, and cleanup, use [
 See [CI configuration and credential maintenance](docs/ci.md) for the GitHub/Cloudflare setup and [the manual deployment runbook](docs/deployment.md) for reproducible deployment, verification, and diagnostic-secret cleanup. Cloudflare credentials are needed for manual remote deployments, not for local setup.
 
 ## Operator procedures
+
+[**The operator runbook**](docs/operator-runbook.md) is the single page for keeping this deployment
+recoverable: secret and key escrow, the weekly encrypted backup and its retention, the monthly
+isolated restore drill, Cloudflare point-in-time recovery, the Free-plan quota review, incident
+response, and production replacement. It also carries the Stage 7 release checklist, which records
+exactly which deployed steps are still outstanding.
+
+The backup tool is [`scripts/backup.ts`](scripts/backup.ts). The operator secret arrives on stdin
+so it never reaches a command line; the AES-256-GCM key is named by path and must be a 0600 file
+outside the backup directory:
+
+```sh
+node scripts/backup.ts create  <base-url> --out-dir <dir> --key-file <file> < operator-secret-file
+node scripts/backup.ts verify  --out-dir <dir> --key-file <file>
+node scripts/backup.ts list    --out-dir <dir>
+node scripts/backup.ts restore <base-url> --out-dir <dir> --key-file <file> --file <name>
+```
+
+`create` downloads the export, verifies its digest, encrypts it, writes it through a 0600
+temporary file and an atomic rename, decrypts the stored file to verify it, and only then prunes to
+four weekly and three monthly copies. `restore` refuses any host whose name contains `production`.
 
 If someone loses both their password and their recovery phrase, there is no email reset and no
 self-service path. The owner verifies them offline and an operator with Cloudflare access

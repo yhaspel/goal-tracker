@@ -19,7 +19,12 @@ export const RATE_RULES = {
   // on both axes; confirmation is cheap and only bounded per address.
   recoveryStartPerIp: { limit: 10, windowMs: FIFTEEN_MINUTES },
   recoveryStartPerAccount: { limit: 5, windowMs: FIFTEEN_MINUTES },
-  recoveryConfirmPerIp: { limit: 30, windowMs: FIFTEEN_MINUTES }
+  recoveryConfirmPerIp: { limit: 30, windowMs: FIFTEEN_MINUTES },
+  // Stage 7 operator backup routes. A weekly backup and a monthly drill need single digits;
+  // the limit exists so an unauthenticated prober cannot grind the bearer secret or make the
+  // Durable Object serialise large exports.
+  operatorExportPerIp: { limit: 12, windowMs: FIFTEEN_MINUTES },
+  operatorImportPerIp: { limit: 6, windowMs: FIFTEEN_MINUTES }
 } as const satisfies Record<string, RateRule>;
 
 export type RateDecision = { allowed: boolean; retryAfterSeconds: number };

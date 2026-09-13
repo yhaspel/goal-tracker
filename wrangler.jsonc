@@ -15,26 +15,32 @@
       "name": "family-board-production",
       "workers_dev": true,
       "minify": true,
-      "define": { "__ENABLE_DIAGNOSTICS__": "false" },
+      // `__ENABLE_RESTORE_IMPORT__` is false everywhere but `restore`, so the import route's
+      // path, handler, and SQL are absent from this bundle rather than merely unreachable.
+      "define": { "__ENABLE_DIAGNOSTICS__": "false", "__ENABLE_RESTORE_IMPORT__": "false" },
       "durable_objects": { "bindings": [{ "name": "HOUSEHOLD", "class_name": "HouseholdDO" }] },
       "exports": { "HouseholdDO": { "type": "durable-object", "storage": "sqlite" } },
-      "vars": { "DEPLOYMENT_ENV": "production" }
+      "vars": { "DEPLOYMENT_ENV": "production", "BACKUP_HOUSEHOLD_ID": "goal-tracker-production" }
     },
     "test": {
       "name": "family-board-test",
       "workers_dev": true,
-      "define": { "__ENABLE_DIAGNOSTICS__": "true" },
+      "define": { "__ENABLE_DIAGNOSTICS__": "true", "__ENABLE_RESTORE_IMPORT__": "false" },
       "durable_objects": { "bindings": [{ "name": "HOUSEHOLD", "class_name": "TestHouseholdDO" }] },
       "exports": { "TestHouseholdDO": { "type": "durable-object", "storage": "sqlite" } },
-      "vars": { "DEPLOYMENT_ENV": "test" }
+      "vars": { "DEPLOYMENT_ENV": "test", "BACKUP_HOUSEHOLD_ID": "goal-tracker-test" }
     },
     "restore": {
       "name": "family-board-restore",
       "workers_dev": false,
       "minify": true,
-      "define": { "__ENABLE_DIAGNOSTICS__": "false" },
+      "define": { "__ENABLE_DIAGNOSTICS__": "false", "__ENABLE_RESTORE_IMPORT__": "true" },
       "durable_objects": { "bindings": [{ "name": "HOUSEHOLD", "class_name": "RestoreHouseholdDO" }] },
       "exports": { "RestoreHouseholdDO": { "type": "durable-object", "storage": "sqlite" } },
+      // `BACKUP_HOUSEHOLD_ID` is deliberately absent here. A drill restores whichever household
+      // it was provisioned for, so the operator sets it per drill with
+      // `wrangler secret put BACKUP_HOUSEHOLD_ID --env restore`, and both operator routes fail
+      // closed until they do. See docs/operator-runbook.md.
       "vars": { "DEPLOYMENT_ENV": "restore" }
     }
   }
