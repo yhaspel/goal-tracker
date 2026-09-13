@@ -425,8 +425,6 @@ function Tile({
           loading="lazy"
           width={image.thumbWidth}
           height={image.thumbHeight}
-          /* The tile reserves its space, so the grid does not reflow as images arrive. */
-          style={{ aspectRatio: `${image.thumbWidth} / ${image.thumbHeight}` }}
           onError={() => {
             // An `<img>` has no path to `forgetSession` of its own, and a gallery of broken
             // images is not an acceptable way to learn that a session ended. One retry, then the
@@ -444,7 +442,8 @@ function Tile({
       </button>
       <div className="tile-foot">
         {image.caption === null ? (
-          <span className="help">{t('vision.tileAt', { n: index + 1 })}</span>
+          // A noun where a caption would be. The button next to it is what names the action.
+          <span className="help">{t('vision.untitled', { n: index + 1 })}</span>
         ) : (
           <span className="tile-caption" dir="auto">
             {image.caption}
@@ -487,18 +486,33 @@ function Carousel({
     onStep(next);
   };
 
+  /**
+   * The arrow keys are bound on the document rather than on the carousel element, the way the
+   * phone header's Escape already is.
+   *
+   * `Dialog` moves focus to the first field or else the first focusable control, which here is
+   * the Close button in the dialog's *header* — a sibling of the body the carousel renders into.
+   * A handler on the carousel itself therefore never saw the key, and ← and → did nothing until
+   * the member had tabbed onto Previous or Next.
+   */
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+      const target = event.target;
+      // Never steal an arrow key from a field that is using it to move a caret.
+      if (target instanceof HTMLElement && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
+      event.preventDefault();
+      // Mirrored for a right-to-left page, the way the pager's arrow keys already are.
+      const forward = event.key === 'ArrowRight' ? 1 : -1;
+      step(dir === 'rtl' ? -forward : forward);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  });
+
   return (
     <Dialog title={t('vision.carousel')} onClose={onClose} size="wide">
-      <div
-        className="carousel"
-        onKeyDown={event => {
-          if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
-          event.preventDefault();
-          // Mirrored for a right-to-left page, the way the pager's arrow keys already are.
-          const forward = event.key === 'ArrowRight' ? 1 : -1;
-          step(dir === 'rtl' ? -forward : forward);
-        }}
-      >
+      <div className="carousel">
         <img
           className="carousel-image"
           key={image.id}

@@ -48,11 +48,15 @@ const AUTH_BODY_LIMIT = 16 * 1024;
 const BOARD_BODY_LIMIT = 64 * 1024;
 /**
  * `POST /api/v1/vision/images`, and the two operator image routes. A maximum upload is a
- * 1,400,000-byte image and a 120,000-byte thumbnail, which is 2,026,668 bytes once base64 has
- * added its 33%; this leaves room for the metadata and the JSON around it. Kept in step with
+ * 400,000-byte image and a 100,000-byte thumbnail, which is 666,668 bytes once base64 has added
+ * its 33%; this leaves room for the metadata and the JSON around it. Kept in step with
  * `MAX_VISION_BODY` in `routes/vision.ts`, which the Durable Object re-enforces.
+ *
+ * This number is a CPU budget, not a convenience. `forwardBounded` buffers the whole body here
+ * before forwarding, and the 2026-09-14 measurement on the deployed test Worker found that a
+ * body above roughly 700 KB pushes this Worker past the Free plan's 10 ms per-request CPU limit.
  */
-const VISION_BODY_LIMIT = 3 * 1024 * 1024;
+const VISION_BODY_LIMIT = 1024 * 1024;
 /** The restore import, and nothing else. Kept in step with `MAX_BACKUP_BODY` in `http.ts`. */
 const BACKUP_BODY_LIMIT = 16 * 1024 * 1024;
 

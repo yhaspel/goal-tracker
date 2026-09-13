@@ -559,7 +559,11 @@ function GoalPlate({
 
       <button type="button" className="add-card" onClick={onAddMilestone} disabled={pending}>
         <PlusIcon />
-        {t('milestone.addTo', { title: goal.title })}
+        {/* The goal's own title inside a translated sentence, so it keeps its own direction
+            rather than being reordered by the surrounding one. */}
+        <WithValue template={t('milestone.addTo')} name="title">
+          <span dir="auto">{goal.title}</span>
+        </WithValue>
       </button>
     </li>
   );

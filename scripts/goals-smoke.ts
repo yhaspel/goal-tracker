@@ -63,8 +63,13 @@ function randomText(byteLength: number): string {
 class Client {
   cookie: string | null = null;
   csrfToken: string | null = null;
+  readonly baseUrl: string;
 
-  constructor(private readonly baseUrl: string) {}
+  // Written without a parameter property: Node runs this file under type stripping, which erases
+  // annotations but cannot synthesise the assignment a `constructor(private baseUrl)` implies.
+  constructor(baseUrl: string) {
+    this.baseUrl = baseUrl;
+  }
 
   async call<T>(
     method: string,

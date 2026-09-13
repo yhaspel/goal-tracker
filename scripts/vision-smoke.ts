@@ -68,8 +68,13 @@ const sha256 = (bytes: Uint8Array) => createHash('sha256').update(Buffer.from(by
 class Client {
   cookie: string | null = null;
   csrfToken: string | null = null;
+  readonly baseUrl: string;
 
-  constructor(readonly baseUrl: string) {}
+  // Written without a parameter property: Node runs this file under type stripping, which erases
+  // annotations but cannot synthesise the assignment a `constructor(readonly baseUrl)` implies.
+  constructor(baseUrl: string) {
+    this.baseUrl = baseUrl;
+  }
 
   private headersFor(method: string, options: { csrf?: string | null; origin?: string | null }): Headers {
     const headers = new Headers();

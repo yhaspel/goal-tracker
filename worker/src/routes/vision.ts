@@ -53,8 +53,13 @@ import { requireSecrets, type RouteContext } from './context';
  * inflation, which is what `VISION_BODY_LIMIT` in `index.ts` pays for.
  */
 
-/** A maximum upload is 2,026,668 bytes of base64 plus overhead; this bounds it with room. */
-export const MAX_VISION_BODY = 3 * 1024 * 1024;
+/**
+ * A maximum upload is 666,668 bytes of base64 plus its metadata; this bounds it with room.
+ *
+ * Tightened alongside the byte caps after the 2026-09-14 measurement: the front Worker pays CPU
+ * for every byte it buffers, so the body limit is part of that budget rather than a formality.
+ */
+export const MAX_VISION_BODY = 1024 * 1024;
 
 function assertStillEligible(ctx: RouteContext, request: Request, actor: Actor): Actor {
   const fresh = currentActor(ctx, request);

@@ -272,6 +272,9 @@ export const en = {
     'JPEG, PNG or WebP. Each image is resized in your browser before it is sent, which also removes the location a phone photograph records. Apple HEIC photographs cannot be read here — export them as JPEG first.',
   'vision.tile': 'Open {caption}',
   'vision.tileAt': 'Open image {n}',
+  /* The visible label under a tile with no caption. A noun, because it sits where a caption
+     would: `vision.tileAt` names the *action* and belongs to the button, not to the page. */
+  'vision.untitled': 'Image {n}',
   'vision.caption': 'Caption',
   'vision.goalLink': 'Part of',
   'vision.goalNone': 'Nothing',

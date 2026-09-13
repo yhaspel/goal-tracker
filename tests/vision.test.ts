@@ -120,7 +120,7 @@ describe('upload and round trip', () => {
     expect(listed.thumbDigest).toBe(sha256(thumb));
   });
 
-  it('round-trips a 1.4 MB image with a digest that matches the bytes sent', async () => {
+  it('round-trips a maximum-size image with a digest that matches the bytes sent', async () => {
     const owner = await createOwner(OWNER);
     const bytes = imageBytes('webp', MAX_IMAGE_BYTES);
     const result = await upload(owner, { data: toBase64(bytes) });

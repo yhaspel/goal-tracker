@@ -270,6 +270,7 @@ export const ru: LocaleDictionary = {
     'JPEG, PNG или WebP. Каждое изображение уменьшается в вашем браузере перед отправкой, и заодно удаляются координаты, которые записывает телефон. Снимки Apple HEIC здесь прочитать нельзя — сначала экспортируйте их в JPEG.',
   'vision.tile': 'Открыть {caption}',
   'vision.tileAt': 'Открыть изображение {n}',
+  'vision.untitled': 'Изображение {n}',
   'vision.caption': 'Подпись',
   'vision.goalLink': 'Часть чего',
   'vision.goalNone': 'Ничего',

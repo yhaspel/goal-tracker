@@ -12,9 +12,13 @@ import type { VisionMediaType } from '../../../shared/api';
 const FULL_LONG_EDGE = 1600;
 const THUMB_LONG_EDGE = 320;
 
-/** Mirrors `MAX_IMAGE_BYTES` and `MAX_THUMB_BYTES` in `worker/src/vision/service.ts`. */
-const MAX_IMAGE_BYTES = 1_400_000;
-const MAX_THUMB_BYTES = 120_000;
+/**
+ * Mirrors `MAX_IMAGE_BYTES` and `MAX_THUMB_BYTES` in `worker/src/vision/service.ts`, which were
+ * set by measuring the front Worker's CPU against the Free plan's 10 ms budget. Encoding down to
+ * fit them is this file's job; the server refuses anything over them.
+ */
+const MAX_IMAGE_BYTES = 400_000;
+const MAX_THUMB_BYTES = 100_000;
 
 const WEBP_QUALITY = 0.82;
 /** Tried in order when the first encode comes back over the byte cap. */
@@ -111,7 +115,7 @@ async function encodeWithin(canvas: HTMLCanvasElement, limit: number): Promise<{
 async function toBase64(blob: Blob): Promise<string> {
   const bytes = new Uint8Array(await blob.arrayBuffer());
   let binary = '';
-  // Chunked, so a 1.4 MB payload does not blow the argument limit of `String.fromCharCode`.
+  // Chunked, so a large payload does not blow the argument limit of `String.fromCharCode`.
   for (let index = 0; index < bytes.length; index += 0x8000) {
     binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000));
   }

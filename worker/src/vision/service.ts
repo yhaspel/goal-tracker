@@ -13,8 +13,28 @@ import { type ImageRow, listImages, setImagePosition, toVisionImage } from './re
  * forbidden, and there is no reason to hold the household's object while SHA-256 runs.
  */
 
-export const MAX_IMAGE_BYTES = 1_400_000;
-export const MAX_THUMB_BYTES = 120_000;
+/**
+ * The byte caps, **set by measurement rather than by intention.**
+ *
+ * Stage 8's plan proposed 1,400,000 and 120,000, and required the resulting upload to clear the
+ * front Worker's documented 10 ms Free CPU budget — `forwardBounded` buffers the whole body
+ * before forwarding, so the front Worker pays for every byte. Measured on the deployed test
+ * Worker on 2026-09-14, through `wrangler tail`, the proposed caps cost the front Worker a median
+ * of 24 ms and a maximum of 39 ms: three to four times the budget. The plan's own instruction for
+ * that outcome is to lower the cap until it clears, and not to move to a paid plan.
+ *
+ * What the sweep showed is a threshold rather than a slope. Below roughly 700 KB of request body
+ * the worst case stays at 7–8 ms; at 960 KB it jumps to 17 ms and keeps climbing. The floor is
+ * about 3–8 ms whatever the size, so no cap buys a large margin — the achievable goal is to keep
+ * the size-dependent part small, which these caps do: 400,000 + 100,000 decoded is a 667 KB body,
+ * inside the measured-safe band.
+ *
+ * The cost to a member is a quality step, not a refusal: the browser re-encodes down through
+ * JPEG qualities when the first encode is over the cap, and a 1600px photograph lands well inside
+ * 400 KB at any of them. See `docs/stage-8-completion.md` for the full table.
+ */
+export const MAX_IMAGE_BYTES = 400_000;
+export const MAX_THUMB_BYTES = 100_000;
 
 /** The member-facing budget, against `vision_state.bytes_used`. */
 export const MAX_VISION_TOTAL_BYTES = 64 * 1024 * 1024;
@@ -46,7 +66,7 @@ export function validateMediaType(raw: unknown, field: string): VisionMediaType 
 /**
  * Decodes into a freshly allocated `ArrayBuffer` and hands back both views of it. The buffer is
  * what a BLOB bind parameter and `crypto.subtle.digest` both want, and building it this way round
- * avoids copying a 1.4 MB payload a second time just to satisfy a type.
+ * avoids copying a large payload a second time just to satisfy a type.
  */
 export function decodeBase64(value: string): { bytes: Uint8Array; buffer: ArrayBuffer } {
   const binary = atob(value);
@@ -58,7 +78,7 @@ export function decodeBase64(value: string): { bytes: Uint8Array; buffer: ArrayB
 
 export function encodeBase64(bytes: Uint8Array): string {
   let binary = '';
-  // Chunked so a 1.4 MB payload does not blow the argument limit of `String.fromCharCode`.
+  // Chunked so a large payload does not blow the argument limit of `String.fromCharCode`.
   for (let index = 0; index < bytes.length; index += 0x8000) {
     binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000));
   }

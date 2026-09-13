@@ -266,6 +266,7 @@ export const he: LocaleDictionary = {
     'JPEG,‏ PNG או WebP. כל תמונה מוקטנת בדפדפן שלכם לפני השליחה, וכך גם נמחק המיקום שתצלום מהטלפון שומר. אי אפשר לקרוא כאן תצלומי HEIC של אפל — ייצאו אותם קודם כ־JPEG.',
   'vision.tile': 'פתיחת {caption}',
   'vision.tileAt': 'פתיחת תמונה {n}',
+  'vision.untitled': 'תמונה {n}',
   'vision.caption': 'כיתוב',
   'vision.goalLink': 'חלק מ',
   'vision.goalNone': 'שום דבר',
