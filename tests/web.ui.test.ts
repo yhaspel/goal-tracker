@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { BoardSnapshot } from '../shared/api';
 import { ApiError } from '../web/src/api/client';
+import { dueState, localToday } from '../web/src/board/due';
 import { placeOfCard, projectedDrop, withMovedCard } from '../web/src/board/reorder';
 import { errorText, fieldErrorText } from '../web/src/components/errors';
 import { en } from '../web/src/i18n/en';
@@ -324,6 +325,49 @@ describe('drag announcements', () => {
     }
     const spoken = LOCALES.map(locale => createTranslate(locale).t('account.languageSaved'));
     expect(new Set(spoken).size).toBe(LOCALES.length);
+  });
+});
+
+describe('due dates are a calendar day, decided in the browser', () => {
+  it('reads today as due soon and yesterday as overdue, against the viewer’s own local date', () => {
+    expect(dueState('2026-09-14', '2026-09-14')).toBe('dueSoon');
+    expect(dueState('2026-09-15', '2026-09-14')).toBe('dueSoon');
+    expect(dueState('2026-09-16', '2026-09-14')).toBe('due');
+    expect(dueState('2026-09-13', '2026-09-14')).toBe('overdue');
+  });
+
+  it('a viewer at UTC+3 sees a card due today as due, not overdue, at 01:00 local', () => {
+    // The plan's named case. At 01:00 local on the 5th in Asia/Jerusalem the UTC instant is still
+    // 22:00 on the 4th, so the two calendars disagree about what day it is. What decides is the
+    // viewer's own local date, and a card due on that date is never overdue.
+    const localDate = localToday(new Date(2026, 8, 5, 1, 0, 0));
+    expect(localDate).toBe('2026-09-05');
+    expect(dueState('2026-09-05', localDate)).toBe('dueSoon');
+    expect(dueState('2026-09-05', localDate)).not.toBe('overdue');
+
+    // The trap this avoids: deriving "today" from the UTC calendar instead. For any viewer whose
+    // offset puts local midnight on the other side of UTC midnight, that is a different day, and
+    // every card due on one of the two days is then classified against the wrong one.
+    const sameInstantInUtc = new Date(Date.UTC(2026, 8, 4, 22, 0, 0)).toISOString().slice(0, 10);
+    expect(sameInstantInUtc).toBe('2026-09-04');
+    expect(sameInstantInUtc).not.toBe(localDate);
+    // A card due on the 4th, read against the UTC day, would still look like "due today"; read
+    // against the viewer's own calendar it is already yesterday.
+    expect(dueState('2026-09-04', sameInstantInUtc)).toBe('dueSoon');
+    expect(dueState('2026-09-04', localDate)).toBe('overdue');
+  });
+
+  it('steps across a month and a year boundary without a timezone shifting it', () => {
+    expect(dueState('2026-10-01', '2026-09-30')).toBe('dueSoon');
+    expect(dueState('2027-01-01', '2026-12-31')).toBe('dueSoon');
+    expect(dueState('2026-12-31', '2027-01-01')).toBe('overdue');
+    // A leap day is a real day for this comparison like any other.
+    expect(dueState('2028-02-29', '2028-02-28')).toBe('dueSoon');
+  });
+
+  it('formats the viewer’s local date as YYYY-MM-DD from local fields, not UTC ones', () => {
+    expect(localToday(new Date(2026, 8, 5, 1, 0, 0))).toBe('2026-09-05');
+    expect(localToday(new Date(2026, 0, 1, 23, 59, 0))).toBe('2026-01-01');
   });
 });
 
