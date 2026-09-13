@@ -340,7 +340,8 @@ Done in this change, and verifiable without Cloudflare:
 Done on the deployed production Worker, 2026-09-13, on the owner's explicit instruction — see
 [the production deployment record](production-deployment.md):
 
-- [x] Deploy Stage 7 to production (version `37752249-68a9-48d3-bc3d-2895bc0f8bc2`; no migration,
+- [x] Deploy Stage 7 to production (code `37752249-68a9-48d3-bc3d-2895bc0f8bc2`, now serving as
+      `5d099a34-3480-4fc5-89cb-ec779a94ea39` after the secret change re-versioned it; no migration,
       so the rollback is a version redeploy), provision `BACKUP_OPERATOR_SECRET` there, and
       confirm `BACKUP_HOUSEHOLD_ID` (`goal-tracker-production`, read from the deploy output)
 

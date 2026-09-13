@@ -549,7 +549,11 @@ Production still holds the only copy of its data.
 
 ## Fifth production deployment, 2026-09-13 — Stage 7 backup and hardening
 
-**Version:** `37752249-68a9-48d3-bc3d-2895bc0f8bc2`, deployed at 100%
+**Version:** `5d099a34-3480-4fc5-89cb-ec779a94ea39`, at 100% — the code went up as
+`37752249-68a9-48d3-bc3d-2895bc0f8bc2` at 19:00:45Z, and provisioning the secret a minute later
+re-versioned the Worker with `Source: Secret Change`. Same code, new version ID. A Cloudflare
+version pins bindings as well as code, so a secret change always mints one; expect this whenever a
+secret is set, and roll back to a version ID rather than to a commit.
 **Commit:** `5179a8e` (Stage 7 code landed in `9c10e19`), CI
 [34775917662](https://github.com/yhaspel/goal-tracker/actions/runs/34775917662) —
 `checks: success`, `deploy-test: success`
@@ -642,9 +646,11 @@ Redeploying `7a9a4d2a-c1a3-455d-b722-fde38e7b6c84` returns to the fourth deploym
 migration and no data implication — the rollback is a plain version redeploy:
 
 ```sh
-npx wrangler rollback --env production
+npx wrangler rollback 7a9a4d2a-c1a3-455d-b722-fde38e7b6c84 --env production
 ```
 
-It removes the security headers and the export route. `BACKUP_OPERATOR_SECRET` would survive the
+Name the version explicitly. A bare `wrangler rollback` goes to the previous version, which here is
+`37752249` — the same Stage 7 code with the secret unset, which is not the pre-Stage-7 state anyone
+would mean by "roll back". It removes the security headers and the export route. `BACKUP_OPERATOR_SECRET` would survive the
 rollback as a configured but unused secret, which is harmless; the route that reads it would no
 longer exist.
