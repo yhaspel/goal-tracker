@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 /**
  * UTC ISO-8601 with milliseconds, identical in shape to `new Date().toISOString()`.
@@ -150,6 +150,59 @@ const migrations = [
       )`,
       `CREATE INDEX IF NOT EXISTS pending_credential_rotations_user ON pending_credential_rotations (user_id)`,
       `CREATE INDEX IF NOT EXISTS pending_credential_rotations_expiry ON pending_credential_rotations (expires_at)`
+    ]
+  },
+  {
+    version: 4,
+    statements: [
+      // One board per household. The revision advances exactly once per state-changing
+      // request and is what a stale client's mutation is checked against.
+      `CREATE TABLE IF NOT EXISTS board_state (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        revision INTEGER NOT NULL DEFAULT 1
+      )`,
+      `INSERT OR IGNORE INTO board_state (id, revision) VALUES (1, 1)`,
+
+      // A column carries either a built-in translation key or a literal name the owner typed,
+      // never both. A renamed column keeps its literal name in every language.
+      `CREATE TABLE IF NOT EXISTS columns (
+        id TEXT PRIMARY KEY,
+        name_key TEXT CHECK (name_key IS NULL OR name_key IN ('todo', 'in_progress', 'done')),
+        custom_name TEXT,
+        position INTEGER NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        CHECK ((name_key IS NULL) <> (custom_name IS NULL))
+      )`,
+      `CREATE INDEX IF NOT EXISTS columns_position ON columns (position, id)`,
+
+      // Seeded once. `WHERE NOT EXISTS` keeps a re-run or a redeploy from duplicating them,
+      // and the ids are fixed so they stay stable for the life of the object.
+      `INSERT INTO columns (id, name_key, custom_name, position, created_at, updated_at)
+        SELECT '6254d1c5-4638-4516-b645-dcbd1d0ad144', 'todo', NULL, 0, ${SQL_NOW}, ${SQL_NOW}
+        WHERE NOT EXISTS (SELECT 1 FROM columns)`,
+      `INSERT INTO columns (id, name_key, custom_name, position, created_at, updated_at)
+        SELECT '5edbb2b8-8385-4391-8481-8424fed06378', 'in_progress', NULL, 1, ${SQL_NOW}, ${SQL_NOW}
+        WHERE NOT EXISTS (SELECT 1 FROM columns WHERE position = 1)`,
+      `INSERT INTO columns (id, name_key, custom_name, position, created_at, updated_at)
+        SELECT 'd972b74f-e630-4f81-a1c3-44f908dae82d', 'done', NULL, 2, ${SQL_NOW}, ${SQL_NOW}
+        WHERE NOT EXISTS (SELECT 1 FROM columns WHERE position = 2)`,
+
+      // Users are deactivated rather than deleted, so `creator_user_id` stays resolvable for
+      // the life of the card.
+      `CREATE TABLE IF NOT EXISTS cards (
+        id TEXT PRIMARY KEY,
+        column_id TEXT NOT NULL REFERENCES columns (id),
+        title TEXT NOT NULL,
+        description TEXT,
+        assignee_user_id TEXT REFERENCES users (id),
+        creator_user_id TEXT NOT NULL REFERENCES users (id),
+        position INTEGER NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS cards_order ON cards (column_id, position, id)`,
+      `CREATE INDEX IF NOT EXISTS cards_assignee ON cards (assignee_user_id)`
     ]
   }
 ] as const;

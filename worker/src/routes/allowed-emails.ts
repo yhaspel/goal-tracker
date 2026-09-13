@@ -1,6 +1,7 @@
 import { type AllowedEmailsResponse, jsonData } from '../../../shared/api';
 import { assertCsrf, requireOwner } from '../auth/authorize';
 import { normalizeEmailSet } from '../auth/email';
+import { bumpBoardRevision, clearAssignmentsFor, readBoardRevision } from '../board/repository';
 import {
   deleteAllowedEmail,
   deletePendingRegistrationsForEmail,
@@ -90,8 +91,18 @@ async function replace(ctx: RouteContext, request: Request): Promise<Response> {
     const removed = current.filter(email => !nextSet.has(email));
 
     if (added.length === 0 && removed.length === 0) {
-      return { emails: current, allowlistRevision: state.allowlist_revision, added: 0, removed: 0 };
+      return {
+        emails: current,
+        allowlistRevision: state.allowlist_revision,
+        boardRevision: readBoardRevision(ctx.sql),
+        added: 0,
+        removed: 0
+      };
     }
+
+    // Only an address belonging to an *active* account changes who can be assigned a card.
+    // Adding or removing an unregistered or already inactive address leaves the board alone.
+    let eligibilityChanged = false;
 
     for (const email of removed) {
       deleteAllowedEmail(ctx.sql, email);
@@ -104,15 +115,31 @@ async function replace(ctx: RouteContext, request: Request): Promise<Response> {
         // were granted under. Re-adding the address needs a fresh attempt, not a revival.
         deletePendingRotationsForUser(ctx.sql, user.id);
         deleteUnusedOperatorTokensForUser(ctx.sql, user.id);
+        if (user.status === 'active') {
+          eligibilityChanged = true;
+          clearAssignmentsFor(ctx.sql, user.id, ctx.nowIso);
+        }
       }
       revokeUnusedInvitationsForEmail(ctx.sql, email, ctx.nowIso);
       deletePendingRegistrationsForEmail(ctx.sql, email);
     }
-    for (const email of added) insertAllowedEmail(ctx.sql, email, ctx.nowIso);
+    for (const email of added) {
+      insertAllowedEmail(ctx.sql, email, ctx.nowIso);
+      // Re-adding a still-active account puts it back into the assignee choices.
+      if (findUserByEmail(ctx.sql, email)?.status === 'active') eligibilityChanged = true;
+    }
 
     const revision = state.allowlist_revision + 1;
     setAllowlistRevision(ctx.sql, revision);
-    return { emails: listAllowedEmails(ctx.sql), allowlistRevision: revision, added: added.length, removed: removed.length };
+    // At most one board revision per request, however many members changed.
+    const boardRevision = eligibilityChanged ? bumpBoardRevision(ctx.sql) : readBoardRevision(ctx.sql);
+    return {
+      emails: listAllowedEmails(ctx.sql),
+      allowlistRevision: revision,
+      boardRevision,
+      added: added.length,
+      removed: removed.length
+    };
   });
 
   // Counts only: the addresses themselves are never written to the log.
@@ -122,7 +149,11 @@ async function replace(ctx: RouteContext, request: Request): Promise<Response> {
     removed: result.removed,
     allowlistRevision: result.allowlistRevision
   });
-  return jsonData<AllowedEmailsResponse>({ emails: result.emails, allowlistRevision: result.allowlistRevision });
+  return jsonData<AllowedEmailsResponse>({
+    emails: result.emails,
+    allowlistRevision: result.allowlistRevision,
+    boardRevision: result.boardRevision
+  });
 }
 
 export function handleAllowedEmailsRoute(

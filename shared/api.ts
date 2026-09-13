@@ -40,7 +40,11 @@ export type CredentialRotationStartResponse = {
 /** Confirmation revokes every session, so the caller must sign in again. */
 export type CredentialRotationConfirmResponse = { rotated: true };
 
-export type AllowedEmailsResponse = { emails: string[]; allowlistRevision: number };
+/**
+ * `boardRevision` accompanies a write once the board exists, because changing who is active
+ * and allowlisted changes the board snapshot's assignee choices.
+ */
+export type AllowedEmailsResponse = { emails: string[]; allowlistRevision: number; boardRevision?: number };
 
 export type InvitationStatus = 'pending' | 'consumed' | 'revoked' | 'expired';
 export type InvitationSummary = { id: string; email: string; expiresAt: string; status: InvitationStatus };
@@ -48,9 +52,47 @@ export type InvitationListResponse = { invitations: InvitationSummary[] };
 export type CreatedInvitationResponse = { id: string; email: string; inviteCode: string; expiresAt: string };
 export type RevokedInvitationResponse = { revoked: true };
 
+/** Built-in column labels stay translation keys until the owner renames the column. */
+export type BoardColumnKey = 'todo' | 'in_progress' | 'done';
+
+export type BoardCard = {
+  id: string;
+  columnId: string;
+  title: string;
+  description: string | null;
+  assigneeUserId: string | null;
+  creatorUserId: string;
+  position: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type BoardColumn = {
+  id: string;
+  nameKey: BoardColumnKey | null;
+  customName: string | null;
+  position: number;
+  cards: BoardCard[];
+};
+
+/** Only what the board needs to offer an assignee choice. No credential material. */
+export type BoardMember = { id: string; email: string };
+
+export type BoardSnapshot = {
+  boardRevision: number;
+  columns: BoardColumn[];
+  activeMembers: BoardMember[];
+};
+
+/**
+ * Every successful mutation reports the revision the client should adopt. `unchanged` marks a
+ * validated request that turned out to be a no-op and therefore wrote nothing.
+ */
+export type BoardMutationResponse = { boardRevision: number; id?: string; unchanged?: true };
+
 export type MemberSummary = { id: string; email: string; role: UserRole; status: UserStatus; language: Locale };
 export type MemberListResponse = { members: MemberSummary[] };
-export type MemberResponse = { member: MemberSummary };
+export type MemberResponse = { member: MemberSummary; boardRevision?: number };
 
 export function jsonData<T>(data: T, status = 200, headers?: Record<string, string>): Response {
   return Response.json({ data } satisfies ApiSuccess<T>, {

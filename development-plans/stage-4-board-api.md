@@ -72,7 +72,14 @@ Read columns by `(position,id)` and cards by `(position,id)` inside one synchron
 
 Every successful mutation returns `{data:{boardRevision:<new revision>,id?:<changed ID>}}`; the UI refetches the board after mutation. Include `boardRevision` in the JSON body even for `DELETE`; the API client must send the corresponding content type. For a same-column card move, `targetIndex` refers to the list **after removing the moving card**, in range `0..remainingCount`; for a cross-column move it refers to the destination list before insertion, in range `0..destinationCount`. A no-op move or identical edit may return the unchanged revision with `{data:{boardRevision,unchanged:true}}`, after validation, without a write. For column moves, the target index is the final position in the column list.
 
-A stale revision returns HTTP `409` with `{error:{code:"revision_conflict",message:"The board changed; reload and retry.",details:{boardRevision:<current>}}}` and **no mutation**. Add optional `details` to the shared error type while keeping the Stage 2 envelope. Other stable errors include `validation_error` (`400`), `unauthenticated` (`401`), `forbidden` (`403`), `not_found` (`404`), `column_not_empty`/`last_column`/`board_full`/`column_limit` (`409`), and Stage 2 `rate_limited` (`429`). Return safe messages. The Stage 5/6 UI translates stable error codes, not the English fallback message. It must reload after a `409`, show the failed move as unsaved, and retain unsaved card-form values for review and retry; it must not automatically apply the stale edit against the newer board.
+A stale revision returns HTTP `409` with `{error:{code:"revision_conflict",message:"The board changed; reload and retry.",details:{boardRevision:<current>}}}` and **no mutation**. Add optional `details` to the shared error type while keeping the Stage 2 envelope. Other stable errors include `invalid_request` (`400`), `unauthenticated` (`401`), `forbidden` (`403`), `not_found` (`404`), `column_not_empty`/`last_column`/`board_full`/`column_limit` (`409`), and Stage 2 `rate_limited` (`429`). Return safe messages.
+
+> **Reconciled on 2026-09-13 during implementation.** This paragraph originally named the
+> `400` code `validation_error`. Stage 2 had already shipped and deployed `invalid_request`
+> for every malformed request, with per-field detail in `details.fieldErrors`, and the master
+> plan requires consistent errors across the API. Introducing a second `400` code for board
+> routes only would have forced Stage 5 to branch on two spellings of the same condition, so
+> the board routes use `invalid_request` too. No other Stage 4 code changed. The Stage 5/6 UI translates stable error codes, not the English fallback message. It must reload after a `409`, show the failed move as unsaved, and retain unsaved card-form values for review and retry; it must not automatically apply the stale edit against the newer board.
 
 ## Ordered implementation tasks
 

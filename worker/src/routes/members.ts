@@ -1,5 +1,6 @@
 import { jsonData, type MemberListResponse, type MemberResponse, type MemberSummary } from '../../../shared/api';
 import { assertCsrf, requireActor, requireOwner } from '../auth/authorize';
+import { bumpBoardRevision, clearAssignmentsFor, readBoardRevision } from '../board/repository';
 import {
   deactivateUser,
   findUserById,
@@ -57,17 +58,21 @@ async function update(ctx: RouteContext, request: Request, id: string): Promise<
     if (target.role === 'owner') {
       throw forbidden('cannot_deactivate_owner', 'The owner account cannot be deactivated.');
     }
+    // Deactivation, session revocation, assignment clearing, and the single revision bump
+    // commit together, so no card is ever left assigned to an ineligible member.
     if (target.status === 'active') {
       deactivateUser(ctx.sql, target.id, ctx.nowIso);
       revokeSessionsForUser(ctx.sql, target.id, ctx.nowIso);
+      clearAssignmentsFor(ctx.sql, target.id, ctx.nowIso);
+      bumpBoardRevision(ctx.sql);
     }
     const updated = findUserById(ctx.sql, id);
     if (!updated) throw notFound();
-    return updated;
+    return { user: updated, boardRevision: readBoardRevision(ctx.sql) };
   });
 
   securityEvent('member.deactivate', 'allowed', { userId: actor.user.id });
-  return jsonData<MemberResponse>({ member: summarize(member) });
+  return jsonData<MemberResponse>({ member: summarize(member.user), boardRevision: member.boardRevision });
 }
 
 export function handleMemberRoute(ctx: RouteContext, request: Request, path: string): Promise<Response> | undefined {

@@ -5,6 +5,7 @@ import { migrate } from './db/migrations';
 import { toResponse } from './http';
 import { handleAllowedEmailsRoute } from './routes/allowed-emails';
 import { handleAuthRoute } from './routes/auth';
+import { handleBoardRoute } from './routes/board';
 import type { RouteContext } from './routes/context';
 import { handleInvitationRoute } from './routes/invitations';
 import { handleMemberRoute } from './routes/members';
@@ -140,7 +141,8 @@ export class HouseholdImplementation extends DurableObject<Env> {
         handleAllowedEmailsRoute(ctx, request, path) ??
         handleInvitationRoute(ctx, request, path) ??
         handleMemberRoute(ctx, request, path) ??
-        handleRecoveryRoute(ctx, request, path);
+        handleRecoveryRoute(ctx, request, path) ??
+        handleBoardRoute(ctx, request, path);
       if (handled) return await handled;
 
       return jsonError('not_found', 'Not found', 404);

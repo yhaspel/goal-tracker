@@ -116,12 +116,23 @@ This repository uses **Cloudflare Workers**, Static Assets, and SQLite-backed Du
 
    ```sh
    umask 077
-   for name in BOOTSTRAP_SECRET RECOVERY_DIGEST_KEY CSRF_SECRET RATE_LIMIT_KEY; do
+   # Keep this one. Cloudflare cannot show a secret again, and the lost-phrase rescue
+   # runbook needs it. Move it to your separate secret escrow before you delete the file.
+   openssl rand -hex 32 > .secrets.recovery-digest-key
+   npx wrangler secret put RECOVERY_DIGEST_KEY --env test < .secrets.recovery-digest-key
+
+   for name in BOOTSTRAP_SECRET CSRF_SECRET RATE_LIMIT_KEY; do
      openssl rand -hex 32 > .secrets.tmp
      npx wrangler secret put "$name" --env test < .secrets.tmp
    done
    rm -f .secrets.tmp
    ```
+
+   **Escrow `RECOVERY_DIGEST_KEY` when you create it**, separately from any data backup. It
+   signs recovery-phrase digests and operator rescue tokens, so
+   [the lost-phrase runbook](docs/operator-lost-phrase-reset.md) cannot be followed without it.
+   Replacing it invalidates every stored phrase: each member then has to regenerate a phrase
+   from a signed-in session, and anyone who cannot sign in needs an operator rescue.
 
    Then exercise the whole account flow against your deployed test Worker, keeping the
    bootstrap value in a file so it stays off the command line. The flow creates a disposable

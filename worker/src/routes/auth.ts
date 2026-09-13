@@ -16,6 +16,7 @@ import {
   requireActor
 } from '../auth/authorize';
 import { csrfToken } from '../auth/csrf';
+import { bumpBoardRevision } from '../board/repository';
 import { constantTimeEquals, newId, randomToken, sha256Hex } from '../auth/crypto';
 import { normalizeEmail } from '../auth/email';
 import { assertPasswordPolicy, dummyVerify, hashPassword, verifyPassword } from '../auth/passwords';
@@ -363,6 +364,9 @@ async function registrationConfirm(ctx: RouteContext, request: Request): Promise
     });
     deletePendingRegistration(ctx.sql, fresh.id);
     deletePendingRegistrationsForEmail(ctx.sql, fresh.email_norm);
+    // A newly active, allowlisted account joins the board's assignee choices, so the board
+    // snapshot every open client holds is now stale.
+    bumpBoardRevision(ctx.sql);
 
     const created = findUserById(ctx.sql, userId);
     if (!created) throw new Error('user row missing immediately after insert');

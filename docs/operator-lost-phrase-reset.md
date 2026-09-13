@@ -11,6 +11,17 @@ The procedure never reveals or restores an old password or phrase. It issues a o
 If you lose both the phrase and Cloudflare access, there is no fallback. Restore operator
 access first.
 
+## Prerequisite: the environment's recovery digest key
+
+Step 3 needs that environment's `RECOVERY_DIGEST_KEY`. Cloudflare never shows a secret again
+after you set it, so the value must be escrowed **when it is provisioned**, separately from any
+data backup. Without it you cannot issue a working rescue token at all. See
+[Host your own copy on Cloudflare](../README.md#host-your-own-copy-on-cloudflare).
+
+Replacing the key is a last resort: it invalidates every stored recovery phrase. Members who
+can still sign in recover by regenerating a phrase from their account settings; anyone who
+cannot sign in is stuck, which is the situation this runbook exists to fix.
+
 ## 1. Verify the person offline
 
 An email address proves nothing here: the application never verifies mailbox ownership. Confirm

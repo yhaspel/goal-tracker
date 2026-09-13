@@ -44,6 +44,8 @@ For each stage, run the relevant local checks, commit candidate code, verify CI 
 | `tests/` | Cloudflare Workers runtime tests |
 | `scripts/auth-smoke.ts` | Deployed account flow smoke test using disposable identities |
 | `scripts/recovery-smoke.ts` | Deployed credential-rotation smoke test for the three recovery flows |
+| `scripts/board-smoke.ts` | Deployed board smoke test: create, move, stale conflict, and membership cleanup |
+| `worker/src/board/` | Board SQL access, ordering rules, validation, and the revision guard |
 | `scripts/create-operator-reset-token.ts` | Trusted local generator for a lost-phrase rescue token and its SQL |
 | `scripts/verify_stage_1.py` | Deployed routing, schema-version, and Stage 1 diagnostic checks |
 | `docs/operator-lost-phrase-reset.md` | The Data Studio rescue runbook for a lost recovery phrase |
