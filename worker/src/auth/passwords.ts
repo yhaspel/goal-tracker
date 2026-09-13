@@ -1,5 +1,6 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { COMMON_PASSWORDS } from './common-passwords';
+import { invalidRequest } from '../http';
 import { fromBase64Url, toBase64Url } from './crypto';
 import { KdfQueue, SCRYPT_PARAMETERS, scryptDerive } from './kdf-queue';
 
@@ -27,6 +28,12 @@ export function validatePassword(raw: unknown): PasswordRejection | null {
   if (/\p{Cc}|\p{Cs}/u.test(raw)) return 'invalid_characters';
   if (commonPasswords().has(raw.toLowerCase())) return 'too_common';
   return null;
+}
+
+/** Rejects a password that fails the policy, naming the field so the UI can point at it. */
+export function assertPasswordPolicy(password: string): void {
+  const rejection = validatePassword(password);
+  if (rejection !== null) throw invalidRequest('That password cannot be used.', { password: rejection });
 }
 
 /**

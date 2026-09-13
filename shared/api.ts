@@ -26,6 +26,20 @@ export type BootstrapStatusResponse = { bootstrapAvailable: boolean };
 export type PreparedRegistrationResponse = { pendingToken: string; recoveryPhrase: string; expiresAt: string };
 export type SignedOutResponse = { signedOut: true };
 
+/**
+ * Every credential rotation starts by returning the replacement phrase exactly once. The
+ * caller must re-enter it to confirm; nothing changes until then, so abandoning the flow
+ * leaves the old password, phrase, and sessions in force.
+ */
+export type CredentialRotationStartResponse = {
+  challengeToken: string;
+  recoveryPhrase: string;
+  expiresAt: string;
+};
+
+/** Confirmation revokes every session, so the caller must sign in again. */
+export type CredentialRotationConfirmResponse = { rotated: true };
+
 export type AllowedEmailsResponse = { emails: string[]; allowlistRevision: number };
 
 export type InvitationStatus = 'pending' | 'consumed' | 'revoked' | 'expired';

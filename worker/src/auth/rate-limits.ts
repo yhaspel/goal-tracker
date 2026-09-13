@@ -14,7 +14,12 @@ export const RATE_RULES = {
   loginPerIp: { limit: 30, windowMs: FIFTEEN_MINUTES },
   bootstrapPerIp: { limit: 5, windowMs: FIFTEEN_MINUTES },
   registrationPreparePerIp: { limit: 10, windowMs: FIFTEEN_MINUTES },
-  registrationConfirmPerIp: { limit: 30, windowMs: FIFTEEN_MINUTES }
+  registrationConfirmPerIp: { limit: 30, windowMs: FIFTEEN_MINUTES },
+  // Credential rotation. A start can trigger two derivations, so it is charged per attempt
+  // on both axes; confirmation is cheap and only bounded per address.
+  recoveryStartPerIp: { limit: 10, windowMs: FIFTEEN_MINUTES },
+  recoveryStartPerAccount: { limit: 5, windowMs: FIFTEEN_MINUTES },
+  recoveryConfirmPerIp: { limit: 30, windowMs: FIFTEEN_MINUTES }
 } as const satisfies Record<string, RateRule>;
 
 export type RateDecision = { allowed: boolean; retryAfterSeconds: number };

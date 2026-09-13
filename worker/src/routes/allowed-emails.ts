@@ -4,6 +4,8 @@ import { normalizeEmailSet } from '../auth/email';
 import {
   deleteAllowedEmail,
   deletePendingRegistrationsForEmail,
+  deletePendingRotationsForUser,
+  deleteUnusedOperatorTokensForUser,
   findUserByEmail,
   findUserById,
   insertAllowedEmail,
@@ -96,7 +98,13 @@ async function replace(ctx: RouteContext, request: Request): Promise<Response> {
       // Access ends immediately on every device. The account row and its occupied seat
       // survive; freeing the seat is the separate, irreversible deactivation action.
       const user = findUserByEmail(ctx.sql, email);
-      if (user) revokeSessionsForUser(ctx.sql, user.id, ctx.nowIso);
+      if (user) {
+        revokeSessionsForUser(ctx.sql, user.id, ctx.nowIso);
+        // A rotation in flight and any unredeemed operator token die with the access they
+        // were granted under. Re-adding the address needs a fresh attempt, not a revival.
+        deletePendingRotationsForUser(ctx.sql, user.id);
+        deleteUnusedOperatorTokensForUser(ctx.sql, user.id);
+      }
       revokeUnusedInvitationsForEmail(ctx.sql, email, ctx.nowIso);
       deletePendingRegistrationsForEmail(ctx.sql, email);
     }

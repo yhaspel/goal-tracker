@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 /**
  * UTC ISO-8601 with milliseconds, identical in shape to `new Date().toISOString()`.
@@ -107,6 +107,49 @@ const migrations = [
         expires_at TEXT NOT NULL
       )`,
       `CREATE INDEX IF NOT EXISTS rate_limits_expiry ON rate_limits (expires_at)`
+    ]
+  },
+  {
+    version: 3,
+    statements: [
+      // A token an operator inserts by hand through Durable Object Data Studio after
+      // verifying the person offline. Only the domain-separated HMAC digest is stored, and
+      // `reason` is a short non-secret audit note.
+      `CREATE TABLE IF NOT EXISTS operator_reset_tokens (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users (id),
+        token_digest TEXT NOT NULL UNIQUE,
+        expected_credential_epoch INTEGER NOT NULL,
+        created_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        consumed_at TEXT,
+        issued_by TEXT NOT NULL,
+        reason TEXT NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS operator_reset_tokens_user ON operator_reset_tokens (user_id)`,
+      `CREATE INDEX IF NOT EXISTS operator_reset_tokens_expiry ON operator_reset_tokens (expires_at)`,
+
+      // A rotation that has been prepared but not confirmed. It changes nothing on its own:
+      // an abandoned or expired row leaves the old password, phrase, and sessions in force.
+      // `expected_source_digest` pins the credential the rotation was authorised against —
+      // the old phrase digest for `phrase`, the whole password record for `signed_in`, and
+      // null for `operator`, which is pinned by its own token instead.
+      `CREATE TABLE IF NOT EXISTS pending_credential_rotations (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users (id),
+        method TEXT NOT NULL CHECK (method IN ('phrase', 'operator', 'signed_in')),
+        challenge_digest TEXT NOT NULL UNIQUE,
+        new_password_hash TEXT,
+        new_phrase_digest TEXT NOT NULL,
+        expected_credential_epoch INTEGER NOT NULL,
+        expected_source_digest TEXT,
+        source_session_id TEXT REFERENCES sessions (id),
+        operator_token_id TEXT REFERENCES operator_reset_tokens (id),
+        created_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS pending_credential_rotations_user ON pending_credential_rotations (user_id)`,
+      `CREATE INDEX IF NOT EXISTS pending_credential_rotations_expiry ON pending_credential_rotations (expires_at)`
     ]
   }
 ] as const;

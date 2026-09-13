@@ -35,7 +35,9 @@ const API_ROUTES: readonly RegExp[] = [
   /^\/api\/v1\/invitations$/,
   /^\/api\/v1\/invitations\/[A-Za-z0-9-]{1,64}$/,
   /^\/api\/v1\/members$/,
-  /^\/api\/v1\/members\/[A-Za-z0-9-]{1,64}$/
+  /^\/api\/v1\/members\/[A-Za-z0-9-]{1,64}$/,
+  /^\/api\/v1\/recovery\/(phrase|operator)\/(start|confirm)$/,
+  /^\/api\/v1\/account\/credentials\/(start|confirm)$/
 ];
 
 /** Stage 2 auth bodies. Stage 4 raises this for board routes only. */

@@ -269,6 +269,144 @@ export function recordFailedConfirmation(sql: SqlStorage, id: string): number {
   ))?.failed_confirmations ?? 0;
 }
 
+// --- Stage 3: credential rotation ---------------------------------------------------------
+
+export type OperatorResetTokenRow = {
+  id: string;
+  user_id: string;
+  token_digest: string;
+  expected_credential_epoch: number;
+  created_at: string;
+  expires_at: string;
+  consumed_at: string | null;
+  issued_by: string;
+  reason: string;
+};
+
+export type PendingRotationRow = {
+  id: string;
+  user_id: string;
+  method: 'phrase' | 'operator' | 'signed_in';
+  challenge_digest: string;
+  new_password_hash: string | null;
+  new_phrase_digest: string;
+  expected_credential_epoch: number;
+  expected_source_digest: string | null;
+  source_session_id: string | null;
+  operator_token_id: string | null;
+  created_at: string;
+  expires_at: string;
+};
+
+export type RecoveryCredentialRow = { user_id: string; phrase_digest: string; version: number; created_at: string };
+
+export function findRecoveryCredential(sql: SqlStorage, userId: string): RecoveryCredentialRow | undefined {
+  return one(sql.exec<RecoveryCredentialRow>('SELECT * FROM recovery_credentials WHERE user_id = ?', userId));
+}
+
+export function rotateRecoveryCredential(sql: SqlStorage, userId: string, phraseDigest: string, at: string): void {
+  sql.exec(
+    'UPDATE recovery_credentials SET phrase_digest = ?, version = version + 1, created_at = ? WHERE user_id = ?',
+    phraseDigest,
+    at,
+    userId
+  );
+}
+
+export function setPasswordHash(sql: SqlStorage, userId: string, passwordHash: string, at: string): void {
+  sql.exec('UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?', passwordHash, at, userId);
+}
+
+/**
+ * Advancing the epoch invalidates every rotation that was authorised against the previous
+ * credential state, so a second confirmation cannot overwrite the first result.
+ */
+export function advanceCredentialEpoch(sql: SqlStorage, userId: string, at: string): void {
+  sql.exec('UPDATE users SET credential_epoch = credential_epoch + 1, updated_at = ? WHERE id = ?', at, userId);
+}
+
+export function findOperatorTokenByDigest(sql: SqlStorage, tokenDigest: string): OperatorResetTokenRow | undefined {
+  return one(sql.exec<OperatorResetTokenRow>('SELECT * FROM operator_reset_tokens WHERE token_digest = ?', tokenDigest));
+}
+
+export function findOperatorTokenById(sql: SqlStorage, id: string): OperatorResetTokenRow | undefined {
+  return one(sql.exec<OperatorResetTokenRow>('SELECT * FROM operator_reset_tokens WHERE id = ?', id));
+}
+
+export function consumeOperatorToken(sql: SqlStorage, id: string, at: string): void {
+  sql.exec('UPDATE operator_reset_tokens SET consumed_at = ? WHERE id = ? AND consumed_at IS NULL', at, id);
+}
+
+/**
+ * Revocation deletes unredeemed tokens outright. Redeemed rows keep their `consumed_at` for
+ * the audit trail, so the column never has to mean two different things.
+ */
+export function deleteUnusedOperatorTokensForUser(sql: SqlStorage, userId: string): void {
+  sql.exec('DELETE FROM operator_reset_tokens WHERE user_id = ? AND consumed_at IS NULL', userId);
+}
+
+export function pruneOperatorTokens(sql: SqlStorage, now: string, limit = 50): void {
+  sql.exec(
+    `DELETE FROM operator_reset_tokens WHERE id IN (
+       SELECT id FROM operator_reset_tokens WHERE expires_at <= ? AND consumed_at IS NULL LIMIT ${limit}
+     )`,
+    now
+  );
+}
+
+export function findPendingRotationByDigest(sql: SqlStorage, challengeDigest: string): PendingRotationRow | undefined {
+  return one(sql.exec<PendingRotationRow>(
+    'SELECT * FROM pending_credential_rotations WHERE challenge_digest = ?',
+    challengeDigest
+  ));
+}
+
+export function countLivePendingRotations(sql: SqlStorage, userId: string, now: string): number {
+  return one(sql.exec<{ total: number }>(
+    'SELECT COUNT(*) AS total FROM pending_credential_rotations WHERE user_id = ? AND expires_at > ?',
+    userId,
+    now
+  ))?.total ?? 0;
+}
+
+export function insertPendingRotation(sql: SqlStorage, rotation: PendingRotationRow): void {
+  sql.exec(
+    `INSERT INTO pending_credential_rotations
+       (id, user_id, method, challenge_digest, new_password_hash, new_phrase_digest, expected_credential_epoch,
+        expected_source_digest, source_session_id, operator_token_id, created_at, expires_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    rotation.id,
+    rotation.user_id,
+    rotation.method,
+    rotation.challenge_digest,
+    rotation.new_password_hash,
+    rotation.new_phrase_digest,
+    rotation.expected_credential_epoch,
+    rotation.expected_source_digest,
+    rotation.source_session_id,
+    rotation.operator_token_id,
+    rotation.created_at,
+    rotation.expires_at
+  );
+}
+
+export function deletePendingRotationsForUser(sql: SqlStorage, userId: string): void {
+  sql.exec('DELETE FROM pending_credential_rotations WHERE user_id = ?', userId);
+}
+
+export function prunePendingRotations(sql: SqlStorage, now: string, limit = 50): void {
+  sql.exec(
+    `DELETE FROM pending_credential_rotations WHERE id IN (
+       SELECT id FROM pending_credential_rotations WHERE expires_at <= ? LIMIT ${limit}
+     )`,
+    now
+  );
+}
+
+export function findSessionById(sql: SqlStorage, id: string): SessionRow | undefined {
+  return one(sql.exec<SessionRow>('SELECT * FROM sessions WHERE id = ?', id));
+}
+
 export function prunePendingRegistrations(sql: SqlStorage, now: string, limit = 50): void {
   sql.exec(
     `DELETE FROM pending_registrations WHERE id IN (

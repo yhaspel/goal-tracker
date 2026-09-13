@@ -142,6 +142,16 @@ For repeatable manual deployment, diagnostic-secret handling, and cleanup, use [
 
 See [CI configuration and credential maintenance](docs/ci.md) for the GitHub/Cloudflare setup and [the manual deployment runbook](docs/deployment.md) for reproducible deployment, verification, and diagnostic-secret cleanup. Cloudflare credentials are needed for manual remote deployments, not for local setup.
 
+## Operator procedures
+
+If someone loses both their password and their recovery phrase, there is no email reset and no
+self-service path. The owner verifies them offline and an operator with Cloudflare access
+issues a one-time, 15-minute rescue token through Durable Object Data Studio. Follow
+[the lost-phrase runbook](docs/operator-lost-phrase-reset.md); it uses
+[`scripts/create-operator-reset-token.ts`](scripts/create-operator-reset-token.ts), which reads
+the environment's recovery digest key from stdin and prints the SQL to run. The token itself is
+shown once and never stored.
+
 ## Working on the project
 
 Read the [development-plan index](development-plans/README.md) and the active stage plan before implementing features. Completed plans are retained in [`development-plans/archived/`](development-plans/archived/) for traceability. Stage decisions and deployed evidence live in `docs/`. Contributors and coding agents should also read [AGENTS.md](AGENTS.md), which records repository conventions, security boundaries, and required checks. Keep this README current when installation, run, build, or deployment behavior changes.

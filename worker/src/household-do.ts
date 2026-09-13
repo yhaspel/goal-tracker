@@ -8,6 +8,7 @@ import { handleAuthRoute } from './routes/auth';
 import type { RouteContext } from './routes/context';
 import { handleInvitationRoute } from './routes/invitations';
 import { handleMemberRoute } from './routes/members';
+import { handleRecoveryRoute } from './routes/recovery';
 import type { Env } from './index';
 
 declare const __ENABLE_DIAGNOSTICS__: boolean;
@@ -138,7 +139,8 @@ export class HouseholdImplementation extends DurableObject<Env> {
         handleAuthRoute(ctx, request, path) ??
         handleAllowedEmailsRoute(ctx, request, path) ??
         handleInvitationRoute(ctx, request, path) ??
-        handleMemberRoute(ctx, request, path);
+        handleMemberRoute(ctx, request, path) ??
+        handleRecoveryRoute(ctx, request, path);
       if (handled) return await handled;
 
       return jsonError('not_found', 'Not found', 404);

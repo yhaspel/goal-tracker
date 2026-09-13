@@ -18,7 +18,7 @@ import {
 import { csrfToken } from '../auth/csrf';
 import { constantTimeEquals, newId, randomToken, sha256Hex } from '../auth/crypto';
 import { normalizeEmail } from '../auth/email';
-import { dummyVerify, hashPassword, validatePassword, verifyPassword } from '../auth/passwords';
+import { assertPasswordPolicy, dummyVerify, hashPassword, verifyPassword } from '../auth/passwords';
 import { generatePhrase, normalizePhrase, phraseDigest } from '../auth/phrases';
 import {
   checkRateLimit,
@@ -94,11 +94,6 @@ function parseLanguage(body: Record<string, unknown>): Locale {
   if (value === undefined) return 'en';
   if (typeof value !== 'string' || !LOCALES.includes(value as Locale)) throw invalidRequest();
   return value as Locale;
-}
-
-function assertPasswordPolicy(password: string): void {
-  const rejection = validatePassword(password);
-  if (rejection !== null) throw invalidRequest('That password cannot be used.', { password: rejection });
 }
 
 function assertMethod(request: Request, allowed: string): void {
