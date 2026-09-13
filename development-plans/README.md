@@ -8,16 +8,20 @@ Stage 1 was completed on 2026-09-13. The [deployed feasibility report](../docs/s
 
 Stage 2 was completed on 2026-09-13. The [Stage 2 completion report](../docs/stage-2-completion.md) records the deployed test evidence, the measured serialisation of key derivation in the Free runtime, and the decision to proceed to Stage 3.
 
+Stages 4 and 5 were completed on 2026-09-13; see the [Stage 4](../docs/stage-4-completion.md) and [Stage 5](../docs/stage-5-completion.md) completion reports.
+
+**Stages 3 and 6 are implemented and locally verified but not closed.** Each is one step short, and both steps need a person: Stage 3's operator rescue must be redeemed against the deployed test Worker after a token is inserted through Cloudflare Durable Object Data Studio, and Stage 6 needs its manual screen-reader review in all three locales. The [Stages 2–6 execution log](../docs/stages-2-6-execution-log.md) records exactly what remains, and [`handoff-remaining-checks.md`](handoff-remaining-checks.md) is the brief for whoever picks those up.
+
 On 2026-09-13, the Stage 2 account plan was extended with an owner-managed allowed-email list. Its API and authorization rules are in Stage 2; recovery, board, UI, localization, and backup implications are reflected in Stages 3–7 and the master plan.
 
-The [autonomous execution prompt for Stages 2–6](execute-stages-2-through-6-autonomously.md) is ready for handoff. Give Claude Code this file as its task; the link alone does not start execution. It remains here while work is in progress and moves to `archived/` only after all five deployed stage gates pass.
+The [autonomous execution prompt for Stages 2–6](execute-stages-2-through-6-autonomously.md) has been executed but **stays here**, because it may only move to `archived/` once all five deployed stage gates pass. Stages 2, 4, and 5 passed; Stages 3 and 6 each have one outstanding check that needs a person, described above.
 
 | Stage | Plan |
 | --- | --- |
 | 1 (complete) | [Hosting and security feasibility](archived/stage-1-hosting-security-feasibility.md) |
 | 2 (complete) | [Users, invitations, and sessions](archived/stage-2-users-invitations-sessions.md) |
 | 3 | [Recovery and manual rescue](stage-3-recovery-manual-rescue.md) |
-| 4 | [Board API](stage-4-board-api.md) |
-| 5 | [Board and account UI](stage-5-board-account-ui.md) |
+| 4 (complete) | [Board API](archived/stage-4-board-api.md) |
+| 5 (complete) | [Board and account UI](archived/stage-5-board-account-ui.md) |
 | 6 | [Localization and accessibility](stage-6-localization-accessibility.md) |
 | 7 | [Backup, hardening, and release](stage-7-backup-hardening-release.md) |

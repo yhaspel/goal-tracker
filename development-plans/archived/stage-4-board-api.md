@@ -1,7 +1,8 @@
 # Stage 4 — Board API
 
 **Status:** Implementation-ready subplan  
-**Parent:** [Family Kanban Board master plan](personal-business-goals-dashboard-master-plan.md), Stage 4  
+**Parent:** [Family Kanban Board master plan](../personal-business-goals-dashboard-master-plan.md), Stage 4  
+**Status:** Complete on 2026-09-13. See the [Stage 4 completion report](../../docs/stage-4-completion.md).  
 **Prerequisite:** Stage 3 exit gate passed and its schema migration version 3 applied after Stage 2. Stage 4's migration version 4 must not deploy before version 3; board API code may be drafted in parallel only after the Stage 2/3 shared contracts are frozen. Stages 1–6 use disposable accounts in an isolated Free test environment; production initialization waits for Stage 7 backup tooling.  
 **Outcome:** One reliable shared board API with owner-managed columns, member-managed cards, active-member assignment, and transaction-safe reordering.
 

@@ -1,7 +1,7 @@
 # Stage 5 — Board and Account UI
 
-**Status:** Ready to implement after Stages 1–4  
-**Scope authority:** `personal-business-goals-dashboard-master-plan.md`  
+**Status:** Complete on 2026-09-13. See the [Stage 5 completion report](../../docs/stage-5-completion.md).  
+**Scope authority:** [Family Kanban Board master plan](../personal-business-goals-dashboard-master-plan.md)  
 **Deliverable:** One responsive React application for the single shared board and every non-operator account flow.
 
 ## Scope and dependencies

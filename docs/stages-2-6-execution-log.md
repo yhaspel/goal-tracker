@@ -1,22 +1,32 @@
 # Stages 2–6 execution log
 
 Working record for the [autonomous Stages 2–6 execution prompt](../development-plans/execute-stages-2-through-6-autonomously.md).
-A resumed session should read this file, that prompt, `AGENTS.md`, and the
-[plan index](../development-plans/README.md) before touching code, then continue from the
-verified evidence below rather than re-running finished work or assuming completion.
+A resumed session should read this file, that prompt, `AGENTS.md`, the
+[plan index](../development-plans/README.md), and
+[`handoff-remaining-checks.md`](../development-plans/handoff-remaining-checks.md) before
+touching code, then continue from the verified evidence below rather than re-running finished
+work or assuming completion.
 
 Timestamps are Asia/Jerusalem. No secret, password, recovery phrase, invitation code, session
 token, or personal address appears in this file.
 
-## Current position
+## Where the run stands
+
+| Stage | State |
+| --- | --- |
+| 2 — users, invitations, sessions | **Complete.** [Report](stage-2-completion.md), plan archived |
+| 3 — recovery and manual rescue | Implemented and locally verified. **One check open:** the operator rescue has never been redeemed against the deployed Worker, because inserting the token needs Durable Object Data Studio |
+| 4 — board API | **Complete.** [Report](stage-4-completion.md), plan archived |
+| 5 — board and account UI | **Complete.** [Report](stage-5-completion.md), plan archived |
+| 6 — localisation and accessibility | Implemented and locally verified. **One check open:** the manual screen-reader review in three locales |
 
 | Field | Value |
 | --- | --- |
-| Current stage | 3 — recovery and manual rescue |
-| State | Stage 2 complete and archived; Stage 3 not started |
-| Last verified commit | `6c793c6`, CI [34745437619](https://github.com/yhaspel/goal-tracker/actions/runs/34745437619), deployed version `1a2b6aaa-381c-4e84-9672-ad67c660eff6` |
+| Last verified commit | `6aae5b6` |
+| CI run | [34749133629](https://github.com/yhaspel/goal-tracker/actions/runs/34749133629) — `checks: success`, `deploy-test: success` |
+| Deployed version id | `0719da20-9c2c-4598-81a3-a74116c2306d` |
 | Test host | <https://family-board-test.yuval3000.workers.dev> |
-| Next action | Implement Stage 3 from [its plan](../development-plans/stage-3-recovery-manual-rescue.md): migration version 3, the three rotation flows, the operator token script, and the Data Studio runbook |
+| Next action | The two checks in [`handoff-remaining-checks.md`](../development-plans/handoff-remaining-checks.md). The execution prompt must not self-archive until both pass |
 
 ## Environment facts confirmed at session start (2026-09-13)
 
@@ -27,99 +37,86 @@ token, or personal address appears in this file.
   (`5232edb7a284646f0ef958b239103ad0`) with `workers (write)` and `workers_scripts (write)`.
 - `gh auth status` reports `yhaspel`, scopes include `repo`.
 - Remote `origin` is `https://github.com/yhaspel/goal-tracker.git`; branch `main` is the default.
-- CI run `34743659465` for the Stage 1 baseline `c5aa9ab` showed `checks: success` and
-  `deploy-test: success`.
+- CI run `34743659465` for the Stage 1 baseline `c5aa9ab` showed both jobs green.
 
 ## Standing operational notes
 
-- **Deploy before acceptance.** Deployed acceptance must run against the final commit of a
-  stage. Stage 2 ran its full flow one commit early and then needed a second deployed run to
-  cover the difference. Land every code change for a stage first, let CI deploy it, then run
-  the acceptance flow once.
-- **The test household is a persistent fixture.** It holds a disposable owner and six members
-  and its seven seats are full. Deactivating a member frees a seat but its user row and email
-  are permanently unusable, so a full bootstrap-and-six-registrations run needs a reset
-  disposable namespace. Identities live in `.secrets.smoke.json` (mode 0600, Git-ignored).
+- **Deploy before acceptance.** Deployed acceptance must run against a stage's final commit.
+  Stage 2 ran its full flow one commit early and needed a second deployed run to cover the
+  difference. Land every code change for a stage first, let CI deploy it, then run acceptance.
+- **The test household is a persistent fixture.** One disposable owner and six members, seven
+  seats full. Deactivating a member frees a seat but its user row and address are permanently
+  unusable, so `scripts/board-smoke.ts` swaps the freed address for a fresh one and registers a
+  replacement. A full bootstrap-and-six-registrations run needs a reset namespace. Identities
+  live in `.secrets.smoke.json` (mode 0600, Git-ignored).
 - **Test secrets are provisioned.** `BOOTSTRAP_SECRET`, `RECOVERY_DIGEST_KEY`, `CSRF_SECRET`,
-  and `RATE_LIMIT_KEY` exist as Cloudflare secrets on `family-board-test`. Stage 3 reuses
-  `RECOVERY_DIGEST_KEY` with a different domain prefix and needs no new secret.
+  and `RATE_LIMIT_KEY` exist on `family-board-test`. `RECOVERY_DIGEST_KEY` is escrowed at
+  `.secrets.test-recovery-key`; without it the lost-phrase runbook cannot be followed at all.
+- **Rate limits bite during repeated smoke runs.** One `recovery-smoke.ts` run charges five
+  recovery starts against the subject account and about eight against the calling address,
+  against budgets of five and ten per fifteen minutes. A second run inside that window is
+  refused with `429`. That is the limiter working, not a regression.
 - **Verify the deployed version, never infer it.** Take the commit from the CI run, the version
-  id from the `deploy-test` job log, and confirm it against `npx wrangler deployments list
-  --env test`. `npm run check:links` runs in CI, so a moved plan fails the build until every
-  reference is repaired.
+  id from the `deploy-test` job log, and confirm it against `npx wrangler deployments status
+  --env test`. `check:links` and `check:i18n` run in CI, so a moved plan or an untranslated
+  string fails the build.
 
-## Stage 2 — complete
-
-Closed on 2026-09-13. Evidence, deviations, and rollback notes are in
-[`docs/stage-2-completion.md`](stage-2-completion.md); the plan is archived at
-[`development-plans/archived/stage-2-users-invitations-sessions.md`](../development-plans/archived/stage-2-users-invitations-sessions.md).
-
-Headline evidence: `npm test` covers 47 tests in the Workers runtime;
-`scripts/auth-smoke.ts` reported 37 of 37 checks against the deployed test Worker; a follow-up
-deployed run covering registration, deactivation, and seat recycling on the current version
-reported 15 of 15.
-
-### Findings worth carrying forward
+## Findings worth carrying into Stage 7
 
 - **Key derivation blocks the Durable Object.** Eight simultaneous failed logins occupied the
   object for 1,890 ms, and health reads issued at +416 ms did not complete until +1,887 ms.
-  Twelve simultaneous logins took 2,751 ms with none refused. The runtime therefore serialises
-  work on the object before the bounded key-derivation queue can accumulate waiters. The queue
-  stays as a memory safeguard with its capacity proven by the Workers-runtime test, but the
-  persistent per-email and per-IP rate limits are the real bound on attacker-driven work. This
-  explains the live 503 that Stage 1 could not observe; it is not an unresolved gap any more.
-- **A credential burst delays everything else on the household.** Stage 4 board reads will
-  queue behind a login burst. Acceptable at seven people; Stage 7's usage review should watch it.
+  Twelve simultaneous logins took 2,751 ms with none refused. The runtime serialises work on
+  the object before the bounded key-derivation queue can accumulate waiters, which explains the
+  live 503 Stage 1 could not observe. The queue stays as a memory safeguard; the persistent
+  per-email and per-IP rate limits are the real bound on attacker-driven work. A credential
+  burst also delays every other request to the same household, including board reads.
 - **Keep storage writes out of any path that precedes a derivation.** An early write holds the
-  Durable Object's input gate and staggers concurrent delivery.
-- The CI routing check now reads `SCHEMA_VERSION` from the migration module and polls until the
-  deployed Worker reports it. Before that it passed against a version that had not finished
-  propagating.
+  object's input gate and staggers concurrent delivery.
+- **Foreign keys are enforced by default** in the Durable Object runtime; no pragma needed.
+- **Reorder write cost is proportional to displaced cards only**, bounded by source plus
+  destination column size — at most 500 rows under the card cap. See the
+  [Stage 4 report](stage-4-completion.md).
+- **Escrow `RECOVERY_DIGEST_KEY` when it is provisioned.** It was first created without being
+  kept, which made the rescue runbook inoperable and forced a rotation that invalidated every
+  stored recovery phrase in the test environment. The README now documents this; Stage 7 must
+  not repeat it for production.
+- **A deployment can report 100% live while the edge still serves the old script.** On
+  2026-09-13 at 08:15 UTC a Stage 4 deployment took roughly 25 minutes to take effect. The CI
+  deploy, a manual `wrangler deploy`, `wrangler versions upload` plus
+  `wrangler versions deploy <id>@100`, and `wrangler triggers deploy` all reported success
+  while three independent probes — two of them front-Worker checks that never reach the
+  Durable Object — showed the previous code, including from an unrelated network.
+  `cloudflarestatus.com` showed no open incident. Later deployments propagated within seconds.
+  `scripts/verify_stage_1.py` now polls slowly for the expected schema version, because a tight
+  poll keeps the object warm and prevents the restart it is waiting for.
 
-## Stages 3–6
+## Deviations from the plans, with reasons
 
-Not started.
+- `pending_registrations` carries a `language` column the Stage 2 table sketch does not list;
+  the prepare request accepts a locale and the confirming transaction creates the user.
+- Security events go to one `console` sink rather than a SQL table: the master plan's data
+  model has no events table and a Durable Object has a 1 GB ceiling.
+- The common-password denylist is the first 20,000 entries of the twelve-or-more-character
+  subset of a pinned frequency-ordered source. The full subset would add about 349 KB gzipped
+  for little extra coverage.
+- Credential rotation revokes sessions by setting `revoked_at` rather than deleting rows, as
+  Stage 3 words it, so the project keeps one session model and an auditable trail.
+- Stage 4's `validation_error` was reconciled to Stage 2's already-deployed `invalid_request`;
+  the Stage 4 plan records this inline.
+- The three seeded columns use fixed UUIDs, which are opaque and maximally stable.
 
-## Active blocker — the test Worker stopped accepting deployments
+## What was verified where
 
-From **2026-09-13 08:15 UTC**, `family-board-test` serves the Stage 3 script no matter what is
-deployed. Cloudflare's API reports the new version at 100%; the edge does not run it.
+Deployed, against the isolated test Worker: `scripts/auth-smoke.ts` 37/37,
+`scripts/recovery-smoke.ts` 23/23 with the operator leg skipped, `scripts/board-smoke.ts` 39/39
+twice, `scripts/verify_stage_1.py routing`, a seat-recycling run 15/15, and a browser
+walkthrough covering deep links, sign-in, a mixed-script card, deletion, all three locales at
+desktop and mobile widths, and an empty browser storage check.
 
-Attempted, all reporting success: the CI `deploy-test` job (`wrangler deploy --env test`, version
-`8fa5caa1`), a manual `npm run deploy:test` (`b68727fd`), `wrangler versions upload` followed by
-`wrangler versions deploy <id>@100` (`0c505b48`), and `wrangler triggers deploy`.
+Locally, against a Durable Object running the same commit: 115 Workers-runtime tests, the
+complete lost-phrase runbook including generation, insertion, redemption, reuse refusal,
+revocation, and the audit query, and a browser walkthrough covering pointer drag, keyboard
+drag, the explicit move controls, the owner settings screen, and a 320 CSS pixel viewport.
 
-Evidence that the old script is what runs, with the same three probes answered by a local
-`wrangler dev` on the same commit:
-
-| Probe | Deployed | Local (same commit) |
-| --- | --- | --- |
-| `GET /api/v1/health` | `schemaVersion: 3` | `schemaVersion: 4` |
-| `GET /api/v1/board` | 404 | 401 |
-| `POST /api/v1/cards`, `Content-Type: text/plain` | 404 | 415 |
-| `DELETE /api/v1/invitations/abc`, `Content-Type: text/plain` | 401 | 415 |
-
-The last two are front-Worker checks that never reach the Durable Object, so this is not the
-object running old code behind a new Worker. A fetch from an unrelated network saw the same
-`schemaVersion: 3`, so it is not local caching either. `cloudflarestatus.com` showed no open
-Workers or Durable Objects incident. The uploaded bundle was 403.24 KiB against 355 KiB for
-Stage 3, and a dry-run bundle from this commit does contain the board routes, so the right code
-was built and uploaded.
-
-**Consequence:** the Stage 4 deployed exit gate cannot run, and neither can the Stage 3 operator
-leg. Stages 4–6 are implemented and verified locally only. Nothing may be marked complete or
-archived until this is resolved and the deployed checks pass.
-
-**Next step:** inspect the Worker in the Cloudflare dashboard, which can show state the API does
-not — a stuck or duplicated deployment, a version override, or a second deploy pipeline such as
-Workers Builds also publishing this Worker. `docs/ci.md` warns against that last one explicitly.
-
-## Open risks
-
-- Stage 6 requires a manual screen-reader review of representative desktop and mobile workflows
-  in English, Hebrew, and Russian. That needs a human operator with a screen reader and cannot
-  be performed from this session. Automated accessibility checks do not satisfy it, so unless a
-  person runs it, Stage 6 cannot be declared complete and this execution prompt must not
-  self-archive.
-- Internal Durable Object CPU duration and peak memory stay unquantified, for the reason Stage 1
-  recorded: a deployed Worker freezes its timers between I/O.
+Not performed: any screen-reader session, any physical touch device, and the deployed operator
+rescue. Nothing about those is claimed anywhere in this repository.

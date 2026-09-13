@@ -186,6 +186,67 @@ describe('invariants under randomised sequences', () => {
   }, 120_000);
 });
 
+describe('reorder write cost', () => {
+  /** Rows the last mutation actually rewrote, identified by a changed `updated_at`. */
+  async function timestamps(): Promise<Map<string, string>> {
+    return inHousehold(sql => {
+      const seen = new Map<string, string>();
+      for (const row of sql.exec<{ id: string; updated_at: string }>('SELECT id, updated_at FROM cards')) {
+        seen.set(row.id, row.updated_at);
+      }
+      return seen;
+    });
+  }
+
+  function changed(before: Map<string, string>, after: Map<string, string>): number {
+    let count = 0;
+    for (const [id, value] of after) if (before.get(id) !== value) count += 1;
+    return count;
+  }
+
+  it('rewrites only the cards a move actually displaces', async () => {
+    const owner = await createOwner(OWNER);
+    let state = await snapshot(owner);
+    const [first, second] = state.columns;
+    const ids: string[] = [];
+    for (let index = 0; index < 6; index++) ids.push(await createCard(owner, first!.id, `card-${index}`));
+
+    // Adjacent swap: only the two cards that trade places are written.
+    let before = await timestamps();
+    state = await snapshot(owner);
+    await owner.client.call('POST', `/api/v1/cards/${ids[0]}/move`, {
+      body: { boardRevision: state.boardRevision, targetColumnId: first!.id, targetIndex: 1 }
+    });
+    expect(changed(before, await timestamps())).toBe(2);
+
+    // Worst case within a column: first to last shifts every card in it.
+    before = await timestamps();
+    state = await snapshot(owner);
+    await owner.client.call('POST', `/api/v1/cards/${ids[1]}/move`, {
+      body: { boardRevision: state.boardRevision, targetColumnId: first!.id, targetIndex: 5 }
+    });
+    expect(changed(before, await timestamps())).toBe(6);
+
+    // Cross-column: the card itself, plus everything after it in the source column.
+    before = await timestamps();
+    state = await snapshot(owner);
+    const movingId = state.columns[0]!.cards[0]!.id;
+    await owner.client.call('POST', `/api/v1/cards/${movingId}/move`, {
+      body: { boardRevision: state.boardRevision, targetColumnId: second!.id, targetIndex: 0 }
+    });
+    expect(changed(before, await timestamps())).toBe(6);
+
+    // Appending to the end of a column writes exactly the one card that moved.
+    before = await timestamps();
+    state = await snapshot(owner);
+    const tail = state.columns[0]!.cards[state.columns[0]!.cards.length - 1]!.id;
+    await owner.client.call('POST', `/api/v1/cards/${tail}/move`, {
+      body: { boardRevision: state.boardRevision, targetColumnId: second!.id, targetIndex: 1 }
+    });
+    expect(changed(before, await timestamps())).toBe(1);
+  }, 120_000);
+});
+
 describe('scale caps', () => {
   it('refuses the card beyond the cap without truncating the board', async () => {
     const owner = await createOwner(OWNER);
