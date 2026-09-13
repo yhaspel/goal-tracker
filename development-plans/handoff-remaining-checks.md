@@ -1,14 +1,14 @@
-# Handoff — the two checks that need a person
+# Handoff — the check that needs a person
 
 You are continuing the [autonomous Stages 2–6 run](execute-stages-2-through-6-autonomously.md)
 in the `yhaspel/goal-tracker` repository. Read that prompt, `AGENTS.md`, the
 [plan index](README.md), and the [execution log](../docs/stages-2-6-execution-log.md) in full
 before touching anything.
 
-**Everything is implemented and pushed.** Stages 2, 4, and 5 are complete and archived. Stages
-3 and 6 are implemented, fully covered by tests, and verified locally, but each is one check
-short of its exit gate — and both of those checks need capabilities the previous session did
-not have: a signed-in Cloudflare dashboard, and a real screen reader.
+**Everything is implemented and pushed.** Stages 2, 3, 4, and 5 are complete and archived; see
+the [Stage 3 completion report](../docs/stage-3-completion.md) for Task A's outcome. Stage 6 is
+implemented, fully covered by tests, and verified locally, but is one check short of its exit
+gate — a real screen reader, which the previous session did not have.
 
 **Production now runs the application**, deployed by hand on 2026-09-13 at the owner's request,
 ahead of the Stage 7 gate. It has no owner account and no user data, and no backup or restore
@@ -49,59 +49,16 @@ Neither file may be committed, printed, or pasted anywhere.
 
 ---
 
-## Task A — Stage 3's operator rescue, against the deployed test Worker
+## Task A — done, 2026-09-13
 
-Two of the three recovery flows already pass on the deployed Worker: saved-phrase recovery and
-the signed-in credential change, both covered by `scripts/recovery-smoke.ts` at 23 of 23
-checks. The third, the lost-phrase operator rescue, has been rehearsed end to end against a
-local Durable Object using the exact runbook SQL, but never against the deployed one, because
-inserting the token requires Durable Object Data Studio in the Cloudflare dashboard.
-
-Follow [`docs/operator-lost-phrase-reset.md`](../docs/operator-lost-phrase-reset.md) exactly.
-It is the artefact under test: if a step is wrong or ambiguous, that is a finding, and the
-runbook should be corrected.
-
-1. Pick a subject from `.secrets.smoke.json` — use `members[3]`, which the other smoke scripts
-   leave alone. Note its address without printing it anywhere public.
-2. In the dashboard, open **Workers & Pages → `family-board-test` → Durable Objects →
-   `TestHouseholdDO` → object `household` → Data Studio**. Confirm the Worker name before
-   running anything; `family-board-production` must never be touched.
-3. Run the runbook's step 2 lookup for that address and record `id` and `credential_epoch`.
-4. Run the runbook's step 3 generator locally:
-
-   ```sh
-   node scripts/create-operator-reset-token.ts \
-     --user-id <id> --epoch <credential_epoch> \
-     --operator "stage-3-gate" --reason "deployed runbook rehearsal" \
-     < .secrets.test-recovery-key
-   ```
-
-   Save the raw token it prints to a file with mode 0600. Do not paste it into a chat, a
-   commit, or the dashboard. Only the digest goes into SQL.
-5. Paste the generated `INSERT` into Data Studio, then the generated `SELECT`, and confirm
-   exactly one row exists.
-6. Redeem it within 15 minutes:
-
-   ```sh
-   node scripts/recovery-smoke.ts https://family-board-test.yuval3000.workers.dev < <token-file>
-   ```
-
-   One full run charges five recovery starts against the subject account and about eight
-   against your address, against budgets of five and ten per fifteen minutes. A second run
-   inside that window is refused with `429`; that is the rate limiter working. Wait for the
-   window to roll over rather than re-running immediately.
-7. Expect **28 of 28 checks passed**, including the operator leg: the token starts a rescue,
-   the rescue commits, the rescued password signs in, and the consumed token cannot be reused.
-8. Run the runbook's step 6 revoke and step 7 audit query, and confirm a revoked token cannot
-   be redeemed while the redeemed row keeps its `consumed_at`.
-9. Delete the token file. The subject's new credentials are written back to
-   `.secrets.smoke.json` by the script.
-
-**If it passes,** write `docs/stage-3-completion.md` in the same style as
-`docs/stage-4-completion.md`: date, tested commit and deployed version id, CI run link,
-commands, the acceptance table, limitations, and rollback notes, with no secrets or addresses.
-Then move `development-plans/stage-3-recovery-manual-rescue.md` into `archived/`, fix its
-relative links, mark it complete in the plan index, and repair every reference.
+The lost-phrase operator rescue was redeemed against the deployed test Worker, following
+[`docs/operator-lost-phrase-reset.md`](../docs/operator-lost-phrase-reset.md) exactly, once for
+a redemption and once for a revocation. `scripts/recovery-smoke.ts` reported **28 of 28 checks
+passed**, including the full operator leg. See the
+[Stage 3 completion report](../docs/stage-3-completion.md) for the full evidence, the
+revocation check the automated script does not cover, and a harness bug the runbook rehearsal
+surfaced and fixed (`4cefa7f`) rather than the runbook itself. Stage 3's plan is archived at
+[`development-plans/archived/stage-3-recovery-manual-rescue.md`](archived/stage-3-recovery-manual-rescue.md).
 
 ---
 
@@ -193,16 +150,16 @@ Then confirm by hand:
 
 Record the result in [`docs/production-deployment.md`](../docs/production-deployment.md).
 
-**Creating the production owner is a separate decision and not part of this validation.** The
-lost-phrase rescue is unproven on a deployed Worker and no backup exists, so an account created
-now is unrecoverable if its password and phrase are both lost. If the owner still wants to
-proceed, Task A closes the first gap first; the deployment record describes the bootstrap
-procedure.
+**Creating the production owner is a separate decision and not part of this validation.** Task A
+proved the rescue mechanism works correctly against the deployed **test** Worker, but it has
+never been exercised against production's own Durable Object and secrets, and no backup exists,
+so an account created now is still unrecoverable if its password and phrase are both lost. The
+deployment record describes the bootstrap procedure.
 
 ## Closing the run
 
-Only when **both** Task A and Task B have passed. Task D is production validation and does not
-gate the run; Task C is optional.
+Task A passed on 2026-09-13; only Task B still gates the run. Task D is production
+validation and does not gate the run; Task C is optional.
 
 1. Run the full local suite and the three deployed smoke scripts against the final commit.
 2. Confirm that commit's CI, including its `deploy-test` job, and record the deployed version id.
@@ -215,9 +172,11 @@ gate the run; Task C is optional.
    `npm run check:links` and `git diff --check`.
 7. Commit the archive move, push it, and confirm that commit's CI and `deploy-test` job.
 
-**Do not archive the execution prompt if either task is still outstanding.** Leave it in
+**Do not archive the execution prompt while Task B is still outstanding.** Leave it in
 `development-plans/` and record the exact remaining blocker and the next safe step.
 
-Stage 7 stays out of scope throughout: no real owner, no production secrets, no production user
-data, no new application behaviour deployed to production, no exposed restore Worker, and no
-automatic production deployment.
+Stage 7 still gates what's left: no real owner account, no production user data, no exposed
+restore Worker, and no automatic production deployment. Production now runs the application and
+has its own secrets only because the owner deliberately asked for that ahead of the gate — see
+[the production deployment record](../docs/production-deployment.md) — not because this run's
+scope changed; nothing else about Stage 7 moves forward without the owner asking for it too.

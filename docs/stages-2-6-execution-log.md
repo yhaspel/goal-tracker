@@ -15,17 +15,17 @@ token, or personal address appears in this file.
 | Stage | State |
 | --- | --- |
 | 2 — users, invitations, sessions | **Complete.** [Report](stage-2-completion.md), plan archived |
-| 3 — recovery and manual rescue | Implemented and locally verified. **One check open:** the operator rescue has never been redeemed against the deployed Worker, because inserting the token needs Durable Object Data Studio |
+| 3 — recovery and manual rescue | **Complete.** [Report](stage-3-completion.md), plan archived |
 | 4 — board API | **Complete.** [Report](stage-4-completion.md), plan archived |
 | 5 — board and account UI | **Complete.** [Report](stage-5-completion.md), plan archived |
 | 6 — localisation and accessibility | Implemented and locally verified. **One check open:** the manual screen-reader review in three locales |
 
 | Field | Value |
 | --- | --- |
-| Head commit | `8f15347`, CI [34749414211](https://github.com/yhaspel/goal-tracker/actions/runs/34749414211) — `checks: success`, `deploy-test: success`, deployed version `c43e6ed1-6459-4fda-8fd1-c403af0166ce` |
-| Commit acceptance ran against | `6aae5b6`, CI [34749133629](https://github.com/yhaspel/goal-tracker/actions/runs/34749133629), deployed version `0719da20-9c2c-4598-81a3-a74116c2306d`. `8f15347` changed only documents and one test, so the Worker bundle is unchanged between them |
+| Head commit | `e90b65a`, CI [34751848731](https://github.com/yhaspel/goal-tracker/actions/runs/34751848731) — `checks: success`, `deploy-test: success`, deployed version `86d659ef` |
+| Commit acceptance ran against | `e90b65a` — the full local suite and `recovery-smoke.ts` (28/28, including the operator leg) both ran directly against this commit and its deployment on 2026-09-13 |
 | Test host | <https://family-board-test.yuval3000.workers.dev> |
-| Next action | The two checks in [`handoff-remaining-checks.md`](../development-plans/handoff-remaining-checks.md). The execution prompt must not self-archive until both pass |
+| Next action | The one remaining check in [`handoff-remaining-checks.md`](../development-plans/handoff-remaining-checks.md): Stage 6's screen-reader review. The execution prompt must not self-archive until it passes |
 
 ## Production was deployed on 2026-09-13, ahead of the Stage 7 gate
 
@@ -37,8 +37,11 @@ secrets escrowed at creation. No owner account was created, so production holds 
 
 This departs from the execution prompt's instruction not to deploy new application behaviour to
 production. It was a deliberate owner decision, not an oversight, and it does not change what
-Stages 3 and 6 still owe. [The production deployment record](production-deployment.md) is the
-authoritative description of what is and is not in place there.
+Stage 6 still owes. Task A has since proven the rescue mechanism correct against the deployed
+**test** Worker ([report](stage-3-completion.md)), but that evidence does not carry over to
+production's own Durable Object and secrets, so the caution below still holds there.
+[The production deployment record](production-deployment.md) is the authoritative description
+of what is and is not in place there.
 
 ## Local files this run left behind
 
@@ -140,15 +143,16 @@ first two.
 ## What was verified where
 
 Deployed, against the isolated test Worker: `scripts/auth-smoke.ts` 37/37,
-`scripts/recovery-smoke.ts` 23/23 with the operator leg skipped, `scripts/board-smoke.ts` 39/39
-twice, `scripts/verify_stage_1.py routing`, a seat-recycling run 15/15, and a browser
-walkthrough covering deep links, sign-in, a mixed-script card, deletion, all three locales at
-desktop and mobile widths, and an empty browser storage check.
+`scripts/recovery-smoke.ts` 23/23 with the operator leg skipped, then later **28/28 with the
+operator leg redeemed and separately revoked** ([report](stage-3-completion.md)),
+`scripts/board-smoke.ts` 39/39 twice, `scripts/verify_stage_1.py routing`, a seat-recycling run
+15/15, and a browser walkthrough covering deep links, sign-in, a mixed-script card, deletion,
+all three locales at desktop and mobile widths, and an empty browser storage check.
 
 Locally, against a Durable Object running the same commit: 115 Workers-runtime tests, the
 complete lost-phrase runbook including generation, insertion, redemption, reuse refusal,
 revocation, and the audit query, and a browser walkthrough covering pointer drag, keyboard
 drag, the explicit move controls, the owner settings screen, and a 320 CSS pixel viewport.
 
-Not performed: any screen-reader session, any physical touch device, and the deployed operator
-rescue. Nothing about those is claimed anywhere in this repository.
+Not performed: any screen-reader session and any physical touch device. Nothing about those
+is claimed anywhere in this repository.

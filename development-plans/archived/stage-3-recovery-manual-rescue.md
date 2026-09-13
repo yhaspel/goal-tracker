@@ -1,7 +1,8 @@
 # Stage 3 — Recovery and Manual Rescue
 
 **Status:** Implementation-ready subplan  
-**Parent:** [Family Kanban Board master plan](personal-business-goals-dashboard-master-plan.md), Stage 3  
+**Parent:** [Family Kanban Board master plan](../personal-business-goals-dashboard-master-plan.md), Stage 3  
+**Status:** Complete on 2026-09-13. See the [Stage 3 completion report](../../docs/stage-3-completion.md).  
 **Prerequisite:** Stage 2 exit gate passed. Its session, CSRF, rate-limit, scrypt, phrase-digest, and migration primitives are available. Stages 1–6 use disposable accounts in an isolated Free test environment; production initialization waits for Stage 7 backup tooling.  
 **Outcome:** A member can rotate credentials with a saved recovery phrase, a signed-in member can change a password and regenerate the phrase, and an operator can rescue a member who lost the phrase through a short-lived database-issued token. No email reset exists.
 
