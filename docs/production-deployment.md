@@ -29,17 +29,35 @@ is a forward-only change: redeploying older Worker code does **not** remove thos
 All four were generated fresh for this environment and uploaded through stdin, so none reached
 a command line or a shell history entry. Production shares no secret with test.
 
-| Secret | Purpose |
-| --- | --- |
-| `BOOTSTRAP_SECRET` | Opens one-time owner creation |
-| `RECOVERY_DIGEST_KEY` | Keys recovery-phrase digests and operator reset tokens |
-| `CSRF_SECRET` | Signs the session-bound CSRF value |
-| `RATE_LIMIT_KEY` | Pseudonymises rate-limit bucket keys |
+| Secret | Purpose | State |
+| --- | --- | --- |
+| `BOOTSTRAP_SECRET` | Opened one-time owner creation | **Deleted 2026-09-13**, after the owner account existed |
+| `RECOVERY_DIGEST_KEY` | Keys recovery-phrase digests and operator reset tokens | Configured |
+| `CSRF_SECRET` | Signs the session-bound CSRF value | Configured |
+| `RATE_LIMIT_KEY` | Pseudonymises rate-limit bucket keys | Configured |
 
-**All four are escrowed at `.secrets.production.env`** (mode 0600, ignored by Git) on the
-owner's machine. This was done at creation, because Cloudflare never shows a secret again and
-the lost-phrase runbook is inoperable without `RECOVERY_DIGEST_KEY`. The test environment had
-to learn that the hard way; see the [execution log](stages-2-6-execution-log.md).
+The three remaining secrets are escrowed at `.secrets.production.env` (mode 0600, ignored by
+Git) on the owner's machine. Escrow happened at creation, because Cloudflare never shows a
+secret again and the lost-phrase runbook is inoperable without `RECOVERY_DIGEST_KEY`. The test
+environment had to learn that the hard way; see the [execution log](stages-2-6-execution-log.md).
+
+**Move that file into real escrow, separately from any data backup.** A single laptop is not
+an escrow. Replacing `RECOVERY_DIGEST_KEY` later invalidates every stored recovery phrase.
+
+### `BOOTSTRAP_SECRET` was retired on 2026-09-13
+
+Once the owner account existed, the secret had no remaining purpose: owner creation is closed
+permanently by database state, not by the secret. It was deleted from the Worker at the owner's
+request and removed from the escrow file, so no copy of it remains anywhere the project
+controls.
+
+Bootstrap now fails closed twice over, which was confirmed on the deployed Worker:
+`GET /api/v1/auth/bootstrap/status` reports `bootstrapAvailable: false` because the state is
+consumed, and `POST /api/v1/auth/bootstrap/prepare` answers `403` for **any** supplied value
+because no secret is configured at all. Health, the board, and login were unaffected.
+
+Restoring owner creation is not possible and is not meant to be: if the owner account is ever
+lost, the route back is the lost-phrase operator rescue, not a second bootstrap.
 
 **Move that file into real escrow, separately from any data backup.** A single laptop is not
 an escrow. Replacing `RECOVERY_DIGEST_KEY` later invalidates every stored recovery phrase.
@@ -148,9 +166,9 @@ about what protects the account that exists, not about how to create one.
   someone deliberately rehearses it there — which itself requires care, since it means
   generating and redeeming a real operator token against the live object — do not assume it
   will work the same way.
-- **Consider removing `BOOTSTRAP_SECRET` from the deployment.** The route already refuses a
-  second owner from database state alone, so the secret is no longer load-bearing; leaving it
-  in place is unnecessary residual exposure.
+- **`BOOTSTRAP_SECRET` has been deleted** from the deployment, on 2026-09-13. See the Secrets
+  section above. It was not load-bearing — the route already refused a second owner from
+  database state alone — so removing it only closed residual exposure.
 - Bootstrap cannot run again while this owner row exists, so there is no way to create a second
   owner by mistake.
 

@@ -57,7 +57,7 @@ first two.
 | `.secrets.test-recovery-key` | The test environment's escrowed `RECOVERY_DIGEST_KEY`, required by the lost-phrase runbook |
 | `.secrets.bootstrap` | The test `BOOTSTRAP_SECRET`, needed only to bootstrap a reset namespace |
 | `.dev.vars` | Four throwaway secrets for `npm run dev`; regenerate freely |
-| `.secrets.production.env` | **The production environment's four secrets.** Cloudflare will not show them again. Move this into real escrow, separately from any data backup |
+| `.secrets.production.env` | **The production environment's three remaining secrets.** Cloudflare will not show them again. Move this into real escrow, separately from any data backup. `BOOTSTRAP_SECRET` was deleted from the Worker and from this file on 2026-09-13, once the owner account existed |
 
 ## Environment facts confirmed at session start (2026-09-13)
 
