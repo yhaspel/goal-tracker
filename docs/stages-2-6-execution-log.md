@@ -315,3 +315,47 @@ Enlarging it would break the sentence's line box for no accessibility gain. Radi
 
 After the fix, all fifteen guest combinations report correct `lang` and `dir`, no horizontal
 overflow at 390 CSS pixels, and no target under 24 × 24 except the intentional inline one.
+
+## Cross-column drag reworked, and two bugs found verifying it, 2026-09-13 (later)
+
+A change arrived in the worktree that rewrites how a drop is resolved. The reason is recorded in
+its own comment: left to itself, the sortable plugin relocates the dragged card's DOM node into
+the other column's list, which React never performed and cannot reconcile, so the board tears
+down on the next render. The rework moves the card in board state on each `dragover` instead,
+which makes React perform the move and leaves the plugin nothing to fight over, and resolves the
+drop from that state rather than from the plugin's indices.
+
+It was **not** committed as it arrived. Exercising it in a browser against a local Durable
+Object found two defects in it, both now fixed in the same commit:
+
+- **A cancel left the board showing a move that never happened.** Pressing Escape mid-drag
+  announced the cancel correctly and restored the board — and then a trailing `dragover`, which
+  arrives *after* `dragend` as the operation unwinds, re-applied the move. The card rendered in
+  the new column while the server still had it in the old one. `onDragOver` now ignores events
+  once `dragOrigin` has been cleared, which only happens at `dragend`.
+- **A multi-column drag committed the second-to-last hop.** Dragging a card across two columns
+  announced "over To do", "over In progress", "over Done" and then confirmed "moved to **In
+  progress**" — while rendering the card in Done. `dragend` resolved the landing by reading the
+  card out of `board`, but the last `dragover`'s state update had not been committed yet, so it
+  read one step behind. The landing is now written to a ref synchronously on every step, which
+  is the same value the announcement is made from, so the two cannot disagree.
+
+Both were found by comparing the rendered board against `GET /api/v1/board` after every drag
+rather than trusting the announcement. That comparison is the check worth repeating: an
+optimistic board that silently disagrees with the server is the failure mode this whole approach
+risks.
+
+Verified after the fixes, each with rendered-vs-server agreement asserted, no console errors,
+and the confirmed move matching the last thing announced:
+
+| Scenario | Result |
+| --- | --- |
+| Keyboard, within a column, two steps down | `position 2 → 3 → 4`, committed at 4 |
+| Keyboard, one column across | Committed to the announced column and position |
+| Keyboard, two columns across | Committed to the **last** hop, which is what was broken |
+| Keyboard, cancel with Escape after crossing a column | Board restored, one cancel announcement, no stray fourth |
+| Keyboard, into an empty column | Committed at position 1 |
+| Keyboard, moved away and back before dropping | No `/move` request issued at all, board untouched |
+| Pointer, one column across | Committed to the announced column and position |
+| Pointer, two columns across | Committed to the last hop |
+| Hebrew RTL, two columns across with `ArrowLeft` | Announced and committed in Hebrew, agreement held |

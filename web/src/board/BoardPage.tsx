@@ -2,7 +2,7 @@ import { Accessibility, defaultPreset } from '@dnd-kit/dom';
 import { DragDropProvider, useDroppable } from '@dnd-kit/react';
 import { useSortable } from '@dnd-kit/react/sortable';
 import { useCallback, useMemo, useRef, useState } from 'react';
-import type { BoardCard, BoardColumn, BoardMember, BoardMutationResponse } from '../../../shared/api';
+import type { BoardCard, BoardColumn, BoardMember, BoardMutationResponse, BoardSnapshot } from '../../../shared/api';
 import { ApiError } from '../api/client';
 import {
   createCard,
@@ -117,9 +117,11 @@ export function BoardPage() {
   }, [editing, draft, runMutation, announce, t]);
 
   const requestMove = useCallback(
-    async (card: BoardCard, targetColumnId: string, targetIndex: number) => {
+    async (card: BoardCard, targetColumnId: string, targetIndex: number, restoreTo?: BoardSnapshot) => {
       if (!board) return;
-      const previous = board;
+      // A drag has already moved the card locally, so the board to restore on a refusal is the
+      // one from before the drag started, not the one this call was made against.
+      const previous = restoreTo ?? board;
       const destination = board.columns.find(column => column.id === targetColumnId);
       setOptimistic(withMovedCard(board, card.id, targetColumnId, targetIndex));
       const moved = await runMutation(
@@ -160,6 +162,23 @@ export function BoardPage() {
   const lastSpokenPlace = useRef('');
 
   /**
+   * The board as it stood when the current drag was picked up.
+   *
+   * A drag now reorders the board locally as it goes, which is what lets a card cross into
+   * another column; this is what a cancel or a refused move puts back.
+   */
+  const dragOrigin = useRef<BoardSnapshot | null>(null);
+
+  /**
+   * Where the drag would land, written on every step.
+   *
+   * This is a ref and not read back off `board` at the end, because the last `dragover`'s state
+   * update has not necessarily been committed by the time `dragend` runs: reading the snapshot
+   * there lands the card one step behind what was just announced.
+   */
+  const dragPlace = useRef<{ columnId: string; position: number } | null>(null);
+
+  /**
    * A drag used to be silent between pick-up and drop: nothing said the card had been lifted,
    * and nothing said where the arrow keys had taken it. Both are announced here.
    */
@@ -168,6 +187,8 @@ export function BoardPage() {
       const card = draggedCard(event.operation.source);
       const place = card && board ? placeOfCard(board, card.id) : null;
       if (!card || !place) return;
+      dragOrigin.current = board;
+      dragPlace.current = { columnId: place.column.id, position: place.position };
       lastSpokenPlace.current = `${place.column.id}:${place.position}`;
       announce(
         t('card.dragPickedUp', {
@@ -182,12 +203,24 @@ export function BoardPage() {
 
   const onDragOver = useCallback(
     (event: { operation: { source: unknown; target: unknown } }) => {
+      // A last `dragover` can arrive after `dragend` has already unwound the operation. Acting
+      // on it re-applies the move that was just canceled, leaving the board showing a card in a
+      // column the server does not have it in. `dragOrigin` is only set while a drag is live.
+      if (!dragOrigin.current) return;
       const card = draggedCard(event.operation.source);
-      const place = card && board ? projectedDrop(board, card.id, (event.operation.target ?? {}) as DropTarget) : null;
-      if (!card || !place) return;
+      if (!card || !board) return;
+      const place = projectedDrop(board, card.id, (event.operation.target ?? {}) as DropTarget);
+      if (!place) return;
       const key = `${place.column.id}:${place.position}`;
       if (key === lastSpokenPlace.current) return;
       lastSpokenPlace.current = key;
+      dragPlace.current = { columnId: place.column.id, position: place.position };
+      // Moving the card in board state here is what makes a cross-column drag work at all.
+      // Left to itself the sortable plugin relocates the card's own DOM node into the other
+      // column's list, which React did not do and cannot then reconcile: it tears the board
+      // down on the next render. Reordering the snapshot instead makes React perform the move,
+      // and the plugin stands down as soon as it sees the indices it was about to write.
+      setOptimistic(withMovedCard(board, card.id, place.column.id, place.position - 1));
       announce(
         t('card.dragOver', {
           title: card.title,
@@ -196,53 +229,49 @@ export function BoardPage() {
         })
       );
     },
-    [board, draggedCard, announce, t]
+    [board, draggedCard, setOptimistic, announce, t]
   );
 
   const onDragEnd = useCallback(
     (event: { canceled: boolean; operation: { source: unknown; target: unknown } }) => {
       lastSpokenPlace.current = '';
+      const origin = dragOrigin.current;
+      const landing = dragPlace.current;
+      dragOrigin.current = null;
+      dragPlace.current = null;
+      const card = draggedCard(event.operation.source);
+      // The card can go missing mid-drag if someone else deletes it. Put the board back rather
+      // than leaving the drag's own speculative ordering on screen.
+      if (!card || !board) {
+        if (origin) setOptimistic(origin);
+        return;
+      }
+
       if (event.canceled) {
         // Escape during a drag was silent too, leaving no way to tell a cancel from a move
-        // that never registered.
-        const card = draggedCard(event.operation.source);
-        const place = card && board ? placeOfCard(board, card.id) : null;
-        if (card && place) {
+        // that never registered. The board goes back to where the card was picked up from.
+        const place = placeOfCard(origin ?? board, card.id);
+        if (origin) setOptimistic(origin);
+        if (place) {
           announce(t('card.dragCanceled', { title: card.title, column: columnLabel(place.column, t) }));
         }
         return;
       }
-      if (!board) return;
-      const source = event.operation.source as {
-        id?: string;
-        index?: number;
-        group?: string;
-        initialIndex?: number;
-        initialGroup?: string;
-      } | null;
-      if (!source?.id) return;
-      const card = board.columns.flatMap(column => column.cards).find(entry => entry.id === source.id);
-      if (!card) return;
 
-      const columnIds = new Set(board.columns.map(column => column.id));
-      const target = event.operation.target as { id?: string } | null;
-      const droppedOn = target?.id === undefined ? null : String(target.id);
-      const group = source.group === undefined ? null : String(source.group);
-
-      // Dropping on a column's empty area targets the column itself; the sortable's own group
-      // has not moved in that case, so it is read from the drop target and appended.
-      if (droppedOn !== null && columnIds.has(droppedOn) && droppedOn !== group) {
-        const destination = board.columns.find(column => column.id === droppedOn);
-        void requestMove(card, droppedOn, destination?.cards.length ?? 0);
+      // The landing comes from the same projection every announcement was made from, so what
+      // was said mid-drag and what is sent now cannot disagree.
+      const started = placeOfCard(origin ?? board, card.id);
+      if (!landing || !started) {
+        if (origin) setOptimistic(origin);
         return;
       }
-
-      // Otherwise the sortable plugin has already computed the destination group and index.
-      if (group === null || !columnIds.has(group) || source.index === undefined) return;
-      if (group === source.initialGroup && source.index === source.initialIndex) return;
-      void requestMove(card, group, source.index);
+      if (landing.columnId === started.column.id && landing.position === started.position) {
+        if (origin) setOptimistic(origin);
+        return;
+      }
+      void requestMove(card, landing.columnId, landing.position - 1, origin ?? board);
     },
-    [board, requestMove]
+    [board, draggedCard, requestMove, setOptimistic, announce, t]
   );
 
   const openCreate = (columnId: string) => {
