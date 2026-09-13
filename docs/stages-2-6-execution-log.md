@@ -22,11 +22,22 @@ token, or personal address appears in this file.
 
 | Field | Value |
 | --- | --- |
-| Last verified commit | `6aae5b6` |
-| CI run | [34749133629](https://github.com/yhaspel/goal-tracker/actions/runs/34749133629) — `checks: success`, `deploy-test: success` |
-| Deployed version id | `0719da20-9c2c-4598-81a3-a74116c2306d` |
+| Head commit | `8f15347`, CI [34749414211](https://github.com/yhaspel/goal-tracker/actions/runs/34749414211) — `checks: success`, `deploy-test: success`, deployed version `c43e6ed1-6459-4fda-8fd1-c403af0166ce` |
+| Commit acceptance ran against | `6aae5b6`, CI [34749133629](https://github.com/yhaspel/goal-tracker/actions/runs/34749133629), deployed version `0719da20-9c2c-4598-81a3-a74116c2306d`. `8f15347` changed only documents and one test, so the Worker bundle is unchanged between them |
 | Test host | <https://family-board-test.yuval3000.workers.dev> |
 | Next action | The two checks in [`handoff-remaining-checks.md`](../development-plans/handoff-remaining-checks.md). The execution prompt must not self-archive until both pass |
+
+## Local files this run left behind
+
+All are Git-ignored, mode 0600, and hold disposable test material only. The handoff needs the
+first two.
+
+| File | Purpose |
+| --- | --- |
+| `.secrets.smoke.json` | Disposable identities for the deployed test household |
+| `.secrets.test-recovery-key` | The test environment's escrowed `RECOVERY_DIGEST_KEY`, required by the lost-phrase runbook |
+| `.secrets.bootstrap` | The test `BOOTSTRAP_SECRET`, needed only to bootstrap a reset namespace |
+| `.dev.vars` | Four throwaway secrets for `npm run dev`; regenerate freely |
 
 ## Environment facts confirmed at session start (2026-09-13)
 
