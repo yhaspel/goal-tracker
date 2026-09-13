@@ -434,3 +434,110 @@ npm run deploy:prod
 ```
 
 `1ca62e3` is the commit before the redesign.
+
+## Stage 7 landed on `main`, 2026-09-13 — **not** deployed to production
+
+This section is deliberately not headed "fifth production deployment". Nothing was deployed to
+production here. Stage 7's code is on `main` and on the test Worker; production is still serving
+the fourth deployment, version `7a9a4d2a-c1a3-455d-b722-fde38e7b6c84`, unchanged.
+
+**Commit:** `9c10e19`, "Give the household a backup it can actually be restored from"
+**CI:** [34775711046](https://github.com/yhaspel/goal-tracker/actions/runs/34775711046) —
+`checks: success`, `deploy-test: success`
+**Production version after this push:** `7a9a4d2a-c1a3-455d-b722-fde38e7b6c84` — the same one as
+before it
+
+### Re-verified locally before the push
+
+Node 25.2.1, npm 11.12.1, from a clean `npm ci`. `lint`, `typecheck`, `check:links` (19 files),
+`check:i18n` (3 locales, 217 English keys), and `npm audit --audit-level=moderate` (0
+vulnerabilities) all clean. `npm test` — **14 test files, 149 tests, all passing**, against a
+baseline of 12 files and 125 tests.
+
+Both bundle-isolation checks were then run by hand against `index.js` from a `--dry-run` outdir,
+not against the whole directory: `index.js.map` embeds the original TypeScript and would name
+every route regardless of what the bundle contains.
+
+| Check | Result |
+| --- | --- |
+| `operator/import` in the production bundle | Absent |
+| `restore_import_marker` in the production bundle | Absent |
+| `operator/export` in the production bundle | Present |
+| `operator/import` in the restore bundle | Present |
+
+CI runs the same four as named steps, and all four passed in the `checks` job: "Prove the restore
+import is absent from the production bundle" and "Prove the restore bundle does carry the import
+route".
+
+### Production smoke test, read-only, after the push
+
+No sign-in, no cookie, no write. Plain `curl` against
+`https://family-board-production.yuval3000.workers.dev`. The point of this pass is the opposite of
+the usual one: it is evidence that pushing to `main` changed **nothing** in production.
+
+| Check | Expected | Result |
+| --- | --- | --- |
+| `GET /api/v1/health` | `200`, `schemaVersion: 4`, `Cache-Control: no-store` | Pass — `{"data":{"status":"ok","schemaVersion":4}}` |
+| `GET /api/v1/board`, `/api/v1/members`, `/api/v1/settings/allowed-emails` | `401 unauthenticated`, generic body, no address named | Pass — all three `{"error":{"code":"unauthenticated","message":"Sign in to continue."}}` |
+| `GET /api/v1/auth/bootstrap/status` | `{"bootstrapAvailable":false}` | Pass |
+| `GET /api/v1/operator/export`, no `Authorization` | `404`, body exactly `{"error":{"code":"not_found","message":"Not found"}}` | Response matches byte for byte — but see the note below |
+| `GET /api/v1/operator/export`, `Authorization: Bearer wrong` | The same `404` | Same, byte for byte |
+| `POST /api/v1/operator/import` | `404` | Pass, and permanently — the route is not in the production bundle at all |
+| `GET /api/v1/diagnostics/probe?nonce=<32 hex>` | `404` | Pass |
+| `GET /` and each of the seven other SPA routes | `200 text/html` | Pass, all eight |
+| The same routes | `Cache-Control: no-store` | **Not yet deployed** — currently `public, max-age=0, must-revalidate` |
+| The same routes | CSP starting `default-src 'none'` | **Not yet deployed** — no CSP header at all |
+| `/assets/index-FbeFDlm9.js` | `200`, CSP present, and **not** `no-store` | Partly — `200` and correctly not `no-store`; CSP **not yet deployed** |
+| `/nope` | `404`, not HTML | Pass — `404` with an empty body and no content type |
+| Every response | `nosniff`, `Referrer-Policy: no-referrer`, `Strict-Transport-Security: max-age=31536000` | **Not yet deployed** — none of the three is present on any response |
+| `family-board-restore` | `404`, no public route | Pass — Cloudflare `error code: 1042`, still unexposed |
+
+The two operator rows need care. Production returned exactly the expected status and exactly the
+expected body — but it reached that answer as an *unknown path*, because `operator/export` is not
+in the build production is serving. The refusal that Stage 7 specifies, and the pre-Stage-7
+not-found, are indistinguishable from outside. That is the design working as intended, and it is
+also why these two rows are not yet evidence of anything: they will look identical after the
+deploy, when they will mean something different.
+
+The pre-Stage-7 `Cache-Control: no-store` on API responses comes from the JSON envelope in
+`shared/api.ts`, which has carried it since Stage 1. The security headers are genuinely new in
+this commit; their absence in production is expected, not a regression.
+
+Served assets were compared byte for byte, not by filename hash. Production is serving `sha256`
+`368598885d545dbb7925b59c8d2402009f42a55d9bf99ed741230ac68fd6e516` for `index-FbeFDlm9.js` and
+`db092613ce6bc30cb398e45707b02fb8345c1ab43dae43f9e3c4f4c55a9c82cd` for `index-BPFtyiPT.css` —
+identical to the local build and to the fourth deployment's record. Stage 7 touches nothing under
+`web/src`.
+
+### What the deployed test Worker shows, which is what production will get
+
+`deploy-test` published this commit to `family-board-test`, so the Stage 7 headers can be read on
+a deployed Free Worker rather than inferred from source. Read-only, same `curl` pass:
+
+| Where | Observed |
+| --- | --- |
+| API responses | `nosniff`, `Referrer-Policy: no-referrer`, `Strict-Transport-Security: max-age=31536000`; no CSP, which is correct — the CSP is for documents and assets |
+| SPA shell, `/` | `Cache-Control: no-store`, plus `default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; object-src 'none'`, `X-Frame-Options: DENY`, COOP and CORP `same-origin` |
+| `/assets/*` | Same CSP and headers, and correctly **not** `no-store` |
+| `GET /api/v1/operator/export`, no bearer and wrong bearer | Identical `404` both times — test has no `BACKUP_OPERATOR_SECRET` provisioned, so the route fails closed exactly as it must |
+
+`script-src` carries no `'unsafe-inline'`. `style-src` does, because React and the drag projection
+set `style=` attributes; that allowance is required rather than convenient.
+
+### Two things waiting on the owner
+
+Neither was done, and neither is done by pushing.
+
+1. **Deploying Stage 7 to production.** `npm run deploy:prod` was not run. The change adds no
+   migration — `SCHEMA_VERSION` stays 4, and the restore-only `restore_import_marker` table is
+   created by the import handler, which does not exist in the production build — so the rollback
+   is a plain redeploy of `7a9a4d2a-c1a3-455d-b722-fde38e7b6c84` with no data implication.
+2. **Provisioning `BACKUP_OPERATOR_SECRET` in production.** Not generated, not set. Until it is,
+   `GET /api/v1/operator/export` fails closed in production and no backup can be taken, deployed
+   or not. The commands are in [the operator runbook](operator-runbook.md).
+
+Everything else on the Stage 7 release checklist — the first production backup, the isolated
+restore drill, the maximum-size measurement, the deployed lost-phrase rehearsal — sits behind
+those two. Stage 7 is **not closed** by this push, and its plan does not move to `archived/`.
+
+Production still holds the only copy of its data.
