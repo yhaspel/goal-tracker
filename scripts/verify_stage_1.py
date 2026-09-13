@@ -78,6 +78,32 @@ def await_schema_version(base, expected, timeout_s=300, interval_s=20):
         time.sleep(interval_s)
 
 
+def await_served_assets(base, timeout_s=300, interval_s=20):
+    """Wait until the served index page and the assets it names come from the same version.
+
+    Static Assets and the Worker script do not always reach an edge together. For a short
+    window after a deploy the new index.html can be served while its hashed bundle is still
+    missing, or the previous index.html can point at a bundle that has just been replaced.
+    Either way the reference 404s, which is a propagation race rather than a broken build, so
+    this retries the whole pair instead of asserting once.
+    """
+    deadline = time.monotonic() + timeout_s
+    while True:
+        index = request(base, '/')
+        referenced = re.findall(r'(?:src|href)="(/assets/[^"]+\.(?:js|css))"', index['body'].decode())
+        fetched = [(path, request(base, path)) for path in referenced]
+        complete = bool(referenced) and all(
+            response['status'] == 200 and ('javascript' in response['content_type'] or 'css' in response['content_type'])
+            for _, response in fetched
+        )
+        if complete:
+            return referenced
+        if time.monotonic() >= deadline:
+            detail = ', '.join(f'{path} -> {response["status"]}' for path, response in fetched) or 'none referenced'
+            raise RuntimeError(f'index page and its assets never agreed: {detail}')
+        time.sleep(interval_s)
+
+
 def percentile(values, p):
     ordered = sorted(values)
     rank = (len(ordered) - 1) * p
@@ -93,11 +119,8 @@ def routing(base):
         for navigate in [False, True]:
             response = request(base, path, navigate=navigate)
             assert response['status'] == 200 and 'text/html' in response['content_type'], path
-    index = request(base, '/')['body'].decode()
-    match = re.search(r'src="(/assets/[^\"]+\.js)"', index)
-    assert match
-    asset = request(base, match.group(1))
-    assert asset['status'] == 200 and 'javascript' in asset['content_type']
+    referenced = await_served_assets(base)
+    script = next(path for path in referenced if path.endswith('.js'))
     for path in ['/assets/not-found.js', '/assets/x/y.png', '/foo.png', '/arbitrary', '/api', '/api/unknown', '/api/v1/unknown']:
         for navigate in [False, True]:
             response = request(base, path, navigate=navigate)
@@ -108,7 +131,7 @@ def routing(base):
     assert health['headers'].get('Cache-Control') == 'no-store'
     wrong = request(base, '/api/v1/health', method='POST')
     assert wrong['status'] == 405 and wrong['headers'].get('Allow') == 'GET'
-    return {'passed': True, 'asset': match.group(1), 'schema_version': expected_version}
+    return {'passed': True, 'asset': script, 'schema_version': expected_version}
 
 
 def probe_write(base, secret):
