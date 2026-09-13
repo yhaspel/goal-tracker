@@ -320,3 +320,117 @@ not against production.
 
 Redeploying `ff9c08c2-8b7e-4b89-8b16-3781e5ba0743` returns to the previous interface. It touches
 no schema and no data, but it restores the cross-column drag behaviour this commit fixes.
+
+## Fourth production deployment, 2026-09-13 — the Industry design system
+
+**Version:** `7a9a4d2a-c1a3-455d-b722-fde38e7b6c84`, deployed at 100%
+**Commit:** `3095700`, CI [34769950652](https://github.com/yhaspel/goal-tracker/actions/runs/34769950652) — `checks: success`, `deploy-test: success`
+**Deployed by:** `npm run deploy:prod`, manually, on the owner's explicit instruction
+
+Interface-only. `schemaVersion` is still 4, no route, API contract, validation rule,
+announcement string, or focus contract changed, and no production data was created, modified,
+or deleted. The served assets are byte-identical to the local build: `sha256`
+`368598885d545dbb7925b59c8d2402009f42a55d9bf99ed741230ac68fd6e516` for `index-FbeFDlm9.js` and
+`db092613ce6bc30cb398e45707b02fb8345c1ab43dae43f9e3c4f4c55a9c82cd` for `index-BPFtyiPT.css`,
+compared byte for byte rather than inferred from the filename hash. All ten `.woff2` subsets
+were compared the same way.
+
+What changed: a full restyle onto the Industry design system in its "Worksheet" direction —
+light and dark token blocks, square corners (`--gt-radius: 0`), hairline borders, one steel
+accent, and self-hosted Barlow and Barlow Condensed served from same-origin `/fonts/`. The
+board gains column plates, a title-as-edit-button card with a derived avatar, a two-control
+actions menu, a phone column pager, a tablet scroll-end affordance, and a loading skeleton. The
+product name became **Goal Tracker**, byte-identical in all three locales by design.
+
+### Verified on the deployed Worker, read-only
+
+Nothing below wrote to production. The owner signed in themselves in the browser session; this
+session never handled the password.
+
+| Check | How | Result |
+| --- | --- | --- |
+| `GET /api/v1/health` | curl | `200`, `schemaVersion: 4`, `Cache-Control: no-store` |
+| `GET /api/v1/board`, `/api/v1/members`, `/api/v1/settings/allowed-emails` (no session) | curl | All `401 unauthenticated`, generic body, no address named |
+| `GET /api/v1/auth/bootstrap/status` | curl | `{"bootstrapAvailable":false}` |
+| `GET /api/v1/diagnostics/probe` | curl | `404` |
+| SPA routes, all eight | curl | `200 text/html`; unknown path `404` |
+| `/fonts/…`, all ten `.woff2` | curl | `200`, `font/woff2`, each `sha256` equal to the local build |
+| Served `index-*.js` and `index-*.css` | curl + `shasum` | Byte-identical to `web/dist`, both hashes confirmed |
+| `family-board-restore` | curl | `404`, still unexposed |
+| Guest screens: 5 routes × 3 locales × 3 widths × 2 themes (90 states) | browser | No horizontal page scroll anywhere; `lang`/`dir` correct, Hebrew `rtl` and fully mirrored; every control square-cornered; no target under 24 px |
+| Fonts on the wire | browser network panel | Five same-origin `.woff2` on `/login`; nothing from `fonts.googleapis.com` or `fonts.gstatic.com` |
+| Latin vs Cyrillic rendering | canvas text measurement | Latin genuinely paints in Barlow Condensed (94.9 px vs 119 px default); Cyrillic measures identical to the default face, i.e. it falls through — see deviation 1 |
+| Focus ring | keyboard | `3px solid` at `2px` offset, `:focus-visible`, on every control reached |
+| Skip link | keyboard | First focusable element in DOM order; reveals itself on focus with the ring |
+| Error state | submitted `/login` with `not-an-address` | The **form-level** `.alert`: `role="alert"`, `!` marker via `::before`, 4 px leading bar plus tinted plate — carried by marker and border, not colour alone |
+| Inline `/register` link | measurement | "Set up the owner account" is exactly `24px` tall — the documented exception holds |
+| No dead controls | DOM scan, all guest + signed-in routes | No theme toggle, no stray checkbox, no per-row allowed-address editor |
+| Guest console | DevTools | Exactly one error: the `401` a guest's own session probe returns |
+| Two controls per card | a11y tree + screenshot at 834 and 1440 | Drag handle and actions menu, plus the title as the edit affordance. Not five |
+| Card tab order | keyboard | title → drag handle → actions menu |
+| Actions menu contract | keyboard | Enter, Space and ↓ open on the first item; ↑ opens on the last; ↑↓ cycle both ways; Home/End jump; Escape closes and returns focus with `aria-expanded=false`; Tab closes and moves to "Add a card" |
+| Actions menu is not clipped | screenshot + hit test | Menu overflows the column plate and stays fully visible; Delete is painted and hit-testable |
+| Menu contents | a11y tree | Current column absent from "move to column"; Move up and Move down carry the real `disabled` attribute |
+| Column caps | screenshot | Done wears the reversed steel cap with its check; To do and In progress wear the accent underline |
+| Empty column and add plate | screenshot | Dashed slot present; "Add a card" visible at rest, not hover-revealed |
+| Card dialog | keyboard | Opens from the title, focus lands in the first field, `.dialog-body` present, Escape closes and returns focus to the title. Closed without saving |
+| Phone board, 390 | DOM + screenshot | **Zero** drag handles in the DOM; chip row with counts, prev/next chevrons, "Column 1 of 3", dot rail, and "Add a card to To do" |
+| Phone header and sheet | DOM | Brand plus one menu button; sheet carries nav links, language selector, "Signed in as …", and Sign out, with focus moved in and Escape returning it |
+| Phone card dialog | screenshot | Bottom-anchored with a pinned full-width Cancel/Save row |
+| Tablet track, 834 | measurement | Page does not scroll sideways; the only sideways scroller is `OL.board` (1047 → 780); edge fade visible; "Scroll the board towards the end" is 48×48, focusable, 3px ring |
+| Hebrew board | computed style | Addresses are `direction: ltr` with `unicode-bidi: isolate` and `text-overflow: ellipsis`; avatar chip shows `Y`, the first character of the local part; chevrons and edge fade mirror |
+| Signed-in screens: 3 routes × 3 locales × 3 widths × 2 themes (54 states) | browser | No horizontal page scroll; `dir` correct; no undersized target; no rounded control beyond the deliberate chip token |
+| Signed-in console | DevTools | No messages |
+| Board data unchanged | `GET /api/v1/board` before and after | Same three columns, same two cards, same titles |
+
+The one corner radius in the system is `--gt-radius-chip: 2px`, used by the phone pager tabs and
+the held-card marker. `--gt-radius` itself is `0`. A 2 px chip is deliberate, not a stray round.
+
+### Not verified, and why
+
+- **`prefers-reduced-motion: reduce` was not driven in the browser.** The Chrome MCP `emulate`
+  tool exposes `colorScheme` but no reduced-motion option, so the media feature could not be
+  toggled. Instead the deployed stylesheet and the component source were read directly. Under
+  the reduce block the busy squares get `opacity: 1` (visible, not pulsing), `.skeleton-block`
+  gets `background-image: none` (flat, still visible against `--gt-line-soft`), and
+  `.card.dragging` gets `transform: none` while keeping `border: 2px solid` and `elev-lg`. The
+  picked-up chip is `.held-marker`, a DOM element with no animation or transition at all, and
+  the dashed drop slot `.card-slot` is a static `1px dashed` border. All four markers therefore
+  survive the preference, but this is a code reading, not an observed render.
+- **The three transient markers were never triggered in production.** The picked-up chip, the
+  busy squares, and the loading skeleton only appear mid-drag or mid-request. Dragging a real
+  card was out of scope for a read-only pass, so they were not observed on this deployment.
+- **390 CSS px came from a CDP viewport override, not a window resize.** Chrome clamps its
+  window to a 500 px minimum on this machine, so `resize_page` could not reach 390. The width
+  was set with an explicit `390x844x3,mobile,touch` viewport — exact dimensions, not a device
+  preset label. 834 and 1440 were set the same way.
+- **No screen-reader review was performed.** That remains true of this project's tooling, as
+  Stage 6's record already states.
+- **The field-level invalid state was not exercised.** The design system specifies a 2 px danger
+  border plus a `!` marker plus text on an invalid `.field`. Submitting `/login` with
+  `not-an-address` reached the server and came back as a credential failure, which renders the
+  **form-level** `.alert` instead — a 4 px leading bar on a tinted plate, with its own `!`
+  marker. Both carry the error by marker and border rather than colour alone, but the 2 px
+  field border is a different style and was not seen on this pass.
+
+### Deliberate deviations carried by this deployment
+
+The six listed in commit `3095700` stand: no Cyrillic cut exists for Barlow or Barlow Condensed
+so Russian falls through to the platform face exactly as Hebrew does; `app.name` is identical in
+all three locales by design and the suite asserts it; the per-column strip is four icon buttons
+named by full dictionary sentences; the picked-up marker is a grip chip rather than a "HELD"
+word; Move up and Move down use the real `disabled` attribute; and the phone reads the media
+query in JavaScript so the drag handle leaves the DOM rather than merely being hidden.
+
+### Rollback
+
+Redeploying version `af5f51ad-3337-431f-96a6-3d6613edb171` restores the previous interface. The
+change touches no schema, no migration, and no data, so the rollback is a pure asset swap and is
+safe in the way the first deployment's was not:
+
+```
+git revert --no-commit 3095700   # or check out 1ca62e3 in a worktree
+npm run deploy:prod
+```
+
+`1ca62e3` is the commit before the redesign.

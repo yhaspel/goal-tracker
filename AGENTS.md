@@ -6,6 +6,8 @@ Build a private Kanban board for one household or working group, with one shared
 
 Stages 1 through 6 are closed; Stage 3 closed on 2026-09-13 (see its [completion report](docs/stage-3-completion.md)). Stage 6 closed on 2026-09-13 by owner decision rather than by its exit gate passing — the gate calls for a manual screen-reader review, which this project's tooling has never performed; see [the Stage 6 completion report](docs/stage-6-completion.md). Later the same day the owner reported that the screen reader works and asked for the recorded defects to be fixed: all four are fixed, along with two minimum-target-size defects a mobile sweep then found, and the result is deployed to production. Mobile is now covered at 390 CSS pixels in all three locales, signed-in and guest. That report and those fixes do not turn the ungated check into a passed one.
 
+The interface is a full visual system rather than unstyled defaults: it is built on the Industry design system in its "Worksheet" direction, and [`docs/design-system.md`](docs/design-system.md) is the standing reference every later interface change works inside. The product name is **Goal Tracker**, kept Latin and bidi-isolated in all three locales.
+
 The repository contains the whole first-release application apart from Stage 7: the React interface for every account and board workflow, the account API, credential rotation and the operator rescue runbook, the board API, and English, Hebrew, and Russian dictionaries. Schema migrations run through version 4. On 2026-09-13 the owner deployed this code to **production** as well, ahead of the planned Stage 7 gate; production has its own secrets and Durable Object namespace. The owner bootstrapped a real owner account there the same day, confirmed directly — production is **no longer empty**, and that account is unrecoverable if its password and recovery phrase are both lost, since production has no backup, export, or restore path, and the lost-phrase rescue has never been proven against a deployed Worker. Treat production as holding real data now, not a hypothetical, until Stage 7 closes. Read [the production deployment record](docs/production-deployment.md) before touching production, and the [Stage 1 feasibility report](docs/stage-1-feasibility.md) plus the [Stage 2](docs/stage-2-completion.md), [Stage 4](docs/stage-4-completion.md), and [Stage 5](docs/stage-5-completion.md) completion reports before changing authentication, the board, or the interface.
 
 Stage 2 measured the deployed Free runtime and found that native scrypt blocks the Durable Object for the duration of each derivation, so the runtime serialises work on the object before the bounded key-derivation queue can accumulate waiters. That queue stays as a memory safeguard, and its exact capacity is proven by the Workers-runtime test, but the persistent per-email and per-IP rate limits are what actually bound attacker-driven derivation work. A burst of credential operations also delays every other request to the same household. Internal CPU duration and peak memory remain unquantified because a deployed Worker freezes its timers between I/O. Keep contention and usage checks in later stages.
@@ -28,6 +30,28 @@ Before editing, inspect the worktree and preserve unrelated changes. Use `develo
 
 For each stage, run the relevant local checks, commit candidate code, verify CI and the exact version deployed to the isolated test Worker, then run that stage's live acceptance checks. A passing local suite, CI `checks` job, or routing/health smoke alone does not satisfy a later stage's deployed gate. After the gate passes, record `docs/stage-N-completion.md` evidence, update the index and project-state documentation, archive the completed plan, and repair links. Keep a compatible rollback path that preserves allowed-email enforcement and any committed SQL migrations. Do not claim browser, accessibility, or screen-reader checks that were not performed.
 
+## Interface and design system
+
+Every visible change — a new control, a restyled one, a new screen, a bug fix that moves a pixel — is made inside the system in [`docs/design-system.md`](docs/design-system.md). Read it before changing anything under `web/src`, and keep it in step in the same change if the system itself moves. `web/src/style.css` is the authority; that document explains it.
+
+The rules most easily broken by accident, stated here so they are not missed:
+
+- Take every colour, font, space, radius, shadow and duration from a `--gt-*` custom property. No hex, no font name, no raw pixel a token already carries. A new token is added to **both** theme blocks or not at all.
+- Square corners (`--gt-radius: 0`) on cards, columns, buttons, inputs and the dialog; only badges and the avatar chip take the 2px chip radius.
+- CSS logical properties throughout. One stylesheet mirrors for Hebrew; a `margin-left` is a bug.
+- `--gt-accent` is chrome and icons only — it cannot carry body text. Links, the primary fill and accent-coloured text use `--gt-accent-ink`; `--gt-steel` is the Done cap and the app mark.
+- Dark follows `prefers-color-scheme`. There is deliberately no theme toggle: `PreferencesResponse` stores only `language`, so a saved theme has nowhere to live.
+- No control that does nothing, and no icon that carries meaning without visible text or an `aria-label` from the dictionary.
+- The page never scrolls sideways. The board track and the phone pager's chip row are the only horizontally scrolling regions, and both are contained.
+- The accessibility floor in that document is a floor: 4.5:1 body text and 3:1 borders in both themes, a 3px focus ring at 2px offset that is never removed, 24px absolute and 44px touch targets, errors that carry a marker as well as a colour, and a `prefers-reduced-motion` fallback for every animation — four of which substitute a static marker that belongs to the component and renders in both modes.
+- Every visible string is a key in all three dictionaries. Announcement strings and focus contracts are behaviour, not styling: a restyle does not change them.
+
+Barlow and Barlow Condensed are self-hosted from `web/public/fonts/` and ship with the build. Do not reintroduce a runtime font request. Neither face has a Cyrillic cut, so Russian falls through to the platform UI face exactly as Hebrew does; that is expected, not a defect.
+
+The design system document also lists seven deliberate deviations — from Industry, and from the applied plan — each with its reason. Check that list before "fixing" something that looks wrong.
+
+A UI change is not verified by a passing build. Walk the routes it touches at 390, 834 and 1440, in `en`, `he` and `ru`, light and dark, keyboard only, with guest and signed-in sessions walked separately, and record what you actually checked and what you did not.
+
 ## Repository map and local checks
 
 | Path | Role |
@@ -38,6 +62,10 @@ For each stage, run the relevant local checks, commit candidate code, verify CI 
 | `web/src/api/` | Typed same-origin client and the one place `/api/v1` URLs are written down |
 | `web/src/auth/`, `web/src/members/`, `web/src/board/` | Account, owner-settings, and board screens |
 | `web/src/i18n/` | Typed translation keys, the `en`/`he`/`ru` dictionaries, and the locale mechanism |
+| `web/src/style.css` | The one stylesheet: design tokens for both themes, `@font-face`, and every component rule |
+| `web/src/components/` | Shared interface primitives — announcer, `Field`, `Dialog`, `Submit` — and the inline-SVG icon set |
+| `web/public/fonts/` | Self-hosted Barlow and Barlow Condensed woff2 subsets, copied into the build |
+| `docs/design-system.md` | The interface design system: tokens, rules, components, the accessibility floor, and how to verify a UI change |
 | `scripts/check-i18n.ts` | Release check for dictionary completeness, placeholders, and plural categories |
 | `worker/src/index.ts` | API-first routing, explicit API and SPA route allowlists, body and content-type bounds |
 | `worker/src/household-do.ts` | Durable Object request dispatch, SQLite migration startup, and test-only diagnostics |

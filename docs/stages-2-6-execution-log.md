@@ -359,3 +359,43 @@ and the confirmed move matching the last thing announced:
 | Pointer, one column across | Committed to the announced column and position |
 | Pointer, two columns across | Committed to the last hop |
 | Hebrew RTL, two columns across with `ArrowLeft` | Announced and committed in Hebrew, agreement held |
+
+## 2026-09-13 — the Industry design system landed in production
+
+**State:** Stages 1–6 closed. Stage 7 remains the only open stage and is still out of scope.
+The interface now runs on the Industry design system in production as well as test.
+
+**Tested commit:** `3095700`, CI
+[34769950652](https://github.com/yhaspel/goal-tracker/actions/runs/34769950652) — `checks:
+success`, `deploy-test: success`. **Production version:** `7a9a4d2a-c1a3-455d-b722-fde38e7b6c84`.
+Full evidence is in the production deployment record's fourth entry.
+
+The change is interface-only: `schemaVersion` stays 4, no route, contract, validation rule,
+announcement string, or focus contract moved, and no production data was touched. Served JS, CSS
+and all ten `.woff2` subsets were compared byte for byte against the local build.
+
+The browser pass covered 90 guest states (5 routes × 3 locales × 3 widths × 2 themes) and 54
+signed-in states (3 routes × 3 locales × 3 widths × 2 themes). The owner signed in themselves;
+this session never handled the password. Every signed-in check was read-only — menus and dialogs
+were opened and closed with Escape, and `GET /api/v1/board` before and after showed the same
+three columns and same two cards.
+
+**Open risks and gaps, unchanged or newly recorded:**
+
+- Production still has no backup, export, or restore path, and the lost-phrase rescue has never
+  been proven against a deployed Worker. That is Stage 7's work.
+- No screen-reader review has been performed by this project's tooling. Still true.
+- `prefers-reduced-motion: reduce` could not be driven in the browser — the Chrome MCP `emulate`
+  tool has no such option. The four static markers were verified by reading the deployed CSS and
+  the component source instead, and three of them are transient drag/loading states that were
+  deliberately not triggered against real data.
+- 390 CSS px was reached with an explicit CDP viewport override because Chrome clamps its window
+  to 500 px minimum on this machine.
+
+**Repository change made alongside:** `prompts/` and `development-plans/` are now Git-ignored and
+removed from the index at the owner's request, so no planning document ships in the public
+repository. The files remain on the owner's machine. Twenty Markdown links that pointed into
+those directories were converted to plain backticked paths so `check:links` — which resolves
+against `git ls-files` — stays green in a fresh clone.
+
+**Next action:** Stage 7 (backup, hardening, release). Nothing in this deployment advances it.
