@@ -100,6 +100,13 @@ first two.
   `cloudflarestatus.com` showed no open incident. Later deployments propagated within seconds.
   `scripts/verify_stage_1.py` now polls slowly for the expected schema version, because a tight
   poll keeps the object warm and prevents the restart it is waiting for.
+- **The same race has a second symptom: Static Assets and the Worker script do not always reach
+  an edge together.** On `ad05035` the `deploy-test` job failed because the served index page
+  named a hashed bundle that answered 404 about a second after upload. The site was correct
+  minutes later and the hash matched a local build of that commit, so nothing was broken. The
+  verifier now retries the index page and every asset it names as a pair. Treat a first-attempt
+  asset or schema mismatch as propagation, not as a defect — but confirm it settles rather than
+  assuming it will.
 
 ## Deviations from the plans, with reasons
 
