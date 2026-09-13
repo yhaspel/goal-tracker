@@ -1,7 +1,7 @@
 # Stage 4 completion — board API
 
 **Date:** 2026-09-13 (Asia/Jerusalem)
-**Plan:** [archived Stage 4 plan](../development-plans/archived/stage-4-board-api.md)
+**Plan:** archived Stage 4 plan (`development-plans/archived/stage-4-board-api.md`)
 **Decision:** **Complete.** The board API's exit gate passed on the deployed Free test Worker.
 No production account, secret, or data was created.
 

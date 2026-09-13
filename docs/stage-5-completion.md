@@ -1,7 +1,7 @@
 # Stage 5 completion — board and account UI
 
 **Date:** 2026-09-13 (Asia/Jerusalem)
-**Plan:** [archived Stage 5 plan](../development-plans/archived/stage-5-board-account-ui.md)
+**Plan:** archived Stage 5 plan (`development-plans/archived/stage-5-board-account-ui.md`)
 **Decision:** **Complete.** Every account and board workflow runs against the deployed Free
 test Worker. No production account, secret, or data was created.
 

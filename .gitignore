@@ -8,3 +8,9 @@ web/dist/
 coverage/
 *.log
 __pycache__/
+.DS_Store
+
+# Planning material stays on the owner's machine and out of the published repository.
+# Documentation under docs/ names these paths in plain text rather than linking to them.
+prompts/
+development-plans/

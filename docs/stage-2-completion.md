@@ -1,7 +1,7 @@
 # Stage 2 completion — users, invitations, and sessions
 
 **Date:** 2026-09-13 (Asia/Jerusalem)
-**Plan:** [archived Stage 2 plan](../development-plans/archived/stage-2-users-invitations-sessions.md)
+**Plan:** archived Stage 2 plan (`development-plans/archived/stage-2-users-invitations-sessions.md`)
 **Decision:** **GO for Stage 3.** Every Stage 2 exit-gate condition was met on the deployed
 Free test Worker. No production account, secret, or data was created.
 

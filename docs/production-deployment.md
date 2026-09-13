@@ -173,7 +173,7 @@ These are Stage 7's job and none of them is done. They are the reason the gate e
 
 See [`docs/stage-6-completion.md`](stage-6-completion.md) for how Stage 6's screen-reader check
 was closed and
-[`development-plans/stage-7-backup-hardening-release.md`](../development-plans/stage-7-backup-hardening-release.md)
+`development-plans/stage-7-backup-hardening-release.md`
 for the rest.
 
 ## The owner account, now that it exists

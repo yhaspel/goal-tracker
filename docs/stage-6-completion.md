@@ -1,7 +1,7 @@
 # Stage 6 completion — localization and accessibility
 
 **Date:** 2026-09-13 (Asia/Jerusalem)
-**Plan:** [archived Stage 6 plan](../development-plans/archived/stage-6-localization-accessibility.md)
+**Plan:** archived Stage 6 plan (`development-plans/archived/stage-6-localization-accessibility.md`)
 **Decision:** **Closed by owner decision — not by a passed exit gate.** The plan's exit gate
 requires "a manual screen-reader review covering at least one representative desktop workflow
 and one mobile workflow, in each of English, Hebrew, and Russian, with findings recorded and

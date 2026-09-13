@@ -1,7 +1,7 @@
 # Stage 3 completion — recovery and manual rescue
 
 **Date:** 2026-09-13 (Asia/Jerusalem)
-**Plan:** [archived Stage 3 plan](../development-plans/archived/stage-3-recovery-manual-rescue.md)
+**Plan:** archived Stage 3 plan (`development-plans/archived/stage-3-recovery-manual-rescue.md`)
 **Decision:** **Complete.** Stage 3's exit gate passed on the deployed Free test Worker,
 including the one check that needed a Cloudflare-account operator: the lost-phrase rescue
 redeemed against the actual deployed Durable Object through Data Studio. No production

@@ -1,10 +1,10 @@
 # Stages 2–6 execution log
 
-Historical record of the now-concluded [autonomous Stages 2–6 execution prompt](../development-plans/archived/execute-stages-2-through-6-autonomously.md),
+Historical record of the now-concluded autonomous Stages 2–6 execution prompt (`development-plans/archived/execute-stages-2-through-6-autonomously.md`),
 archived along with every stage plan it covered — see
 [`docs/stage-6-completion.md`](stage-6-completion.md) for how Stage 6, the last of the five,
 closed. A resumed session should read this file, that prompt, `AGENTS.md`, and the
-[plan index](../development-plans/README.md) before touching code, then treat everything below
+plan index (`development-plans/README.md`) before touching code, then treat everything below
 as closed history rather than an in-progress run.
 
 Timestamps are Asia/Jerusalem. No secret, password, recovery phrase, invitation code, session
@@ -226,7 +226,7 @@ one-locale-lag confirmation, and no intermediate feedback during a keyboard drag
 unfixed, recorded as the starting point for a real review before or alongside Stage 7.
 
 Both the Stage 6 plan and the Stages 2–6 execution prompt are now archived at
-[`development-plans/archived/`](../development-plans/archived/). The execution prompt's own rule
+`development-plans/archived/`. The execution prompt's own rule
 against self-archiving before every gate passes is addressed directly in its closing note, since
 Stage 6's gate did not pass — the prompt was archived because the run concluded by owner
 decision, not because that gate passed.
