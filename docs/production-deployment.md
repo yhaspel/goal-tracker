@@ -272,3 +272,51 @@ confirmation, and the editor's text direction were checked. See the
 Redeploying version `596488a7-b2d5-4415-801c-ecc6d3c49087` restores the interface as it was
 before these fixes. It touches no schema and no data, so it is safe in a way the first
 deployment's rollback was not — but it reintroduces the four accessibility defects.
+
+## Third production deployment, 2026-09-13 — the cross-column drag rework
+
+**Version:** `af5f51ad-3337-431f-96a6-3d6613edb171`, deployed at 100%
+**Commit:** `2ba103d`, CI [34761451152](https://github.com/yhaspel/goal-tracker/actions/runs/34761451152) — `checks: success`, `deploy-test: success`
+**Deployed by:** `npm run deploy:prod`, manually, on the owner's explicit instruction
+
+Interface-only again. `schemaVersion` is still 4, no route or API contract changed, and no
+production data was read, created, or modified. The served assets are byte-identical to the
+local build and to what CI deployed to test: `sha256 df7482d1208dc2c9` for `index-CbTUh6hF.js`
+and `ca2965fe67383856` for `index-DBIBJqBn.css`, compared byte for byte rather than inferred
+from the filename hash.
+
+What changed: dropping a card is now resolved from the drag's own projection instead of the
+sortable plugin's indices, which is what lets a card cross columns without React tearing the
+board down. Two defects found while verifying that rework are fixed in the same commit — a
+canceled drag that left the board showing a move the server never received, and a multi-column
+drag that committed the second-to-last hop. Both are described in the
+[execution log](stages-2-6-execution-log.md).
+
+### Verified on the deployed Worker, read-only
+
+Nothing below signs in; production's owner credentials are not held by this session.
+
+| Check | Result |
+| --- | --- |
+| `GET /api/v1/health` | `200`, `schemaVersion: 4`, `Cache-Control: no-store` |
+| `GET /api/v1/board`, `/api/v1/members`, `/api/v1/settings/allowed-emails` (no session) | All `401 unauthenticated`, generic body, no address named |
+| `GET /api/v1/auth/bootstrap/status` | `{"bootstrapAvailable":false}` |
+| `POST /api/v1/auth/login`, dummy address, correct `Origin` | `401` |
+| Same request with no `Origin` header | `403` |
+| `GET /api/v1/diagnostics/probe` | `404` |
+| `family-board-restore` | `404`, still unexposed |
+| SPA routes, all seven | `200 text/html`; unknown path `404` |
+| Served assets | Byte-identical to the local build, both hashes confirmed |
+| Guest `/board` | Redirects to `/login` |
+| Browser storage | `localStorage` and `sessionStorage` empty; only `kanban_locale` visible to script |
+| Guest screens, 390 × 844, three locales, five routes | Correct `lang` and `dir`, no overflow, no undersized target except the one deliberately inline link |
+| Console | Only the `401` a guest's own session probe returns |
+
+The signed-in half — the nine drag scenarios, each asserting that the rendered board matches
+`GET /api/v1/board` — was exercised against a **local** Durable Object with a disposable owner,
+not against production.
+
+### Rollback
+
+Redeploying `ff9c08c2-8b7e-4b89-8b16-3781e5ba0743` returns to the previous interface. It touches
+no schema and no data, but it restores the cross-column drag behaviour this commit fixes.
