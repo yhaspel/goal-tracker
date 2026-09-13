@@ -62,10 +62,10 @@ export function SignInPage() {
         <Submit pending={pending}>{t('signIn.submit')}</Submit>
       </form>
       <p className="help">{t('signIn.noEmail')}</p>
-      <p>
+      <p className="link-action">
         <Link to="/recover">{t('signIn.forgot')}</Link>
       </p>
-      <p>
+      <p className="link-action">
         <Link to="/register">{t('nav.join')}</Link>
       </p>
     </section>

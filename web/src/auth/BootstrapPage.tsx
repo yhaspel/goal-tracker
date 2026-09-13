@@ -85,7 +85,7 @@ export function BootstrapPage() {
       {available === false ? (
         <>
           <Alert tone="notice">{t('bootstrap.closed')}</Alert>
-          <p>
+          <p className="link-action">
             <Link to="/login">{t('nav.signIn')}</Link>
           </p>
         </>

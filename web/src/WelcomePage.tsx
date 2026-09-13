@@ -30,16 +30,16 @@ export function WelcomePage() {
       {bootstrapAvailable ? (
         <>
           <p>{t('welcome.bootstrapPrompt')}</p>
-          <p>
+          <p className="link-action">
             <Link to="/bootstrap">{t('welcome.bootstrapAction')}</Link>
           </p>
         </>
       ) : (
         <>
-          <p>
+          <p className="link-action">
             <Link to="/login">{t('nav.signIn')}</Link>
           </p>
-          <p>
+          <p className="link-action">
             <Link to="/register">{t('nav.join')}</Link>
           </p>
         </>

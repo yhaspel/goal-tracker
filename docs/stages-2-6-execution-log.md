@@ -290,3 +290,28 @@ rather than the text.
 Still not performed, and still claimed nowhere: a screen-reader session run by this project's
 tooling, and any test on physical touch hardware. The owner's confirmation that the screen
 reader works is recorded here as their report, not as a review this session carried out.
+
+### The guest screens, which the first mobile sweep had missed
+
+The sweep above covered `/board`, `/account`, and `/members` — the screens behind a session. The
+entry screens were checked afterwards, as a true guest in a browser context holding no session,
+at 390 × 844 with touch emulation, across `/`, `/login`, `/register`, `/recover`, and
+`/bootstrap` in all three locales. That is the point at which the locale actually varies: a
+signed-in member's stored preference overrides the guest cookie, so a sweep run from a
+signed-in context silently measures one locale fifteen times. The first attempt did exactly
+that and had to be redone.
+
+It found a second target-size defect, now fixed: `Lost your password?`, `Join with invitation`,
+and the sign-in link on the recovery, bootstrap, and welcome screens are each the sole content
+of their paragraph, which made them 19 px tall — a whole action, not a word inside a sentence,
+so WCAG 2.5.8's inline exception does not cover them. They carry a `link-action` class now and
+are sized like the navigation links.
+
+One link is deliberately left at 19 px: `הקמת חשבון הבעלים` on `/register` sits inside the
+sentence "Are you the owner? <link>", which is exactly what the inline exception is for.
+Enlarging it would break the sentence's line box for no accessibility gain. Radio buttons on
+`/recover` measure 13 px wide but are wrapped in their `<label>`, so the real target is the
+294 × 56 label — checked rather than assumed.
+
+After the fix, all fifteen guest combinations report correct `lang` and `dir`, no horizontal
+overflow at 390 CSS pixels, and no target under 24 × 24 except the intentional inline one.

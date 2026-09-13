@@ -127,6 +127,16 @@ h3 {
   min-inline-size: 1.75rem;
 }
 
+/* A link that is a whole action on its own, rather than a word inside a sentence, has to meet
+   the same minimum. A line of body text is only 19px tall, and the exception for links within
+   a sentence does not cover these — each is the sole content of its paragraph. */
+.link-action a {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 1.75rem;
+  min-inline-size: 1.75rem;
+}
+
 .app-header .who {
   flex-basis: 100%;
   margin: 0;

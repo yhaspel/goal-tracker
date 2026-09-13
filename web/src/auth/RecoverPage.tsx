@@ -76,7 +76,7 @@ export function RecoverPage() {
       <section className="panel narrow">
         <h1>{t('recover.heading')}</h1>
         <Alert tone="notice">{t('recover.done')}</Alert>
-        <p>
+        <p className="link-action">
           <Link to="/login">{t('nav.signIn')}</Link>
         </p>
       </section>
