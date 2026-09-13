@@ -1,0 +1,10 @@
+# GitHub Actions deployment pattern
+
+Use this when the repository is on GitHub and the user wants CI/CD. Adapt to its existing workflow; do not add a second independent deployer for the same Worker. Cloudflare's [GitHub Actions guide](https://developers.cloudflare.com/workers/ci-cd/external-cicd/github-actions/) is the source for current authentication details.
+
+1. Run a locked install, repository-required checks, tests, and a Wrangler dry run without Cloudflare deployment credentials on pull requests and pushes. Confirm whether the app's test suite can run without real secrets; provide disposable test values if needed.
+2. Put `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` in the repository's CI secret store. Scope the token to the intended Cloudflare account and the permissions required by this Worker. Keep credentials out of pull-request jobs and build output. Record the token's owner, scope, and rotation date outside the workflow.
+3. Make the test deployment job depend on checks and run only on an authorized branch or manual trigger. Point the job at the exact Wrangler environment and verify the resulting hostname and a meaningful live smoke. A green checks job is not proof that deployment ran. A green deploy job is not proof of application behavior beyond its smoke checks.
+4. Add production automation only when the project's release process calls for it. Keep production secrets and deployment privileges separate from test, and use the repository's required release protections. If Cloudflare Workers Builds is connected, decide which system owns deployment; do not let one push trigger both systems for the same Worker.
+
+For a small existing app, a direct `npx wrangler deploy --env test` step is sufficient after checks; Cloudflare's `wrangler-action` is another supported option. Reuse the project's pinned Node and Wrangler versions. When CI fails after an upload, distinguish a failed deploy from a failed live check and inspect the deployed version before retrying.

@@ -57,6 +57,7 @@ For each stage, run the relevant local checks, commit candidate code, verify CI 
 | `docs/operator-lost-phrase-reset.md` | The Data Studio rescue runbook for a lost recovery phrase |
 | `wrangler.jsonc` | Pinned Worker compatibility date and isolated Cloudflare environments |
 | `docs/deployment.md` | Clean deployment, verification, and secret-cleanup procedure |
+| `skills/deploy-to-cloudflare-workers/` | Portable Agent Skills guide for deploying other apps to Cloudflare Workers; use this project's runbooks for this app's exact release gates |
 | `docs/stages-2-6-execution-log.md` | Running record for the active Stages 2–6 handoff |
 | `.github/workflows/ci.yml`, `docs/ci.md` | GitHub checks and the gated test-deployment setup |
 
@@ -76,6 +77,6 @@ Stage 2 provisioned four disposable **test** secrets — `BOOTSTRAP_SECRET`, `RE
 
 Production has its own separate values, provisioned and escrowed on 2026-09-13. Its `BOOTSTRAP_SECRET` was deleted once the owner account existed, so owner creation there is closed both by database state and by the absence of a secret; the other three remain configured. See [the production deployment record](docs/production-deployment.md).
 
-Keep secrets, passwords, recovery phrases, invitation codes, and session tokens out of source, logs, URLs, build output, and test snapshots. Use disposable identities in test. Production owner activation and production-secret escrow wait until Stage 7's backup and restore procedures are proven.
+Keep secrets, passwords, recovery phrases, invitation codes, and session tokens out of source, logs, URLs, build output, and test snapshots. Use disposable identities in test. The owner already activated production ahead of Stage 7; do not assume that environment is disposable or that backup and restore are available. Read `docs/production-deployment.md` before further production work.
 
 Preserve the benchmarked native `node:crypto` scrypt work factor (`N=16384,r=8,p=5`, fresh salt at least 16 bytes, 32-byte key) and the bounded KDF queue. Rebenchmark on the deployed Free test DO if the implementation or relevant runtime changes; do not lower the work factor to make a test pass. Preserve the shared JSON envelope, safe errors, method/size checks, and API-versus-asset routing as later stages add routes. Recheck Cloudflare Free terms before relying on quotas for a new stage or release.

@@ -189,3 +189,5 @@ shown once and never stored.
 ## Working on the project
 
 Read the [development-plan index](development-plans/README.md) and the active stage plan before implementing features. Completed plans are retained in [`development-plans/archived/`](development-plans/archived/) for traceability. Stage decisions and deployed evidence live in `docs/`. Contributors and coding agents should also read [AGENTS.md](AGENTS.md), which records repository conventions, security boundaries, and required checks. Keep this README current when installation, run, build, or deployment behavior changes.
+
+The portable [Cloudflare Workers deployment skill](skills/deploy-to-cloudflare-workers/SKILL.md) captures the reusable process used here. It is intentionally app-independent; this repository's `AGENTS.md`, plans, and deployment records still control releases of this app. To use the skill across projects, copy its folder into `~/.agents/skills/` for Codex and ChatGPT desktop, or `~/.claude/skills/` for Claude Code. Other agents that support the [Agent Skills format](https://agentskills.io/specification) can load the same folder from their configured skill location.
