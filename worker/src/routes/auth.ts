@@ -121,9 +121,11 @@ async function bootstrapPrepare(ctx: RouteContext, request: Request): Promise<Re
   const body = await readJsonObject(request);
   assertOnlyKeys(body, ['bootstrapSecret', 'email', 'password', 'language']);
 
-  pruneRateLimits(ctx.sql, ctx.now);
   const ipKey = rateLimitKey(secrets.rateLimit, 'bootstrap', clientIp(request));
-  const limit = ctx.storage.transactionSync(() => consumeRateLimit(ctx.sql, ipKey, RATE_RULES.bootstrapPerIp, ctx.now));
+  const limit = ctx.storage.transactionSync(() => {
+    pruneRateLimits(ctx.sql, ctx.now);
+    return consumeRateLimit(ctx.sql, ipKey, RATE_RULES.bootstrapPerIp, ctx.now);
+  });
   if (!limit.allowed) throw rateLimited(limit.retryAfterSeconds);
 
   // Fails closed when the Cloudflare secret is absent, so a misconfigured deployment can
@@ -188,11 +190,11 @@ async function registrationPrepare(ctx: RouteContext, request: Request): Promise
   const body = await readJsonObject(request);
   assertOnlyKeys(body, ['inviteCode', 'email', 'password', 'language']);
 
-  pruneRateLimits(ctx.sql, ctx.now);
   const ipKey = rateLimitKey(secrets.rateLimit, 'registration-prepare', clientIp(request));
-  const limit = ctx.storage.transactionSync(() =>
-    consumeRateLimit(ctx.sql, ipKey, RATE_RULES.registrationPreparePerIp, ctx.now)
-  );
+  const limit = ctx.storage.transactionSync(() => {
+    pruneRateLimits(ctx.sql, ctx.now);
+    return consumeRateLimit(ctx.sql, ipKey, RATE_RULES.registrationPreparePerIp, ctx.now);
+  });
   if (!limit.allowed) throw rateLimited(limit.retryAfterSeconds);
 
   const inviteCode = requiredString(body, 'inviteCode');
@@ -268,16 +270,16 @@ async function registrationConfirm(ctx: RouteContext, request: Request): Promise
   assertOnlyKeys(body, ['pendingToken', 'recoveryPhrase']);
 
   const ipKey = rateLimitKey(secrets.rateLimit, 'registration-confirm', clientIp(request));
-  const limit = ctx.storage.transactionSync(() =>
-    consumeRateLimit(ctx.sql, ipKey, RATE_RULES.registrationConfirmPerIp, ctx.now)
-  );
+  const limit = ctx.storage.transactionSync(() => {
+    prunePendingRegistrations(ctx.sql, ctx.nowIso);
+    return consumeRateLimit(ctx.sql, ipKey, RATE_RULES.registrationConfirmPerIp, ctx.now);
+  });
   if (!limit.allowed) throw rateLimited(limit.retryAfterSeconds);
 
   const pendingToken = requiredString(body, 'pendingToken');
   const phrase = normalizePhrase(body.recoveryPhrase);
   if (phrase === null) throw invalidRequest();
 
-  prunePendingRegistrations(ctx.sql, ctx.nowIso);
   const pendingTokenDigest = sha256Hex(pendingToken);
   const pending = findPendingRegistrationByDigest(ctx.sql, pendingTokenDigest);
   if (!pending || pending.expires_at <= ctx.nowIso) throw forbidden('invalid_pending_token', PENDING_REFUSAL);
@@ -396,7 +398,9 @@ async function login(ctx: RouteContext, request: Request): Promise<Response> {
   // password rather than a distinguishable validation error.
   if (email === null || password.length === 0) throw invalidCredentials();
 
-  pruneRateLimits(ctx.sql, ctx.now);
+  // Nothing is written before the derivation below. An early storage write would hold the
+  // Durable Object's input gate and stagger concurrent sign-ins, which both slows a real
+  // household and hides genuine contention on the bounded key-derivation queue.
   const emailKey = rateLimitKey(secrets.rateLimit, 'login-email', email);
   const ipKey = rateLimitKey(secrets.rateLimit, 'login-ip', clientIp(request));
   const byEmail = checkRateLimit(ctx.sql, emailKey, RATE_RULES.loginPerEmail, ctx.now);
@@ -417,6 +421,7 @@ async function login(ctx: RouteContext, request: Request): Promise<Response> {
 
   if (!verified) {
     ctx.storage.transactionSync(() => {
+      pruneRateLimits(ctx.sql, ctx.now);
       consumeRateLimit(ctx.sql, emailKey, RATE_RULES.loginPerEmail, ctx.now);
       consumeRateLimit(ctx.sql, ipKey, RATE_RULES.loginPerIp, ctx.now);
     });
