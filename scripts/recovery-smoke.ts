@@ -130,8 +130,14 @@ try {
 
 const subject = state.members[1];
 const decoy = state.members[2];
-if (!subject || !decoy) {
-  console.error(`${STATE_PATH} needs at least three member identities.`);
+// A separate, untouched identity for the operator-rescue leg. The three steps above rotate
+// `subject`'s password and phrase, and each rotation advances its credential_epoch — past
+// whatever epoch an operator token generated before this run was pinned to, which would make
+// the rescue fail for a reason that has nothing to do with the rescue. `members[3]` is left
+// alone by every smoke script, which is why the handoff nominates it for the rehearsal.
+const operatorSubject = state.members[3];
+if (!subject || !decoy || !operatorSubject) {
+  console.error(`${STATE_PATH} needs at least four member identities.`);
   process.exit(2);
 }
 
@@ -271,7 +277,7 @@ if (operatorToken.length === 0) {
   const rescuePassword = password();
   const rescueClient = new Client(baseUrl);
   const started = await rescueClient.call<Started>('POST', '/api/v1/recovery/operator/start', {
-    body: { email: subject.email, resetToken: operatorToken, newPassword: rescuePassword }
+    body: { email: operatorSubject.email, resetToken: operatorToken, newPassword: rescuePassword }
   });
   check(started.status === 201, 'the operator token starts a rescue', `status ${started.status} ${started.error?.code ?? ''}`);
 
@@ -280,16 +286,16 @@ if (operatorToken.length === 0) {
       body: { challengeToken: started.data?.challengeToken, newRecoveryPhrase: started.data?.recoveryPhrase }
     });
     check(rescued.status === 200, 'the rescue commits', `status ${rescued.status} ${rescued.error?.code ?? ''}`);
-    const before = subject.password;
-    subject.password = rescuePassword;
-    subject.phrase = started.data?.recoveryPhrase;
+    const before = operatorSubject.password;
+    operatorSubject.password = rescuePassword;
+    operatorSubject.phrase = started.data?.recoveryPhrase;
     save();
 
-    check((await signIn(baseUrl, { ...subject, password: before })) === null, 'the pre-rescue password fails');
-    check((await signIn(baseUrl, subject)) !== null, 'the rescued password works');
+    check((await signIn(baseUrl, { ...operatorSubject, password: before })) === null, 'the pre-rescue password fails');
+    check((await signIn(baseUrl, operatorSubject)) !== null, 'the rescued password works');
 
     const second = await new Client(baseUrl).call('POST', '/api/v1/recovery/operator/start', {
-      body: { email: subject.email, resetToken: operatorToken, newPassword: password() }
+      body: { email: operatorSubject.email, resetToken: operatorToken, newPassword: password() }
     });
     check(second.status === 403, 'the consumed token cannot be reused', `status ${second.status}`);
   }
