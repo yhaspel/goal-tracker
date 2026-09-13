@@ -30,7 +30,10 @@ For each stage, run the relevant local checks, commit candidate code, verify CI 
 | --- | --- |
 | `README.md` | Project overview, local setup, commands, and deployment entry points |
 | `CLAUDE.md` | Imports this guide into Claude Code's project context |
-| `web/` | React/TypeScript/Vite shell and generated Static Assets (`web/dist/`) |
+| `web/` | React/TypeScript/Vite application and generated Static Assets (`web/dist/`) |
+| `web/src/api/` | Typed same-origin client and the one place `/api/v1` URLs are written down |
+| `web/src/auth/`, `web/src/members/`, `web/src/board/` | Account, owner-settings, and board screens |
+| `web/src/i18n/` | Typed translation keys, the English dictionary, and the locale mechanism |
 | `worker/src/index.ts` | API-first routing, explicit API and SPA route allowlists, body and content-type bounds |
 | `worker/src/household-do.ts` | Durable Object request dispatch, SQLite migration startup, and test-only diagnostics |
 | `worker/src/http.ts` | Shared body parsing, exact same-origin check, and typed error mapping |

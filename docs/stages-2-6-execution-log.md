@@ -80,6 +80,40 @@ reported 15 of 15.
 
 Not started.
 
+## Active blocker — the test Worker stopped accepting deployments
+
+From **2026-09-13 08:15 UTC**, `family-board-test` serves the Stage 3 script no matter what is
+deployed. Cloudflare's API reports the new version at 100%; the edge does not run it.
+
+Attempted, all reporting success: the CI `deploy-test` job (`wrangler deploy --env test`, version
+`8fa5caa1`), a manual `npm run deploy:test` (`b68727fd`), `wrangler versions upload` followed by
+`wrangler versions deploy <id>@100` (`0c505b48`), and `wrangler triggers deploy`.
+
+Evidence that the old script is what runs, with the same three probes answered by a local
+`wrangler dev` on the same commit:
+
+| Probe | Deployed | Local (same commit) |
+| --- | --- | --- |
+| `GET /api/v1/health` | `schemaVersion: 3` | `schemaVersion: 4` |
+| `GET /api/v1/board` | 404 | 401 |
+| `POST /api/v1/cards`, `Content-Type: text/plain` | 404 | 415 |
+| `DELETE /api/v1/invitations/abc`, `Content-Type: text/plain` | 401 | 415 |
+
+The last two are front-Worker checks that never reach the Durable Object, so this is not the
+object running old code behind a new Worker. A fetch from an unrelated network saw the same
+`schemaVersion: 3`, so it is not local caching either. `cloudflarestatus.com` showed no open
+Workers or Durable Objects incident. The uploaded bundle was 403.24 KiB against 355 KiB for
+Stage 3, and a dry-run bundle from this commit does contain the board routes, so the right code
+was built and uploaded.
+
+**Consequence:** the Stage 4 deployed exit gate cannot run, and neither can the Stage 3 operator
+leg. Stages 4–6 are implemented and verified locally only. Nothing may be marked complete or
+archived until this is resolved and the deployed checks pass.
+
+**Next step:** inspect the Worker in the Cloudflare dashboard, which can show state the API does
+not — a stuck or duplicated deployment, a version override, or a second deploy pipeline such as
+Workers Builds also publishing this Worker. `docs/ci.md` warns against that last one explicitly.
+
 ## Open risks
 
 - Stage 6 requires a manual screen-reader review of representative desktop and mobile workflows

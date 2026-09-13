@@ -58,12 +58,13 @@ def expected_schema_version():
     return int(match.group(1))
 
 
-def await_schema_version(base, expected, timeout_s=60):
+def await_schema_version(base, expected, timeout_s=300, interval_s=20):
     """Wait for the deployed Worker to report this checkout's schema version.
 
-    A fresh `wrangler deploy` needs a few seconds to propagate, so an immediate health read
-    can still come from the previous version. Polling turns that race into a real check that
-    the code under test is the code that is live.
+    A fresh `wrangler deploy` needs time to propagate, and the schema version comes from the
+    Durable Object, which keeps running the previous code until it is evicted. Eviction needs
+    the object to be idle, so this polls slowly on purpose: a tight loop keeps the object warm
+    and prevents the very restart it is waiting for.
     """
     deadline = time.monotonic() + timeout_s
     seen = None
@@ -74,7 +75,7 @@ def await_schema_version(base, expected, timeout_s=60):
             return health
         if time.monotonic() >= deadline:
             raise RuntimeError(f'deployed schemaVersion {seen.get("schemaVersion")!r} never reached {expected}')
-        time.sleep(2)
+        time.sleep(interval_s)
 
 
 def percentile(values, p):

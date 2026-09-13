@@ -20,7 +20,20 @@ export interface Env {
   RATE_LIMIT_KEY?: string;
 }
 
-const SPA_ROUTES = new Set(['/', '/login', '/register', '/recover', '/board']);
+/**
+ * Direct navigation to each of these serves the shell; anything else 404s rather than
+ * rendering the app. Must stay in step with `ROUTES` in `web/src/router.tsx`.
+ */
+export const SPA_ROUTES: ReadonlySet<string> = new Set([
+  '/',
+  '/login',
+  '/register',
+  '/recover',
+  '/bootstrap',
+  '/board',
+  '/account',
+  '/members'
+]);
 
 /** Auth bodies are small. A board card may carry a 4,000-code-point description. */
 const AUTH_BODY_LIMIT = 16 * 1024;

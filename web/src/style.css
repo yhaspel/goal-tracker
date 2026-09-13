@@ -1,1 +1,512 @@
-:root{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#21312d;background:#f6f4ee;font-synthesis:none}body{margin:0}main{max-width:680px;margin:16vh auto;padding:0 24px}.eyebrow{text-transform:uppercase;letter-spacing:.15em;color:#2c7060;font-size:.75rem;font-weight:700}h1{font-size:clamp(2.5rem,7vw,4.75rem);line-height:1.04;letter-spacing:-.045em;margin:1rem 0}p{font-size:1.1rem;line-height:1.6;color:#54625d}
+/*
+ * Layout uses logical properties throughout (`margin-inline`, `padding-inline`, `inset-inline`)
+ * so the whole interface mirrors correctly when `dir="rtl"` is set on the document, without a
+ * second stylesheet. Stage 6 completes the right-to-left review.
+ */
+
+:root {
+  --ink: #16202b;
+  --ink-soft: #4a5a6a;
+  --paper: #f6f8fa;
+  --surface: #ffffff;
+  --line: #c6d0da;
+  --accent: #14507d;
+  --accent-ink: #ffffff;
+  --danger: #8c2020;
+  --warn-bg: #fdf3d8;
+  --warn-line: #b98900;
+  --notice-bg: #e7f1f8;
+  --radius: 8px;
+  --space: 0.75rem;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font: 16px/1.5 system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+h1,
+h2,
+h3 {
+  line-height: 1.25;
+  margin-block: 0 0.5rem;
+}
+
+h1 {
+  font-size: 1.5rem;
+}
+h2 {
+  font-size: 1.2rem;
+}
+h3 {
+  font-size: 1rem;
+}
+
+/* A focus ring that survives every background in this palette. */
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.skip-link {
+  position: absolute;
+  inset-block-start: -3rem;
+  inset-inline-start: var(--space);
+  z-index: 20;
+  background: var(--surface);
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius);
+}
+
+.skip-link:focus {
+  inset-block-start: var(--space);
+}
+
+/* Latin-script values keep their own direction inside a right-to-left sentence. */
+.isolate {
+  unicode-bidi: isolate;
+  text-align: start;
+}
+
+/* --- header ------------------------------------------------------------------------------ */
+
+.app-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space);
+  padding: var(--space);
+  background: var(--surface);
+  border-block-end: 1px solid var(--line);
+}
+
+.brand {
+  font-weight: 700;
+  margin: 0;
+  margin-inline-end: auto;
+}
+
+.app-header nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space);
+  align-items: center;
+}
+
+.app-header .who {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+a {
+  color: var(--accent);
+}
+
+a[aria-current='page'] {
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+main {
+  padding: var(--space);
+}
+
+main:focus {
+  outline: none;
+}
+
+/* --- panels and forms -------------------------------------------------------------------- */
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: calc(var(--space) * 1.5);
+  margin-inline: auto;
+  max-width: 60rem;
+}
+
+.panel.narrow {
+  max-width: 32rem;
+}
+
+.card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--space);
+  margin-block: var(--space);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-block: var(--space);
+}
+
+label {
+  font-weight: 600;
+}
+
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+  padding: 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  /* Comfortable on touch without forcing a zoom on iOS. */
+  min-height: 2.75rem;
+  max-width: 100%;
+}
+
+textarea {
+  min-height: 6rem;
+  resize: vertical;
+}
+
+input[aria-invalid='true'],
+textarea[aria-invalid='true'] {
+  border-color: var(--danger);
+  border-width: 2px;
+}
+
+.help {
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+
+/* Errors are never colour alone: they carry a marker and a heavier border. */
+.error {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.error::before {
+  content: '! ';
+}
+
+.warning {
+  background: var(--warn-bg);
+  border-inline-start: 4px solid var(--warn-line);
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius);
+}
+
+.alert {
+  padding: 0.6rem 0.75rem;
+  border-radius: var(--radius);
+  margin-block: var(--space);
+}
+
+.alert-error {
+  background: #fbeaea;
+  border-inline-start: 4px solid var(--danger);
+}
+
+.alert-notice {
+  background: var(--notice-bg);
+  border-inline-start: 4px solid var(--accent);
+}
+
+button {
+  font: inherit;
+  min-height: 2.75rem;
+  padding: 0.5rem 0.9rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+button.danger {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.choice {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--space);
+}
+
+.choice label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 400;
+  padding-block: 0.25rem;
+}
+
+.list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding-block: 0.5rem;
+  border-block-end: 1px solid var(--line);
+}
+
+.badge {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.1rem 0.6rem;
+  font-size: 0.85rem;
+}
+
+.badge.warning {
+  background: var(--warn-bg);
+  border-color: var(--warn-line);
+}
+
+.callout {
+  background: var(--notice-bg);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  padding: var(--space);
+  margin-block: var(--space);
+}
+
+.code,
+.phrase {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 1.05rem;
+  word-break: break-all;
+  background: var(--paper);
+  padding: 0.5rem;
+  border-radius: var(--radius);
+}
+
+.phrase-box {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space);
+}
+
+.phrase {
+  flex: 1 1 18rem;
+  line-height: 1.8;
+}
+
+/* --- dialog ------------------------------------------------------------------------------ */
+
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgb(0 0 0 / 45%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space);
+  z-index: 10;
+}
+
+.dialog {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: calc(var(--space) * 1.25);
+  inline-size: min(34rem, 100%);
+  max-block-size: 90vh;
+  overflow: auto;
+}
+
+.dialog-header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space);
+}
+
+.dialog-header h2 {
+  margin-inline-end: auto;
+}
+
+.dialog-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space);
+  justify-content: flex-end;
+  margin-block-start: var(--space);
+}
+
+/* --- board ------------------------------------------------------------------------------- */
+
+.board-page {
+  max-width: 90rem;
+  margin-inline: auto;
+}
+
+.board-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space);
+}
+
+/* The board is the only thing that scrolls sideways; the page itself never does. */
+.board {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  gap: var(--space);
+  overflow-x: auto;
+  padding-block-end: var(--space);
+}
+
+.column {
+  flex: 0 0 17rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--space);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.column-header h2 {
+  margin: 0;
+}
+
+.column-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-block-start: 0.35rem;
+}
+
+.column-actions button {
+  font-size: 0.8rem;
+  min-height: 2.25rem;
+  padding: 0.25rem 0.5rem;
+}
+
+.card-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-block-size: 3rem;
+}
+
+.card-list .card {
+  margin: 0;
+  background: var(--paper);
+}
+
+.card.dragging {
+  opacity: 0.6;
+}
+
+.card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.card-head h3 {
+  margin: 0;
+  flex: 1;
+}
+
+/* A real button, so it is reachable by keyboard and large enough for touch. */
+.drag-handle {
+  min-height: 2.25rem;
+  min-width: 2.25rem;
+  padding: 0.2rem 0.4rem;
+  cursor: grab;
+  line-height: 1;
+  touch-action: none;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+.card-description {
+  margin-block: 0.25rem;
+  white-space: pre-wrap;
+}
+
+.card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-block-start: 0.5rem;
+}
+
+.card-actions button,
+.card-actions select {
+  font-size: 0.8rem;
+  min-height: 2.25rem;
+  padding: 0.25rem 0.5rem;
+}
+
+.empty {
+  padding: 0.5rem;
+}
+
+/* --- preferences ------------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+@media (max-width: 30rem) {
+  .column {
+    flex-basis: 15rem;
+  }
+}

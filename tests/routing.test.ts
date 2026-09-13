@@ -6,7 +6,7 @@ const fetchRoute = (path: string, init?: RequestInit) => SELF.fetch(new Request(
 
 describe('front Worker routing', () => {
   it('serves intended navigation routes and real assets', async () => {
-    for (const path of ['/', '/login', '/board']) {
+    for (const path of ['/', '/login', '/register', '/recover', '/bootstrap', '/board', '/account', '/members']) {
       const response = await fetchRoute(path, { headers: { 'Sec-Fetch-Mode': 'navigate' } });
       expect(response.status).toBe(200);
       expect(response.headers.get('content-type')).toContain('text/html');

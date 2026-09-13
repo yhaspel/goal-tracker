@@ -46,7 +46,7 @@ disposable values and needs no `.dev.vars`.
 npm run dev
 ```
 
-Wrangler prints the local address, normally [http://localhost:8787](http://localhost:8787). The app currently displays a placeholder page while the Stage 5 interface is built; the account API is live. To check that the API and local Durable Object are working, open [http://localhost:8787/api/v1/health](http://localhost:8787/api/v1/health) or run:
+Wrangler prints the local address, normally [http://localhost:8787](http://localhost:8787). With no owner yet, the page offers to set one up. To check that the API and local Durable Object are working, open [http://localhost:8787/api/v1/health](http://localhost:8787/api/v1/health) or run:
 
 ```sh
 curl --fail http://localhost:8787/api/v1/health
@@ -80,7 +80,9 @@ Run `npm run lint`, `npm run typecheck`, and `npm test` before submitting applic
 
 ## Architecture and environments
 
-The app is a Vite/React frontend (`web/`) served as Static Assets by one Cloudflare Worker (`worker/`). The Worker handles `/api` routes before assets. A single SQLite-backed Durable Object owns household data and migrations; shared API types live in `shared/`, and Workers-runtime tests live in `tests/`. [`wrangler.jsonc`](wrangler.jsonc) defines separate `test`, `production`, and `restore` Workers and Durable Object namespaces. The restore Worker has no public route.
+The app is a Vite/React frontend (`web/`) served as Static Assets by one Cloudflare Worker (`worker/`). The Worker handles `/api` routes before assets and serves `index.html` only for an explicit list of client-side paths, which `tests/web.ui.test.ts` compares against the router's own list. A single SQLite-backed Durable Object owns household data and migrations; shared API types live in `shared/`, and Workers-runtime tests live in `tests/`. [`wrangler.jsonc`](wrangler.jsonc) defines separate `test`, `production`, and `restore` Workers and Durable Object namespaces. The restore Worker has no public route.
+
+Card dragging uses the pinned [`@dnd-kit/react`](https://dndkit.com/react/guides/sensors/) 0.5.0 for pointer, touch, and keyboard input. Every card also carries explicit **Move up**, **Move down**, and **Move to column** controls, so nothing on the board needs a drag.
 
 The deployed [test Worker](https://family-board-test.yuval3000.workers.dev) is used for stage work and holds only disposable accounts. The [production shell](https://family-board-production.yuval3000.workers.dev) has no accounts or real user data and stays on the Stage 1 placeholder until the Stage 7 release gate. Test-only diagnostic endpoints require a disposable secret and are currently disabled in the deployed test Worker.
 
