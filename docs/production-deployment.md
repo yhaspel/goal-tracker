@@ -77,33 +77,39 @@ prescribes), except the last two rows:
 | Browser: `localStorage`, `sessionStorage`, `document.cookie` | **Not verified**, for the same reason — the browser automation tool's own safety redaction also declines cookie/session-storage reads on a page it recognizes as holding a live session, and this session did not attempt to bypass that |
 | Cloudflare dashboard | Production and test remain distinct Durable Object namespaces with distinct secret stores; production still has no Workers Builds connection — matches |
 
-### Flag: bootstrap now reads closed, and a signed-in session exists
+### Confirmed: a production owner account exists
 
 Two independent observations this session, both unexpected: `GET /api/v1/auth/bootstrap/status`
-now returns `bootstrapAvailable:false` (confirmed twice, including once from a plain `curl` with
-no cookies at all, which rules out any browser-session artifact), and a Chrome tab already open
-to `/board` returned `200` from `/api/v1/board` and `/api/v1/auth/session` rather than the `401`
-a guest gets. Reading `worker/src/routes/auth.ts` confirms `bootstrapAvailable` can only be
+returned `bootstrapAvailable:false` (confirmed twice, including once from a plain `curl` with no
+cookies at all, which rules out any browser-session artifact), and a Chrome tab already open to
+`/board` returned `200` from `/api/v1/board` and `/api/v1/auth/session` rather than the `401` a
+guest gets. Reading `worker/src/routes/auth.ts` confirms `bootstrapAvailable` can only be
 `false` once the bootstrap-confirm transaction has run, and that transaction creates the real
 owner row in the same statement — there is no code path that lets the flag desync from reality.
-Taken together, this looks like a production owner account now exists, most likely created
-directly by the owner outside of this session, separately from anything either automated run
-did.
 
-This has been raised with the owner and is **not yet confirmed**. Until it is, treat the two
-bullets under "Deliberately not done" below about no owner account and no user data as
-unconfirmed rather than authoritative. It does not change anything else in this document: if an
-owner and household data now exist in production, the cautions elsewhere in this repository
-still apply in full — no backup exists, and the lost-phrase operator rescue has been proven only
-against the **test** Worker (see the [Stage 3 completion report](stage-3-completion.md)), never
-against production's own Durable Object and secrets.
+**The owner confirmed it directly on 2026-09-13: they bootstrapped the production owner account
+themselves**, outside of this session and separately from anything either automated run did. So
+this is fact, not inference: production now holds a real owner account, and — because the owner
+signed in on this machine to do it — a live session for it. Treat the two bullets under
+"Deliberately not done" below as describing the state **at deployment**, now superseded; the
+current state is in the new section right after this one.
+
+None of the cautions elsewhere in this repository soften because of this — if anything they now
+matter more, since they apply to a real account rather than a hypothetical one: no backup exists
+for production, and the lost-phrase operator rescue has been proven only against the **test**
+Worker (see the [Stage 3 completion report](stage-3-completion.md)), never against production's
+own Durable Object and secrets. Concretely: if this owner's password and recovery phrase are
+both lost right now, the account is not recoverable, and if the Durable Object were ever lost or
+corrupted, there is nothing to restore it from.
 
 ## Deliberately not done
 
-- **No owner account was created, as of this deployment.** Bootstrap was still open at that
-  point, and the board held nothing but its three seeded columns. **This is now in question —
-  see the "Task D revalidation" flag above, unconfirmed as of 2026-09-13.**
-- **No invitations, members, or cards exist, as of this deployment** (same caveat).
+- **No owner account was created, at the moment of this deployment.** Bootstrap was open, and
+  the board held nothing but its three seeded columns. **No longer current — the owner
+  bootstrapped an account on 2026-09-13; see "Confirmed: a production owner account exists"
+  above.**
+- **No invitations, members, or cards existed, at the moment of this deployment** (same
+  caveat — the owner may have added some since).
 - **CI still deploys test only.** Production has no automatic pipeline; this deployment was
   manual and the next one must be too, until a separate production release workflow exists.
 
@@ -126,17 +132,27 @@ for the one outstanding check and
 [`development-plans/stage-7-backup-hardening-release.md`](../development-plans/stage-7-backup-hardening-release.md)
 for the rest.
 
-## Creating the owner, when you are ready
+## The owner account, now that it exists
 
-Given the above, prefer waiting until backup and the deployed rescue rehearsal exist. When you
-do proceed, open <https://family-board-production.yuval3000.workers.dev/bootstrap> and supply
-the `BOOTSTRAP_SECRET` from the escrow file together with the owner's address and a new
-password. Save the recovery phrase it shows before confirming — it is displayed once and is
-not recoverable.
+Bootstrap closed on 2026-09-13 when the owner created the account directly (see "Confirmed: a
+production owner account exists" above), ahead of the original advice in this document to wait
+for backup and a deployed rescue rehearsal first. That decision stands; this section is now
+about what protects the account that exists, not about how to create one.
 
-Bootstrap closes permanently once that commits. After it does, consider removing
-`BOOTSTRAP_SECRET` from the deployment; the route already refuses a second owner from database
-state, so the secret is no longer needed.
+- **The recovery phrase shown at bootstrap is the only backup that exists for this account.**
+  It was displayed exactly once. If it was not saved somewhere durable at the time, there is
+  currently no way to regenerate it without already being signed in.
+- **The lost-phrase operator rescue is unproven against production.** It has been exercised
+  successfully, repeatedly, against the **test** Worker's own Durable Object (see the
+  [Stage 3 completion report](stage-3-completion.md)), but never against production's. Until
+  someone deliberately rehearses it there — which itself requires care, since it means
+  generating and redeeming a real operator token against the live object — do not assume it
+  will work the same way.
+- **Consider removing `BOOTSTRAP_SECRET` from the deployment.** The route already refuses a
+  second owner from database state alone, so the secret is no longer load-bearing; leaving it
+  in place is unnecessary residual exposure.
+- Bootstrap cannot run again while this owner row exists, so there is no way to create a second
+  owner by mistake.
 
 ## Rollback
 

@@ -165,11 +165,14 @@ Then confirm by hand:
 
 Record the result in [`docs/production-deployment.md`](../docs/production-deployment.md).
 
-**Creating the production owner is a separate decision and not part of this validation.** Task A
-proved the rescue mechanism works correctly against the deployed **test** Worker, but it has
-never been exercised against production's own Durable Object and secrets, and no backup exists,
-so an account created now is still unrecoverable if its password and phrase are both lost. The
-deployment record describes the bootstrap procedure.
+**Update, 2026-09-13: the production owner now exists.** This Task D revalidation found
+`bootstrap/status` reading closed, and the owner confirmed directly that they bootstrapped it
+themselves, separately from this run. Task A proved the rescue mechanism works correctly
+against the deployed **test** Worker, but it has never been exercised against production's own
+Durable Object and secrets, and no backup exists — so this real account is unrecoverable right
+now if its password and phrase are both lost. See
+[`docs/production-deployment.md`](../docs/production-deployment.md) for the full, current
+record.
 
 ## Closing the run
 
