@@ -55,11 +55,55 @@ an escrow. Replacing `RECOVERY_DIGEST_KEY` later invalidates every stored recove
 | Diagnostic routes | 404; the strings are absent from the minified production bundle |
 | `family-board-restore` | Still unexposed, 404, no public route |
 
+## Task D revalidation, 2026-09-13 (later the same day)
+
+`handoff-remaining-checks.md` Task D asks for a read-only re-check of the checklist above,
+without touching production. Re-run this session, all via plain unauthenticated HTTP requests
+with no cookies (no login attempt beyond the one generic-failure check the checklist itself
+prescribes), except the last two rows:
+
+| Check | Result |
+| --- | --- |
+| `GET /api/v1/health` | `200`, `schemaVersion: 4`, `Cache-Control: no-store` — matches |
+| `GET /api/v1/auth/bootstrap/status` | **`{"bootstrapAvailable":false}`** — does **not** match the deployment-time row above (`true`). See the flag below |
+| `GET /api/v1/board`, `/api/v1/members`, `/api/v1/settings/allowed-emails` (no session) | All `401`, code `unauthenticated`, generic body, no address named — matches |
+| `GET /api/v1/diagnostics/probe?nonce=<32 hex>` | `404` — matches |
+| `POST /api/v1/auth/bootstrap/prepare`, wrong secret | `403`, then `429` with `Retry-After` on repeat — matches |
+| `POST /api/v1/auth/login`, dummy address, correct `Origin` | `401 invalid_credentials`, generic message — matches |
+| Same request, no `Origin` header | `403 forbidden` — matches |
+| `https://family-board-restore.yuval3000.workers.dev` | `404` — matches |
+| Browser: `/board`, `/login`, `/register`, `/recover`, `/bootstrap`, `/account`, `/members` | Each returns `200` and serves the same SPA shell (checked with plain `curl`, no cookies) — matches |
+| Browser: `/board` as a guest redirects to `/login` | **Not verified.** That redirect is client-side routing, invisible to `curl`, and the only open browser tab to production this session unexpectedly already held a signed-in session rather than a guest one (see the flag below), so this could not be exercised safely |
+| Browser: `localStorage`, `sessionStorage`, `document.cookie` | **Not verified**, for the same reason — the browser automation tool's own safety redaction also declines cookie/session-storage reads on a page it recognizes as holding a live session, and this session did not attempt to bypass that |
+| Cloudflare dashboard | Production and test remain distinct Durable Object namespaces with distinct secret stores; production still has no Workers Builds connection — matches |
+
+### Flag: bootstrap now reads closed, and a signed-in session exists
+
+Two independent observations this session, both unexpected: `GET /api/v1/auth/bootstrap/status`
+now returns `bootstrapAvailable:false` (confirmed twice, including once from a plain `curl` with
+no cookies at all, which rules out any browser-session artifact), and a Chrome tab already open
+to `/board` returned `200` from `/api/v1/board` and `/api/v1/auth/session` rather than the `401`
+a guest gets. Reading `worker/src/routes/auth.ts` confirms `bootstrapAvailable` can only be
+`false` once the bootstrap-confirm transaction has run, and that transaction creates the real
+owner row in the same statement — there is no code path that lets the flag desync from reality.
+Taken together, this looks like a production owner account now exists, most likely created
+directly by the owner outside of this session, separately from anything either automated run
+did.
+
+This has been raised with the owner and is **not yet confirmed**. Until it is, treat the two
+bullets under "Deliberately not done" below about no owner account and no user data as
+unconfirmed rather than authoritative. It does not change anything else in this document: if an
+owner and household data now exist in production, the cautions elsewhere in this repository
+still apply in full — no backup exists, and the lost-phrase operator rescue has been proven only
+against the **test** Worker (see the [Stage 3 completion report](stage-3-completion.md)), never
+against production's own Durable Object and secrets.
+
 ## Deliberately not done
 
-- **No owner account was created.** Bootstrap is still open. Nobody can sign in, and the board
-  holds nothing but its three seeded columns.
-- **No invitations, members, or cards exist.**
+- **No owner account was created, as of this deployment.** Bootstrap was still open at that
+  point, and the board held nothing but its three seeded columns. **This is now in question —
+  see the "Task D revalidation" flag above, unconfirmed as of 2026-09-13.**
+- **No invitations, members, or cards exist, as of this deployment** (same caveat).
 - **CI still deploys test only.** Production has no automatic pipeline; this deployment was
   manual and the next one must be too, until a separate production release workflow exists.
 
@@ -78,7 +122,7 @@ These are Stage 7's job and none of them is done. They are the reason the gate e
 - No production security-header review, dependency review, restore drill, or usage review.
 
 See [`development-plans/handoff-remaining-checks.md`](../development-plans/handoff-remaining-checks.md)
-for the two outstanding checks and
+for the one outstanding check and
 [`development-plans/stage-7-backup-hardening-release.md`](../development-plans/stage-7-backup-hardening-release.md)
 for the rest.
 
