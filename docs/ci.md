@@ -1,5 +1,7 @@
 # GitHub CI and Cloudflare deployment
 
+This page records the original repository's setup. For a fork or downloaded copy, follow [Host your own copy on Cloudflare](../README.md#host-your-own-copy-on-cloudflare) first; its Cloudflare account, GitHub secrets, and test hostname must be configured separately.
+
 The [GitHub Actions workflow](../.github/workflows/ci.yml) is active in [yhaspel/goal-tracker](https://github.com/yhaspel/goal-tracker). On every push and pull request, it runs a locked install, lint, typecheck, Workers-runtime tests, dependency audit, and production bundle dry run. The `deploy-test` job runs only after those checks pass on the repository's default branch; it deploys `family-board-test` and verifies live routing and health. A [manual run on 2026-09-13](https://github.com/yhaspel/goal-tracker/actions/runs/34740741464) passed both jobs. Future default-branch pushes now trigger the same test deployment automatically.
 
 GitHub Actions has repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, plus repository variable `CLOUDFLARE_TEST_DEPLOY_ENABLED=true`. The Cloudflare account-owned token is named `goal-tracker-github-actions-test`, has only **Workers Scripts Write** and **Account Settings Read** for the project account, and expires **2027-09-14**. Rotate it before that date by rolling the token in Cloudflare and updating only the GitHub secret. Never put the token or account ID in source or workflow logs. To pause automatic test deployments without stopping CI checks, set `CLOUDFLARE_TEST_DEPLOY_ENABLED=false`.

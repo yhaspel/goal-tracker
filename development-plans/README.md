@@ -6,6 +6,8 @@ Adversarial review completed on 2026-09-12 for all seven plans. The review check
 
 Stage 1 was completed on 2026-09-13. The [deployed feasibility report](../docs/stage-1-feasibility.md) records the passing Free-tier gate before Stage 2.
 
+On 2026-09-13, the Stage 2 account plan was extended with an owner-managed allowed-email list. Its API and authorization rules are in Stage 2; recovery, board, UI, localization, and backup implications are reflected in Stages 3–7 and the master plan.
+
 | Stage | Plan |
 | --- | --- |
 | 1 (complete) | [Hosting and security feasibility](archived/stage-1-hosting-security-feasibility.md) |

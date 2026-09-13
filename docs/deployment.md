@@ -1,5 +1,7 @@
 # Stage 1 deployment
 
+Deploying a fresh copy in a different Cloudflare account? Start with [Host your own copy on Cloudflare](../README.md#host-your-own-copy-on-cloudflare) to configure your Worker names, account, and CI hostname. The URLs and evidence below describe the original account.
+
 For GitHub checks and the gated test-deployment workflow, see [CI and Cloudflare deployment](ci.md). The procedure below remains the manual/reproducibility path.
 
 The 2026-09-12–13 Free-plan deployment used the [test shell](https://family-board-test.yuval3000.workers.dev), the [production shell](https://family-board-production.yuval3000.workers.dev), and a private `family-board-restore` Worker with no public target. The live measurements and Stage 2 gate are in [the feasibility report](stage-1-feasibility.md). The temporary test diagnostic secret was deleted after verification, and `.secrets.test` was removed locally. Re-running diagnostics requires a new disposable test secret.

@@ -2,7 +2,7 @@
 
 ## Purpose and current state
 
-Build a private Kanban board for one household or working group, with one shared board and at most seven active users including the owner. The planned release uses invitation-only email/password accounts, one-time recovery phrases, manual lost-phrase rescue, English/Hebrew/Russian UI, and accessible drag-and-drop with explicit move controls. It sends no email and does not include goals, private boards, attachments, notifications, or AI features. The [master plan](development-plans/personal-business-goals-dashboard-master-plan.md) is the product and architecture source of truth.
+Build a private Kanban board for one household or working group, with one shared board and at most seven active users including the owner. The owner is the only admin and manages an allowed-email list; joining also requires an invitation. The planned release uses email/password accounts, one-time recovery phrases, manual lost-phrase rescue, English/Hebrew/Russian UI, and accessible drag-and-drop with explicit move controls. It sends no email and does not include goals, private boards, attachments, notifications, or AI features. The [master plan](development-plans/personal-business-goals-dashboard-master-plan.md) is the product and architecture source of truth.
 
 Stage 1 is complete. The repository currently contains only the React shell, API/SQLite foundation, migrations, and diagnostic test code. There are **no account or board features and no real production users or data**. Read the [Stage 1 feasibility report](docs/stage-1-feasibility.md) before implementing authentication: its Cloudflare Free deployment and native scrypt gate passed. The exact ninth queue operation was tested in the Workers runtime but not observed as a live HTTP 503; CPU duration and peak memory were not measurable in the initial dashboard sample. Retain contention and usage checks in later stages.
 
@@ -17,6 +17,7 @@ Stage 1 is complete. The repository currently contains only the React shell, API
 
 | Path | Role |
 | --- | --- |
+| `README.md` | Project overview, local setup, commands, and deployment entry points |
 | `web/` | React/TypeScript/Vite shell and generated Static Assets (`web/dist/`) |
 | `worker/src/index.ts` | API-first routing, bounded request forwarding, and explicit SPA route allowlist |
 | `worker/src/household-do.ts` | Durable Object API, SQLite migration startup, and test-only diagnostics |
@@ -29,6 +30,8 @@ Stage 1 is complete. The repository currently contains only the React shell, API
 | `.github/workflows/ci.yml`, `docs/ci.md` | GitHub checks and the gated test-deployment setup |
 
 Use Node 25.2.1 and npm 11.12.1 (`.node-version` and `packageManager`). Dependencies and Wrangler are exact-pinned in `package-lock.json`. From the repository root, run `npm ci`, `npm run lint`, `npm run typecheck`, `npm test` (which builds the web shell), and `npm run build` for changes that affect the app. Add focused Workers-runtime tests for changed routing, SQL, authentication, or KDF behavior; run the relevant deployed-test smoke checks required by the active stage plan.
+
+Revise the root [`README.md`](README.md) whenever a change affects how someone installs, configures, runs, builds, tests, or deploys the project. Keep its prerequisites, commands, environment descriptions, and links accurate in the same change.
 
 The GitHub Actions workflow runs checks on pushes and pull requests. After a passing default-branch push, it deploys the test Worker and runs a live smoke check; see [`docs/ci.md`](docs/ci.md) for its configuration and token rotation date. Do not assume a push has deployed anything unless the deploy job succeeded. Production deployment remains outside this automatic pipeline until Stage 7.
 
