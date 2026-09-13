@@ -10,6 +10,7 @@ import {
   useState
 } from 'react';
 import { useTranslation } from '../i18n';
+import { CloseIcon } from './icons';
 
 // --- announcements --------------------------------------------------------------------------
 
@@ -53,6 +54,29 @@ export function useAnnounce(): Announce {
   const value = useContext(AnnouncerContext);
   if (!value) throw new Error('useAnnounce must be used inside an AnnouncerProvider');
   return value;
+}
+
+// --- viewport -------------------------------------------------------------------------------
+
+/**
+ * Tracks a media query in React state.
+ *
+ * A few of the responsive rules cannot be expressed in CSS alone: below 834px the board renders
+ * one column at a time behind a pager rather than the whole track, and the phone header's sheet
+ * only exists while the button that opens it does. Everything else stays in the stylesheet.
+ */
+export function useMediaQuery(query: string): boolean {
+  const [matches, setMatches] = useState(() => window.matchMedia(query).matches);
+
+  useEffect(() => {
+    const list = window.matchMedia(query);
+    const update = () => setMatches(list.matches);
+    update();
+    list.addEventListener('change', update);
+    return () => list.removeEventListener('change', update);
+  }, [query]);
+
+  return matches;
 }
 
 // --- form fields ----------------------------------------------------------------------------
@@ -142,6 +166,10 @@ const FOCUSABLE =
 /**
  * A labelled modal that traps Tab, closes on Escape, and returns focus to whatever opened it.
  * Closing is always safe here: no dialog in this app commits on dismiss.
+ *
+ * Below 834px the stylesheet renders the same component bottom-anchored, with the footer row
+ * pinned above the keyboard. It is a class and a media query, not a second implementation, so
+ * the focus contract is identical on a phone.
  */
 export function Dialog({
   title,
@@ -210,11 +238,11 @@ export function Dialog({
       >
         <div className="dialog-header">
           <h2 id={titleId}>{title}</h2>
-          <button type="button" className="icon" onClick={onClose}>
-            {t('app.close')}
+          <button type="button" className="icon" onClick={onClose} aria-label={t('app.close')}>
+            <CloseIcon />
           </button>
         </div>
-        {children}
+        <div className="dialog-body">{children}</div>
         {footer ? <div className="dialog-footer">{footer}</div> : null}
       </div>
     </div>
@@ -229,12 +257,20 @@ export function Dialog({
  * The label does not change while the request runs: a button whose accessible name rewrites
  * itself mid-action is disorienting, and one generic word cannot be right for signing in,
  * saving a card, and confirming a recovery phrase at once. The busy state is conveyed by
- * `aria-busy` and by a marker that respects reduced-motion preferences.
+ * `aria-busy` and by three small squares, which keep their place — static rather than pulsing —
+ * under a reduced-motion preference, so the state is never carried by movement alone.
  */
 export function Submit({ pending, children }: { pending: boolean; children: ReactNode }) {
   return (
     <button type="submit" className={pending ? 'primary busy' : 'primary'} disabled={pending} aria-busy={pending}>
       {children}
+      {pending ? (
+        <span className="busy-dots" aria-hidden="true">
+          <i />
+          <i />
+          <i />
+        </span>
+      ) : null}
     </button>
   );
 }

@@ -122,6 +122,15 @@ describe('translation', () => {
     expect(russian.plural('board.cardCount', 21)).toBe('21 карточка');
   });
 
+  it('keeps the product name identical in every locale', () => {
+    // The one string the redesign deliberately does not translate. A household that mixes
+    // languages would otherwise see a different product name per person, and the Russian
+    // translation does not fit the phone header. It is bidi-isolated where it is rendered.
+    for (const dictionary of [he, ru]) {
+      expect((dictionary as Record<string, string>)['app.name']).toBe(en['app.name']);
+    }
+  });
+
   it('translates every screen into Hebrew and Russian, never falling back to English', () => {
     // A key that silently renders English is the exact failure the release check exists to
     // prevent; this asserts the same property from the application's own lookup path.
@@ -134,6 +143,8 @@ describe('translation', () => {
         if (key.startsWith('board.cardCount.')) continue;
         const translated = translate.t(key);
         expect(translated, `${locale}:${key}`).toBe((dictionary as Record<string, string>)[key]);
+        // `app.name` is the one deliberate exception, asserted identical in its own test above.
+        if (key === 'app.name') continue;
         expect(translated, `${locale}:${key}`).not.toBe(en[key]);
       }
     }

@@ -8,7 +8,7 @@
  * provide at least `.other`.
  */
 export const en = {
-  'app.name': 'Family board',
+  'app.name': 'Goal Tracker',
   'app.skipToContent': 'Skip to main content',
   'app.loading': 'Loading…',
   'app.retry': 'Try again',
@@ -23,7 +23,10 @@ export const en = {
   'app.required': 'Required',
   'app.optional': 'optional',
   'app.language': 'Language',
+  'app.menu': 'Menu',
   'app.offline': 'You appear to be offline. Check your connection and try again.',
+
+  'flow.step': 'Step {n} of {total}',
 
   'nav.board': 'Board',
   'nav.settings': 'Settings',
@@ -110,6 +113,8 @@ export const en = {
   'settings.duplicate': 'This address appears more than once: {email}',
   'settings.invalidEntry': 'This does not look like an email address: {entry}',
   'settings.tooMany': 'That is {count} addresses. The limit is {max}, including your own.',
+  'settings.yourText': 'Your text (kept)',
+  'settings.currentList': 'Current list · revision {n}',
 
   'invitations.heading': 'Invitations',
   'invitations.body': 'Invite an address that is already on the allowed list. Share the code yourself; nothing is emailed.',
@@ -158,6 +163,9 @@ export const en = {
   'board.cardCount.one': '{count} card',
   'board.cardCount.other': '{count} cards',
   'board.reload': 'Reload the board',
+  'board.columnPosition': 'Column {n} of {total}',
+  'board.addCardTo': 'Add a card to {column}',
+  'board.scrollEnd': 'Scroll the board towards the end',
 
   'card.title': 'Title',
   'card.description': 'Description',
@@ -181,6 +189,8 @@ export const en = {
   'card.deleted': '{title} deleted.',
   'card.draftKept': 'Your unsaved text is still here. Review it and save again.',
   'card.changedElsewhere': 'Someone else changed this card while you were editing.',
+  'card.descriptionCount': '{count} / {max}',
+  'card.discardDraft': 'Discard',
 
   'error.generic': 'Something went wrong. Try again.',
   'error.network': 'The board could not be reached. Check your connection.',

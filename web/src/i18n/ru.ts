@@ -7,7 +7,7 @@ import type { LocaleDictionary } from './en';
  * every plural family. Card and column text the members wrote is never translated.
  */
 export const ru: LocaleDictionary = {
-  'app.name': 'Семейная доска',
+  'app.name': 'Goal Tracker',
   'app.skipToContent': 'Перейти к основному содержимому',
   'app.loading': 'Загрузка…',
   'app.retry': 'Повторить',
@@ -22,7 +22,10 @@ export const ru: LocaleDictionary = {
   'app.required': 'Обязательно',
   'app.optional': 'необязательно',
   'app.language': 'Язык',
+  'app.menu': 'Меню',
   'app.offline': 'Похоже, нет подключения к сети. Проверьте соединение и попробуйте снова.',
+
+  'flow.step': 'Шаг {n} из {total}',
 
   'nav.board': 'Доска',
   'nav.settings': 'Настройки',
@@ -110,6 +113,8 @@ export const ru: LocaleDictionary = {
   'settings.duplicate': 'Этот адрес встречается больше одного раза: {email}',
   'settings.invalidEntry': 'Это не похоже на адрес электронной почты: {entry}',
   'settings.tooMany': 'Здесь {count} адресов. Предел — {max}, включая ваш.',
+  'settings.yourText': 'Ваш текст (сохранён)',
+  'settings.currentList': 'Текущий список · версия {n}',
 
   'invitations.heading': 'Приглашения',
   'invitations.body':
@@ -160,6 +165,9 @@ export const ru: LocaleDictionary = {
   'board.cardCount.many': '{count} карточек',
   'board.cardCount.other': '{count} карточки',
   'board.reload': 'Обновить доску',
+  'board.columnPosition': 'Колонка {n} из {total}',
+  'board.addCardTo': 'Добавить карточку в «{column}»',
+  'board.scrollEnd': 'Прокрутить доску к концу',
 
   'card.title': 'Заголовок',
   'card.description': 'Описание',
@@ -185,6 +193,8 @@ export const ru: LocaleDictionary = {
   'card.deleted': '{title} удалена.',
   'card.draftKept': 'Ваш несохранённый текст на месте. Проверьте его и сохраните ещё раз.',
   'card.changedElsewhere': 'Кто-то изменил эту карточку, пока вы её редактировали.',
+  'card.descriptionCount': '{count} из {max}',
+  'card.discardDraft': 'Отбросить',
 
   'error.generic': 'Что-то пошло не так. Попробуйте снова.',
   'error.network': 'Не удалось связаться с доской. Проверьте подключение.',

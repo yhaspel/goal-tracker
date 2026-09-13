@@ -6,6 +6,12 @@ import { useTranslation } from '../i18n';
 
 export type CardDraft = { title: string; description: string; assigneeUserId: string };
 
+/** Mirrors `MAX_DESCRIPTION_LENGTH` in `worker/src/board/service.ts`, in code points. */
+const DESCRIPTION_MAX = 4000;
+
+/** The count appears only once the limit is close enough to matter. */
+const DESCRIPTION_COUNT_FROM = 3500;
+
 export function draftFromCard(card: BoardCard | null): CardDraft {
   return {
     title: card?.title ?? '',
@@ -43,6 +49,8 @@ export function CardDialog({
   const translator = useTranslation();
   const { t } = translator;
   const [assigneeId] = useState(draft.assigneeUserId);
+  // The server counts code points, so the count shown here has to as well.
+  const descriptionLength = [...draft.description].length;
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -74,6 +82,11 @@ export function CardDialog({
           value={draft.description}
           onChange={description => onDraftChange({ ...draft, description })}
           error={fieldErrorText(translator, failure, 'description')}
+          help={
+            descriptionLength >= DESCRIPTION_COUNT_FROM
+              ? t('card.descriptionCount', { count: descriptionLength, max: DESCRIPTION_MAX })
+              : undefined
+          }
           autoComplete="off"
           autoDir
           rows={5}
@@ -102,6 +115,16 @@ export function CardDialog({
         </p>
 
         <div className="dialog-footer">
+          {/*
+           * After a refused write the draft is deliberately kept, so the way out of it has to be
+           * visible: Discard puts the fields back to what the board actually holds, and Save
+           * sends the same text again against the reloaded revision. Neither is a new request.
+           */}
+          {changedElsewhere ? (
+            <button type="button" onClick={() => onDraftChange(draftFromCard(card))} disabled={pending}>
+              {t('card.discardDraft')}
+            </button>
+          ) : null}
           <button type="button" onClick={onClose}>
             {t('app.cancel')}
           </button>

@@ -33,6 +33,9 @@ export function PhraseStep({
 
   return (
     <section className="phrase-step">
+      {/* Nothing is written until this step succeeds, so saying where it sits in the flow is
+          what tells someone that abandoning here costs — and creates — nothing. */}
+      <p className="help">{t('flow.step', { n: 2, total: 2 })}</p>
       <h2>{t('phrase.heading')}</h2>
       <p>{t('phrase.body')}</p>
       <p className="warning">

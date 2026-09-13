@@ -1,24 +1,261 @@
 /*
- * Layout uses logical properties throughout (`margin-inline`, `padding-inline`, `inset-inline`)
- * so the whole interface mirrors correctly when `dir="rtl"` is set on the document, without a
- * second stylesheet. Stage 6 completes the right-to-left review.
+ * Goal Tracker — the Industry design system, "Worksheet" direction.
+ *
+ * One stylesheet, no framework, no component library. Everything is a custom property plus a
+ * CSS logical property (`margin-inline`, `padding-block`, `inset-inline-start`), so the whole
+ * interface mirrors correctly when `dir="rtl"` is set on the document without a second sheet.
+ *
+ * The grammar: square corners, hairline borders, one steel accent, Barlow Condensed headings
+ * over Barlow body, a modular grid. No decorative colour beyond the accent and the three
+ * status roles.
  */
 
-:root {
-  --ink: #16202b;
-  --ink-soft: #4a5a6a;
-  --paper: #f6f8fa;
-  --surface: #ffffff;
-  --line: #c6d0da;
-  --accent: #14507d;
-  --accent-ink: #ffffff;
-  --danger: #8c2020;
-  --warn-bg: #fdf3d8;
-  --warn-line: #b98900;
-  --notice-bg: #e7f1f8;
-  --radius: 8px;
-  --space: 0.75rem;
+/* --- fonts ------------------------------------------------------------------------------- */
+
+/*
+ * Self-hosted woff2 subsets. Industry loads Barlow from Google Fonts; this app cannot rely on
+ * a network it does not control, so the faces ship with the build.
+ *
+ * Google Fonts publishes Barlow and Barlow Condensed in latin, latin-ext and vietnamese only —
+ * there is no Cyrillic cut — so Russian falls through to the platform UI face exactly as
+ * Hebrew does, and both are checked in that fallback.
+ */
+
+@font-face {
+  font-family: 'Barlow';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/barlow-400-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
+
+@font-face {
+  font-family: 'Barlow';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/barlow-400-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: 'Barlow';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/fonts/barlow-500-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Barlow';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/fonts/barlow-500-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: 'Barlow';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/fonts/barlow-600-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Barlow';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/fonts/barlow-600-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: 'Barlow Condensed';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/fonts/barlow-condensed-500-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Barlow Condensed';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/fonts/barlow-condensed-500-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: 'Barlow Condensed';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/fonts/barlow-condensed-600-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Barlow Condensed';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/fonts/barlow-condensed-600-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+/* --- tokens ------------------------------------------------------------------------------ */
+
+:root {
+  /* type */
+  --gt-font-head: 'Barlow Condensed', 'Arial Narrow', 'Noto Sans Hebrew', system-ui, sans-serif;
+  --gt-font-body: 'Barlow', system-ui, -apple-system, 'Segoe UI', 'Noto Sans Hebrew', 'Arial Hebrew', Roboto, Arial,
+    sans-serif;
+  --gt-font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* space — Industry density 0.85 */
+  --gt-space-1: 3.4px;
+  --gt-space-2: 6.8px;
+  --gt-space-3: 10.2px;
+  --gt-space-4: 13.6px;
+  --gt-space-6: 20.4px;
+  --gt-space-8: 27.2px;
+  --gt-space-12: 40.8px;
+
+  /* radius — square by system */
+  --gt-radius: 0;
+  --gt-radius-chip: 2px;
+
+  /* elevation */
+  --gt-elev-sm: 0 1px 2px rgb(43 43 45 / 14%);
+  --gt-elev-md: 0 3px 10px rgb(43 43 45 / 16%);
+  --gt-elev-lg: 0 12px 32px rgb(43 43 45 / 22%);
+
+  /* motion */
+  --gt-dur-fast: 90ms;
+  --gt-dur-base: 180ms;
+  --gt-dur-slow: 260ms;
+  --gt-ease-out: cubic-bezier(0.2, 0.7, 0.3, 1);
+  --gt-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* colour — light */
+  --gt-surface: #f2f2f3;
+  --gt-raised: #f5f5f8;
+  --gt-plate: #eef6ff;
+  --gt-ink: #1d1f20;
+  --gt-ink-soft: #5d5d60;
+  --gt-line: #7a7a7d;
+  --gt-line-soft: rgb(29 31 32 / 16%);
+  --gt-accent: #5980a6;
+  --gt-accent-ink: #416180;
+  --gt-accent-deep: #2c455d;
+  --gt-steel: #1d2d3d;
+  --gt-on-accent: #f2f2f3;
+  --gt-focus: #2c455d;
+  --gt-danger: #8c2020;
+  --gt-danger-fill: #fbeaea;
+  --gt-warning-ink: #7a5300;
+  --gt-warning-line: #8a6300;
+  --gt-warning-fill: #fdf3d8;
+  --gt-notice-fill: #eef6ff;
+  --gt-notice-line: #597ea3;
+  --gt-success: #2f6a4a;
+  --gt-success-fill: #e9f2ec;
+
+  /*
+   * Avatar pairs. The letter carries the meaning; the fill is decoration, hashed from the whole
+   * address onto four ramp steps whose ink pairing is 9:1 or better in both themes.
+   */
+  --gt-avatar-0-fill: #d6ebff;
+  --gt-avatar-0-ink: #2c455d;
+  --gt-avatar-1-fill: #b5d9fd;
+  --gt-avatar-1-ink: #2c455d;
+  --gt-avatar-2-fill: #e7e7ea;
+  --gt-avatar-2-ink: #424244;
+  --gt-avatar-3-fill: #d4d4d7;
+  --gt-avatar-3-ink: #424244;
+
+  /* The six variables the rest of this sheet was written against, kept as aliases. */
+  --ink: var(--gt-ink);
+  --ink-soft: var(--gt-ink-soft);
+  --paper: var(--gt-surface);
+  --surface: var(--gt-raised);
+  --line: var(--gt-line);
+  --accent: var(--gt-accent-ink);
+  --accent-ink: var(--gt-on-accent);
+  --danger: var(--gt-danger);
+  --warn-bg: var(--gt-warning-fill);
+  --warn-line: var(--gt-warning-line);
+  --notice-bg: var(--gt-notice-fill);
+  --radius: var(--gt-radius);
+  --space: var(--gt-space-4);
+}
+
+/*
+ * Dark follows the OS. `PreferencesResponse` stores only `language`, so a saved theme would
+ * have nowhere to live — there is deliberately no toggle.
+ *
+ * Dark is a palette, not an inversion: the ground is the accent ramp's darkest step pulled
+ * toward neutral, cards rise by lightness rather than by shadow, and the accent moves to
+ * step 400 so it can carry body text.
+ */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --gt-surface: #14191d;
+    --gt-raised: #1d2429;
+    --gt-plate: #22303d;
+    --gt-ink: #e8eaec;
+    --gt-ink-soft: #a3adb6;
+    --gt-line: #5a6a75;
+    --gt-line-soft: #35414a;
+    --gt-accent: #94bce3;
+    --gt-accent-ink: #94bce3;
+    --gt-accent-deep: #b5d9fd;
+    --gt-steel: #22303d;
+    --gt-on-accent: #14191d;
+    --gt-focus: #b5d9fd;
+    --gt-danger: #f0a8a8;
+    --gt-danger-fill: #2b1c1c;
+    --gt-warning-ink: #e9c46a;
+    --gt-warning-line: #a8843a;
+    --gt-warning-fill: #2a2312;
+    --gt-notice-fill: #1a242e;
+    --gt-notice-line: #5a6a75;
+    --gt-success: #7fc9a2;
+    --gt-success-fill: #17251e;
+    --gt-elev-sm: inset 0 1px 0 #35414a;
+    --gt-elev-md: inset 0 1px 0 #35414a, 0 3px 10px rgb(0 0 0 / 45%);
+    --gt-elev-lg: inset 0 1px 0 #35414a, 0 12px 32px rgb(0 0 0 / 55%);
+
+    --gt-avatar-0-fill: #2c455d;
+    --gt-avatar-0-ink: #d6ebff;
+    --gt-avatar-1-fill: #416180;
+    --gt-avatar-1-ink: #eef6ff;
+    --gt-avatar-2-fill: #424244;
+    --gt-avatar-2-ink: #e7e7ea;
+    --gt-avatar-3-fill: #5d5d60;
+    --gt-avatar-3-ink: #f5f5f8;
+  }
+}
+
+/* --- base -------------------------------------------------------------------------------- */
 
 * {
   box-sizing: border-box;
@@ -30,32 +267,93 @@ body {
   padding: 0;
 }
 
-body {
-  background: var(--paper);
-  color: var(--ink);
-  font: 16px/1.5 system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+html {
+  /* Form controls, scrollbars and the OS chrome all read this. */
+  color-scheme: light dark;
 }
 
+body {
+  background: var(--gt-surface);
+  color: var(--gt-ink);
+  font-family: var(--gt-font-body);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+/*
+ * The page never scrolls sideways. That is achieved by the layout rather than by clipping the
+ * body, so the verification pass can still see a real overflow if one is ever introduced; long
+ * unbroken values wrap instead of pushing the page wide.
+ */
 h1,
 h2,
-h3 {
-  line-height: 1.25;
-  margin-block: 0 0.5rem;
+h3,
+h4 {
+  font-family: var(--gt-font-head);
+  font-weight: 600;
+  letter-spacing: 0;
+  margin-block: 0 var(--gt-space-2);
+  overflow-wrap: break-word;
 }
 
 h1 {
-  font-size: 1.5rem;
+  font-size: 32px;
+  line-height: 1.12;
 }
 h2 {
-  font-size: 1.2rem;
+  font-size: 25px;
+  line-height: 1.15;
 }
 h3 {
-  font-size: 1rem;
+  font-size: 20px;
+  line-height: 1.2;
 }
 
-/* A focus ring that survives every background in this palette. */
+/*
+ * Neither Barlow face covers Hebrew, so Hebrew headings fall through to the platform's own UI
+ * Hebrew face and lose the condensation. They get tightened tracking at the same size step
+ * rather than a substitute condensed face, and body copy gets a looser line.
+ */
+:root:lang(he) h1,
+:root:lang(he) h2,
+:root:lang(he) h3,
+:root:lang(he) h4,
+:root:lang(he) .brand-name {
+  letter-spacing: -0.5px;
+}
+
+:root:lang(he) body,
+:root:lang(he) p,
+:root:lang(he) li {
+  line-height: 1.65;
+}
+
+p {
+  margin-block: 0 var(--gt-space-3);
+}
+
+a {
+  color: var(--gt-accent-ink);
+  text-underline-offset: 2px;
+}
+
+a:hover {
+  color: var(--gt-accent-deep);
+}
+
+a[aria-current='page'] {
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+::selection {
+  background: var(--gt-plate);
+  color: var(--gt-ink);
+}
+
+/* A focus ring that survives every background in this palette, in both themes. */
 :focus-visible {
-  outline: 3px solid var(--accent);
+  outline: 3px solid var(--gt-focus);
   outline-offset: 2px;
 }
 
@@ -73,16 +371,19 @@ h3 {
 
 .skip-link {
   position: absolute;
-  inset-block-start: -3rem;
-  inset-inline-start: var(--space);
-  z-index: 20;
-  background: var(--surface);
-  padding: 0.5rem 0.75rem;
-  border-radius: var(--radius);
+  inset-block-start: -4rem;
+  inset-inline-start: var(--gt-space-4);
+  z-index: 40;
+  background: var(--gt-raised);
+  color: var(--gt-ink);
+  padding: var(--gt-space-2) var(--gt-space-4);
+  border: 2px solid var(--gt-accent-ink);
+  border-radius: var(--gt-radius);
+  font-weight: 600;
 }
 
 .skip-link:focus {
-  inset-block-start: var(--space);
+  inset-block-start: var(--gt-space-4);
 }
 
 /* Latin-script values keep their own direction inside a right-to-left sentence. */
@@ -91,227 +392,670 @@ h3 {
   text-align: start;
 }
 
-/* --- header ------------------------------------------------------------------------------ */
-
-.app-header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space);
-  padding: var(--space);
-  background: var(--surface);
-  border-block-end: 1px solid var(--line);
-}
-
-.brand {
-  font-weight: 700;
-  margin: 0;
-  margin-inline-end: auto;
-}
-
-.app-header nav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space);
-  align-items: center;
-}
-
-/* A navigation link is only as wide as its word, and some words are very short — Hebrew's
-   "לוח" is three letters, which left that link a 22px target. Sizing the link rather than the
-   text keeps every locale above the 24px minimum. */
-.app-header nav a {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-block-size: 1.75rem;
-  min-inline-size: 1.75rem;
-}
-
-/* A link that is a whole action on its own, rather than a word inside a sentence, has to meet
-   the same minimum. A line of body text is only 19px tall, and the exception for links within
-   a sentence does not cover these — each is the sole content of its paragraph. */
-.link-action a {
-  display: inline-flex;
-  align-items: center;
-  min-block-size: 1.75rem;
-  min-inline-size: 1.75rem;
-}
-
-.app-header .who {
-  flex-basis: 100%;
-  margin: 0;
-}
-
-.language-selector {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin: 0;
-}
-
-.language-selector select {
-  min-height: 2.5rem;
-}
-
-a {
-  color: var(--accent);
-}
-
-a[aria-current='page'] {
-  font-weight: 700;
-  text-decoration: underline;
-}
-
 main {
-  padding: var(--space);
+  padding: var(--gt-space-6) var(--gt-space-4) var(--gt-space-12);
 }
 
 main:focus {
   outline: none;
 }
 
-/* --- panels and forms -------------------------------------------------------------------- */
+@media (min-width: 834px) {
+  main {
+    padding-inline: var(--gt-space-8);
+  }
+}
+
+@media (min-width: 1200px) {
+  main {
+    padding-inline: var(--gt-space-12);
+  }
+}
+
+/* --- icons ------------------------------------------------------------------------------- */
+
+/*
+ * Inline SVG on a 20x20 box at 1.5px stroke, Industry's weight. No icon carries meaning on its
+ * own: every one sits beside visible text or inside a control with an `aria-label` from the
+ * dictionary.
+ */
+.icon {
+  inline-size: 20px;
+  block-size: 20px;
+  flex: none;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.icon-sm {
+  inline-size: 17px;
+  block-size: 17px;
+}
+
+/* The four icons that point along the reading direction flip with it. */
+:root[dir='rtl'] .icon-mirror {
+  transform: scaleX(-1);
+}
+
+/* --- header ------------------------------------------------------------------------------ */
+
+.app-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--gt-space-4);
+  padding: var(--gt-space-3) var(--gt-space-4);
+  background: var(--gt-raised);
+  border-block-end: 1px solid var(--gt-line);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--gt-space-2);
+  font-family: var(--gt-font-head);
+  font-weight: 600;
+  font-size: 20px;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--gt-accent-deep);
+  margin: 0;
+  margin-inline-end: auto;
+}
+
+.brand-mark {
+  inline-size: 24px;
+  block-size: 24px;
+  flex: none;
+  color: var(--gt-steel);
+}
+
+@media (prefers-color-scheme: dark) {
+  .brand {
+    color: var(--gt-ink);
+  }
+  .brand-mark {
+    color: var(--gt-accent);
+  }
+}
+
+/*
+ * On a dark ground the steel the Done cap is cut from *is* the plate colour, so the cap needs
+ * its own edge to still read as a cap rather than as a column that lost its rule.
+ */
+@media (prefers-color-scheme: dark) {
+  .column.column-done .column-header {
+    border-block-end: 1px solid var(--gt-line);
+  }
+}
+
+/* The product name stays Latin in every locale, and keeps its own direction. */
+.brand-name {
+  unicode-bidi: isolate;
+}
+
+.app-header nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gt-space-4);
+  align-items: center;
+}
+
+/*
+ * A navigation link is only as wide as its word, and some words are very short — Hebrew's
+ * "לוח" is three letters, which left that link a 22px target. Sizing the link rather than the
+ * text keeps every locale above the 24px minimum.
+ */
+.app-header nav a,
+.app-header nav button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--gt-space-1);
+  min-block-size: 28px;
+  min-inline-size: 28px;
+}
+
+.app-header nav button {
+  border: 0;
+  background: none;
+  color: var(--gt-accent-ink);
+  padding: 0 var(--gt-space-1);
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  min-block-size: 28px;
+}
+
+.app-header nav button:hover {
+  color: var(--gt-accent-deep);
+  background: none;
+}
+
+/*
+ * A link inside a sentence is exempt from the minimum target size, but 3px of block padding
+ * grows its hit area to the full 24px inside a 24px line box — no layout moves, and the
+ * exception stops being needed.
+ */
+main p a {
+  padding-block: 3px;
+}
+
+/*
+ * A link that is a whole action on its own, rather than a word inside a sentence, has to meet
+ * the same minimum. A line of body text is only 19px tall, and the exception for links within
+ * a sentence does not cover these — each is the sole content of its paragraph.
+ */
+.link-action a {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 28px;
+  min-inline-size: 28px;
+  font-weight: 500;
+}
+
+.app-header .who {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 13px;
+  color: var(--gt-ink-soft);
+}
+
+.language-selector {
+  display: flex;
+  align-items: center;
+  gap: var(--gt-space-2);
+  margin: 0;
+  font-size: 13px;
+}
+
+.language-selector label {
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--gt-ink-soft);
+}
+
+.language-selector select {
+  min-block-size: 36px;
+  padding-block: var(--gt-space-1);
+}
+
+/* The phone header: brand plus one menu button. Everything else moves into the sheet. */
+.nav-toggle {
+  display: none;
+  min-block-size: 44px;
+  min-inline-size: 44px;
+  padding: 0;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgb(0 0 0 / 45%);
+  z-index: 30;
+}
+
+.nav-sheet {
+  position: fixed;
+  inset-inline: 0;
+  inset-block-end: 0;
+  z-index: 31;
+  background: var(--gt-raised);
+  border-block-start: 1px solid var(--gt-line);
+  box-shadow: var(--gt-elev-lg);
+  padding: var(--gt-space-4) var(--gt-space-4) calc(var(--gt-space-4) + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: var(--gt-space-2);
+  max-block-size: 90vh;
+  overflow: auto;
+  animation: gt-sheet-in var(--gt-dur-slow) var(--gt-ease-out);
+}
+
+.nav-sheet a,
+.nav-sheet .nav-sheet-action {
+  display: flex;
+  align-items: center;
+  gap: var(--gt-space-3);
+  min-block-size: 56px;
+  padding-inline: var(--gt-space-2);
+  border-block-end: 1px solid var(--gt-line-soft);
+  color: var(--gt-ink);
+  text-decoration: none;
+  font-size: 17px;
+  font-weight: 500;
+  background: none;
+  border-inline: 0;
+  border-block-start: 0;
+  justify-content: flex-start;
+  inline-size: 100%;
+}
+
+.nav-sheet a[aria-current='page'] {
+  color: var(--gt-accent-ink);
+  text-decoration: underline;
+}
+
+.nav-sheet .language-selector {
+  min-block-size: 56px;
+  border-block-end: 1px solid var(--gt-line-soft);
+}
+
+.nav-sheet .who {
+  margin: 0;
+  padding-block: var(--gt-space-3);
+  font-size: 13px;
+  color: var(--gt-ink-soft);
+}
+
+/* --- panels ------------------------------------------------------------------------------ */
 
 .panel {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: calc(var(--space) * 1.5);
+  background: var(--gt-raised);
+  border: 1px solid var(--gt-line);
+  border-radius: var(--gt-radius);
+  padding: var(--gt-space-8);
   margin-inline: auto;
-  max-width: 60rem;
+  max-inline-size: 60rem;
+  box-shadow: var(--gt-elev-sm);
 }
 
 .panel.narrow {
-  max-width: 32rem;
+  max-inline-size: 34rem;
 }
 
 .card {
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: var(--space);
-  margin-block: var(--space);
+  border: 1px solid var(--gt-line);
+  border-radius: var(--gt-radius);
+  padding: var(--gt-space-4);
+  margin-block: var(--gt-space-6);
+  background: var(--gt-raised);
 }
+
+.panel > .card:first-of-type {
+  margin-block-start: var(--gt-space-4);
+}
+
+/* --- forms ------------------------------------------------------------------------------- */
 
 .field {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
-  margin-block: var(--space);
+  gap: var(--gt-space-2);
+  margin-block: var(--gt-space-6);
 }
 
 label {
+  font-size: 12px;
+  line-height: 1.3;
   font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--gt-ink-soft);
 }
 
 input,
 textarea,
 select {
   font: inherit;
-  color: inherit;
-  padding: 0.5rem;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--surface);
-  /* Comfortable on touch without forcing a zoom on iOS. */
-  min-height: 2.75rem;
-  max-width: 100%;
+  appearance: none;
+  /* 16px so iOS never zooms the page when a field takes focus. */
+  font-size: 16px;
+  color: var(--gt-ink);
+  padding: var(--gt-space-2) var(--gt-space-3);
+  border: 1px solid var(--gt-line);
+  border-radius: var(--gt-radius);
+  background: var(--gt-surface);
+  min-block-size: 44px;
+  max-inline-size: 100%;
+  transition: border-color var(--gt-dur-fast) var(--gt-ease-out);
+}
+
+.field input,
+.field textarea,
+.field select {
+  min-block-size: 48px;
+}
+
+input:hover,
+textarea:hover,
+select:hover {
+  border-color: var(--gt-accent-ink);
 }
 
 textarea {
-  min-height: 6rem;
+  min-block-size: 6rem;
   resize: vertical;
+  line-height: 1.55;
+}
+
+/*
+ * `appearance: none` is what keeps a select square in Chrome, and it takes the drop arrow with
+ * it — so the arrow is drawn back on from the tokens, on the end edge, mirrored in RTL.
+ */
+select {
+  padding-inline-end: var(--gt-space-8);
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%),
+    linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position:
+    right var(--gt-space-4) center,
+    right calc(var(--gt-space-4) - 5px) center;
+  background-size:
+    5px 5px,
+    5px 5px;
+  background-repeat: no-repeat;
+}
+
+:root[dir='rtl'] select {
+  background-position:
+    left calc(var(--gt-space-4) - 5px) center,
+    left var(--gt-space-4) center;
 }
 
 input[aria-invalid='true'],
 textarea[aria-invalid='true'] {
-  border-color: var(--danger);
+  border-color: var(--gt-danger);
   border-width: 2px;
+  background: var(--gt-danger-fill);
 }
 
 .help {
-  color: var(--ink-soft);
-  font-size: 0.9rem;
+  color: var(--gt-ink-soft);
+  font-size: 13px;
+  line-height: 1.55;
 }
 
 /* Errors are never colour alone: they carry a marker and a heavier border. */
 .error {
-  color: var(--danger);
+  color: var(--gt-danger);
   font-weight: 600;
+  font-size: 13px;
 }
 
 .error::before {
   content: '! ';
 }
 
-.warning {
-  background: var(--warn-bg);
-  border-inline-start: 4px solid var(--warn-line);
-  padding: 0.5rem 0.75rem;
-  border-radius: var(--radius);
-}
-
-.alert {
-  padding: 0.6rem 0.75rem;
-  border-radius: var(--radius);
-  margin-block: var(--space);
-}
-
-.alert-error {
-  background: #fbeaea;
-  border-inline-start: 4px solid var(--danger);
-}
-
-.alert-notice {
-  background: var(--notice-bg);
-  border-inline-start: 4px solid var(--accent);
-}
-
-button {
-  font: inherit;
-  min-height: 2.75rem;
-  padding: 0.5rem 0.9rem;
-  border-radius: var(--radius);
-  border: 1px solid var(--line);
-  background: var(--surface);
-  color: var(--ink);
-  cursor: pointer;
-}
-
-button:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-button.primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--accent-ink);
-  font-weight: 600;
-}
-
-/* Decorative only. `aria-busy` is what assistive technology reads. */
-button.busy::after {
-  content: ' …';
-}
-
-button.danger {
-  color: var(--danger);
-  border-color: var(--danger);
-}
-
 .choice {
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: var(--space);
+  border: 1px solid var(--gt-line);
+  border-radius: var(--gt-radius);
+  padding: var(--gt-space-4);
+  margin-block: var(--gt-space-6);
+}
+
+.choice legend {
+  font-family: var(--gt-font-head);
+  font-size: 20px;
+  padding-inline: var(--gt-space-2);
 }
 
 .choice label {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--gt-space-3);
+  font-size: 15px;
   font-weight: 400;
-  padding-block: 0.25rem;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--gt-ink);
+  min-block-size: 44px;
+  cursor: pointer;
 }
+
+.choice input[type='radio'] {
+  inline-size: 24px;
+  block-size: 24px;
+  min-block-size: 0;
+  /* A flex row would otherwise shrink it below the minimum on a long Russian label. */
+  flex: none;
+  accent-color: var(--gt-accent-ink);
+  margin: 0;
+}
+
+/* --- buttons ----------------------------------------------------------------------------- */
+
+button {
+  font-family: var(--gt-font-body);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.2;
+  min-block-size: 44px;
+  padding: 0 var(--gt-space-6);
+  border-radius: var(--gt-radius);
+  border: 1px solid var(--gt-line);
+  background: transparent;
+  color: var(--gt-ink);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--gt-space-2);
+  transition:
+    background-color var(--gt-dur-fast) var(--gt-ease-out),
+    border-color var(--gt-dur-fast) var(--gt-ease-out),
+    transform var(--gt-dur-fast) var(--gt-ease-out);
+}
+
+form button,
+.dialog-footer button {
+  min-block-size: 48px;
+}
+
+button:hover:not(:disabled) {
+  background: rgb(29 31 32 / 7%);
+  border-color: var(--gt-accent-ink);
+}
+
+button:active:not(:disabled) {
+  background: rgb(29 31 32 / 14%);
+  transform: translateY(1px);
+}
+
+@media (prefers-color-scheme: dark) {
+  button:hover:not(:disabled) {
+    background: rgb(232 234 236 / 8%);
+  }
+  button:active:not(:disabled) {
+    background: rgb(232 234 236 / 16%);
+  }
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/*
+ * The one solid object on the board. Industry's own primary is an accent fill on the ground
+ * ink at 3.7:1, below AA for a 15px label, so the fill steps down the ramp to accent-700 and
+ * the accent stays on the border, the hover and the silhouette.
+ */
+button.primary {
+  background: var(--gt-accent-ink);
+  border-color: var(--gt-accent);
+  color: var(--gt-on-accent);
+  font-weight: 600;
+}
+
+button.primary:hover:not(:disabled) {
+  background: var(--gt-accent-deep);
+  border-color: var(--gt-accent-deep);
+}
+
+button.primary:active:not(:disabled) {
+  background: var(--gt-steel);
+  border-color: var(--gt-steel);
+}
+
+@media (prefers-color-scheme: dark) {
+  button.primary {
+    color: var(--gt-on-accent);
+  }
+  button.primary:hover:not(:disabled),
+  button.primary:active:not(:disabled) {
+    background: var(--gt-accent-deep);
+    border-color: var(--gt-accent-deep);
+    color: #14191d;
+  }
+}
+
+/* Danger is outlined, never filled — a filled red button beside Save invites the wrong click. */
+button.danger {
+  color: var(--gt-danger);
+  border-color: var(--gt-danger);
+  background: transparent;
+}
+
+button.danger:hover:not(:disabled) {
+  background: var(--gt-danger-fill);
+  border-color: var(--gt-danger);
+}
+
+button.icon {
+  min-block-size: 44px;
+  min-inline-size: 44px;
+  padding: 0;
+}
+
+@media (pointer: fine) and (min-width: 834px) {
+  button.icon {
+    min-block-size: 36px;
+    min-inline-size: 36px;
+  }
+}
+
+/*
+ * Busy keeps its label: a button whose accessible name rewrites itself mid-action is
+ * disorienting. `aria-busy` is what assistive technology reads; three pulsing squares are the
+ * visible marker, and they stay on screen — static — under a reduced-motion preference, so the
+ * state is never carried by movement alone.
+ */
+.busy-dots {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+}
+
+.busy-dots i {
+  inline-size: 3px;
+  block-size: 3px;
+  background: currentColor;
+  opacity: 1;
+  animation: gt-busy-pulse 1100ms var(--gt-ease-in-out) infinite;
+}
+
+.busy-dots i:nth-child(2) {
+  animation-delay: 180ms;
+}
+
+.busy-dots i:nth-child(3) {
+  animation-delay: 360ms;
+}
+
+@keyframes gt-busy-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* --- alerts, badges, callouts ------------------------------------------------------------ */
+
+.alert {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--gt-space-2);
+  padding: var(--gt-space-3) var(--gt-space-4);
+  border: 1px solid var(--gt-line);
+  border-inline-start-width: 4px;
+  border-radius: var(--gt-radius);
+  margin-block: var(--gt-space-4);
+  font-size: 14px;
+}
+
+.alert-error {
+  background: var(--gt-danger-fill);
+  border-color: var(--gt-danger);
+  color: var(--gt-ink);
+}
+
+.alert-error::before {
+  content: '!';
+  font-weight: 700;
+  color: var(--gt-danger);
+  flex: none;
+}
+
+.alert-notice {
+  background: var(--gt-notice-fill);
+  border-color: var(--gt-notice-line);
+}
+
+.warning {
+  background: var(--gt-warning-fill);
+  border: 1px solid var(--gt-warning-line);
+  border-inline-start-width: 4px;
+  padding: var(--gt-space-3) var(--gt-space-4);
+  border-radius: var(--gt-radius);
+  color: var(--gt-ink);
+}
+
+.warning::before {
+  content: '⚠ ';
+  color: var(--gt-warning-ink);
+  font-weight: 700;
+}
+
+.callout {
+  background: var(--gt-plate);
+  border: 1px solid var(--gt-notice-line);
+  border-radius: var(--gt-radius);
+  padding: var(--gt-space-4);
+  margin-block: var(--gt-space-6);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--gt-space-1);
+  border: 1px solid var(--gt-line);
+  border-radius: var(--gt-radius-chip);
+  background: var(--gt-surface);
+  padding: 3px 9px;
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+/* Status is never colour alone: each badge carries a mark as well as its word. */
+.badge::before {
+  content: '•';
+  color: var(--gt-ink-soft);
+}
+
+.badge.warning {
+  background: var(--gt-warning-fill);
+  border-color: var(--gt-warning-line);
+  color: var(--gt-ink);
+  padding: 3px 9px;
+  border-inline-start-width: 1px;
+}
+
+.badge.warning::before {
+  content: '⚠';
+  color: var(--gt-warning-ink);
+}
+
+/* --- lists ------------------------------------------------------------------------------- */
 
 .list {
   list-style: none;
@@ -323,144 +1067,362 @@ button.danger {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem;
-  padding-block: 0.5rem;
-  border-block-end: 1px solid var(--line);
+  gap: var(--gt-space-2);
+  padding-block: var(--gt-space-3);
+  border-block-end: 1px solid var(--gt-line-soft);
 }
 
-.badge {
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 0.1rem 0.6rem;
-  font-size: 0.85rem;
+.list li:last-child {
+  border-block-end: 0;
 }
 
-.badge.warning {
-  background: var(--warn-bg);
-  border-color: var(--warn-line);
+/* A long address is the one value that can push a narrow row wider than the page. */
+.list li .isolate {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
 }
 
-.callout {
-  background: var(--notice-bg);
-  border: 1px solid var(--accent);
-  border-radius: var(--radius);
-  padding: var(--space);
-  margin-block: var(--space);
+/* --- the allowed-list conflict comparison ------------------------------------------------ */
+
+/*
+ * Two lists side by side after a refused whole-set replace: the owner's own text as typed, and
+ * what the board actually holds. They stack on a narrow screen rather than shrinking, because
+ * a truncated address is worse than a longer page.
+ */
+.compare {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: var(--gt-space-4);
+  margin-block: var(--gt-space-4);
 }
 
+.compare > div {
+  border: 1px solid var(--gt-line);
+  border-radius: var(--gt-radius);
+  padding: var(--gt-space-3) var(--gt-space-4);
+  background: var(--gt-surface);
+  min-inline-size: 0;
+}
+
+.compare h3 {
+  font-size: 16px;
+  margin-block-end: var(--gt-space-2);
+}
+
+.compare .list li {
+  font-size: 13px;
+  padding-block: var(--gt-space-1);
+}
+
+/* --- one-time secrets -------------------------------------------------------------------- */
+
+/*
+ * One block serves the 32-character invitation code, the owner's 15-minute reset code, the
+ * setup secret and the recovery phrase. The steel cap means "secret, shown once".
+ */
 .code,
 .phrase {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 1.05rem;
+  font-family: var(--gt-font-mono);
+  font-size: 16px;
+  line-height: 1.8;
+  letter-spacing: 0.02em;
   word-break: break-all;
-  background: var(--paper);
-  padding: 0.5rem;
-  border-radius: var(--radius);
+  background: var(--gt-surface);
+  color: var(--gt-ink);
+  border: 2px solid var(--gt-accent-ink);
+  border-block-start: 8px solid var(--gt-steel);
+  padding: var(--gt-space-3) var(--gt-space-4);
+  border-radius: var(--gt-radius);
+  unicode-bidi: isolate;
 }
 
 .phrase-box {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space);
+  align-items: stretch;
+  gap: var(--gt-space-4);
+  margin-block: var(--gt-space-4);
 }
 
 .phrase {
   flex: 1 1 18rem;
-  line-height: 1.8;
+  word-break: normal;
+  font-size: 17px;
 }
 
-/* --- dialog ------------------------------------------------------------------------------ */
+.phrase-box button {
+  flex: 0 0 auto;
+}
+
+/* --- dialog and sheet -------------------------------------------------------------------- */
 
 .dialog-backdrop {
   position: fixed;
   inset: 0;
-  background: rgb(0 0 0 / 45%);
+  background: rgb(0 0 0 / 50%);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--space);
-  z-index: 10;
+  padding: var(--gt-space-4);
+  z-index: 20;
+  animation: gt-fade-in var(--gt-dur-slow) var(--gt-ease-out);
 }
 
 .dialog {
-  background: var(--surface);
-  border-radius: var(--radius);
-  padding: calc(var(--space) * 1.25);
+  background: var(--gt-raised);
+  border: 1px solid var(--gt-line);
+  border-radius: var(--gt-radius);
+  box-shadow: var(--gt-elev-lg);
   inline-size: min(34rem, 100%);
   max-block-size: 90vh;
-  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  animation: gt-dialog-in var(--gt-dur-slow) var(--gt-ease-out);
 }
 
 .dialog-header {
   display: flex;
-  align-items: baseline;
-  gap: var(--space);
+  align-items: center;
+  gap: var(--gt-space-4);
+  padding: var(--gt-space-4) var(--gt-space-6);
+  border-block-end: 1px solid var(--gt-line-soft);
+  flex: none;
 }
 
 .dialog-header h2 {
+  margin: 0;
   margin-inline-end: auto;
+}
+
+.dialog-body {
+  padding: var(--gt-space-6);
+  overflow: auto;
+  flex: 1 1 auto;
+  min-block-size: 0;
+}
+
+.dialog-body > .field:first-child,
+.dialog-body form > .field:first-child {
+  margin-block-start: 0;
 }
 
 .dialog-footer {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space);
+  gap: var(--gt-space-3);
   justify-content: flex-end;
-  margin-block-start: var(--space);
+  padding: var(--gt-space-4) var(--gt-space-6);
+  border-block-start: 1px solid var(--gt-line-soft);
+  background: var(--gt-raised);
+  flex: none;
+}
+
+/*
+ * A form that owns its own submit button keeps its footer inside the scrolling body. Sticking
+ * it to the body's padding edge gives the sheet the same pinned Cancel/Save row as the version
+ * where the dialog owns the footer, without a second implementation.
+ */
+.dialog-body .dialog-footer {
+  position: sticky;
+  inset-block-end: calc(var(--gt-space-6) * -1);
+  margin-block: var(--gt-space-6) calc(var(--gt-space-6) * -1);
+  padding-inline: 0;
+  padding-block: var(--gt-space-4) var(--gt-space-6);
+}
+
+/*
+ * Below 834px the same component renders bottom-anchored with a pinned footer: a class and a
+ * media query, not a second implementation. The focus contract is unchanged.
+ */
+@media (max-width: 833px) {
+  .dialog-backdrop {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .dialog {
+    inline-size: 100%;
+    max-block-size: 92vh;
+    border-inline: 0;
+    border-block-end: 0;
+    animation: gt-sheet-in var(--gt-dur-slow) var(--gt-ease-out);
+  }
+
+  .dialog-footer {
+    padding-block-end: calc(var(--gt-space-4) + env(safe-area-inset-bottom));
+  }
+
+  .dialog-body .dialog-footer {
+    padding-block-end: calc(var(--gt-space-6) + env(safe-area-inset-bottom));
+  }
+
+  /* Full-width Cancel / Save row. */
+  .dialog-footer > * {
+    flex: 1 1 0;
+  }
 }
 
 /* --- board ------------------------------------------------------------------------------- */
 
 .board-page {
-  max-width: 90rem;
+  max-inline-size: 1360px;
   margin-inline: auto;
 }
 
 .board-header {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space);
+  align-items: center;
+  gap: var(--gt-space-4);
+  margin-block-end: var(--gt-space-6);
+}
+
+.board-header h1 {
+  margin: 0;
+  margin-inline-end: var(--gt-space-2);
+}
+
+.board-count {
+  font-size: 13px;
+  color: var(--gt-ink-soft);
+  margin: 0;
+  margin-inline-end: auto;
 }
 
 /* The board is the only thing that scrolls sideways; the page itself never does. */
+.board-track {
+  position: relative;
+}
+
 .board {
   list-style: none;
   margin: 0;
-  padding: 0;
+  padding: 0 0 var(--gt-space-4);
   display: flex;
-  gap: var(--space);
+  gap: var(--gt-space-4);
   overflow-x: auto;
-  padding-block-end: var(--space);
+  scroll-behavior: smooth;
+  scroll-snap-type: x proximity;
+}
+
+/* A visible edge fade, so a track with more board off-screen never looks like it ends there. */
+.board-track[data-overflow='true']::after {
+  content: '';
+  position: absolute;
+  inset-block: 0 var(--gt-space-4);
+  inset-inline-end: 0;
+  inline-size: 48px;
+  pointer-events: none;
+  background: linear-gradient(to left, var(--gt-surface), transparent);
+}
+
+:root[dir='rtl'] .board-track[data-overflow='true']::after {
+  background: linear-gradient(to right, var(--gt-surface), transparent);
+}
+
+.board-scroll-end {
+  position: absolute;
+  inset-inline-end: var(--gt-space-2);
+  inset-block-start: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  min-inline-size: 48px;
+  min-block-size: 48px;
+  padding: 0;
+  background: var(--gt-raised);
+  border: 1px solid var(--gt-line);
+  box-shadow: var(--gt-elev-md);
 }
 
 .column {
-  flex: 0 0 17rem;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: var(--space);
+  flex: 0 0 272px;
+  scroll-snap-align: start;
+  background: var(--gt-plate);
+  border: 1px solid var(--gt-line);
+  border-radius: var(--gt-radius);
+  padding: var(--gt-space-4);
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--gt-space-4);
+}
+
+/* A renamed column drops the plate tint — a built-in column is the thing the tint identifies. */
+.column.column-custom {
+  background: var(--gt-raised);
+}
+
+.column-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--gt-space-2);
+  padding-block-end: var(--gt-space-3);
+  border-block-end: 2px solid var(--gt-accent);
 }
 
 .column-header h2 {
   margin: 0;
+  font-size: 20px;
+  line-height: 1.2;
+  margin-inline-end: auto;
 }
 
+.column-count {
+  font-size: 12px;
+  color: var(--gt-ink-soft);
+  white-space: nowrap;
+}
+
+/* Steel Field's reversed cap survives in exactly one place: the Done column. */
+.column.column-done .column-header {
+  background: var(--gt-steel);
+  border-block-end: 0;
+  margin: calc(var(--gt-space-4) * -1) calc(var(--gt-space-4) * -1) 0;
+  padding: var(--gt-space-3) var(--gt-space-4);
+  align-items: center;
+}
+
+.column.column-done .column-header h2,
+.column.column-done .column-count {
+  color: #f2f2f3;
+}
+
+.done-check {
+  inline-size: 18px;
+  block-size: 18px;
+  flex: none;
+  stroke: #f2f2f3;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 24;
+  stroke-dashoffset: 0;
+  animation: gt-check-draw var(--gt-dur-slow) var(--gt-ease-out);
+}
+
+/* Owner controls sit in their own strip under the header, separated by a hairline. */
 .column-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.35rem;
-  margin-block-start: 0.35rem;
+  gap: var(--gt-space-1);
+  padding-block-start: var(--gt-space-2);
+  border-block-start: 1px solid var(--gt-line-soft);
+  flex: none;
 }
 
 .column-actions button {
-  font-size: 0.8rem;
-  min-height: 2.25rem;
-  padding: 0.25rem 0.5rem;
+  min-block-size: 34px;
+  min-inline-size: 34px;
+  padding: 0;
+  flex: none;
+}
+
+@media (pointer: coarse) {
+  .column-actions button {
+    min-block-size: 44px;
+    min-inline-size: 44px;
+  }
 }
 
 .card-list {
@@ -469,37 +1431,139 @@ button.danger {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--gt-space-2);
   min-block-size: 3rem;
+  /*
+   * Grows into the column plate, never shrinks. The board is a scroll container in both axes,
+   * so a shrinkable list gets squeezed by the horizontal scrollbar and the add-a-card plate
+   * rides up over the last card.
+   */
+  flex: 1 0 auto;
 }
+
+/*
+ * An empty column is a dashed slot that doubles as the drop target — the empty state and the
+ * drop zone are the same object, so an empty column never looks like a rendering error. It is
+ * the only dashed container in the system apart from the two add plates.
+ */
+.card-slot {
+  border: 1px dashed var(--gt-line);
+  border-radius: var(--gt-radius);
+  padding: var(--gt-space-4);
+  min-block-size: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--gt-ink-soft);
+  font-size: 13px;
+}
+
+/* Add-a-card is a dashed full-width plate at the column's foot: always visible, never a hover reveal. */
+.add-card,
+.add-column {
+  border: 1px dashed var(--gt-line);
+  background: transparent;
+  color: var(--gt-accent-ink);
+  min-block-size: 44px;
+  inline-size: 100%;
+  font-weight: 500;
+}
+
+.add-column {
+  flex: 0 0 272px;
+  align-self: flex-start;
+  block-size: 88px;
+}
+
+.board .add-column {
+  scroll-snap-align: start;
+}
+
+/* --- the card ---------------------------------------------------------------------------- */
 
 .card-list .card {
   margin: 0;
-  background: var(--paper);
+  padding: var(--gt-space-3);
+  background: var(--gt-raised);
+  box-shadow: var(--gt-elev-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gt-space-2);
+  transition:
+    border-color var(--gt-dur-fast) var(--gt-ease-out),
+    box-shadow var(--gt-dur-fast) var(--gt-ease-out);
 }
 
-.card.dragging {
-  opacity: 0.6;
+.card-list .card:hover {
+  border-color: var(--gt-accent-ink);
+  box-shadow: var(--gt-elev-md);
 }
 
 .card-head {
   display: flex;
   align-items: flex-start;
-  gap: 0.5rem;
+  gap: var(--gt-space-2);
 }
 
-.card-head h3 {
+/*
+ * The title is a button that opens Edit — that is how editing stays one step from the board,
+ * and it is what let four of the five per-card controls move into the actions menu. It is
+ * never clamped: 200 characters is four lines at this width, and a title is the card's identity.
+ */
+.card-title {
+  flex: 1 1 auto;
+  min-inline-size: 0;
   margin: 0;
-  flex: 1;
+  font-family: var(--gt-font-head);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.3;
 }
 
-/* A real button, so it is reachable by keyboard and large enough for touch. */
+.card-title-button {
+  display: block;
+  inline-size: 100%;
+  text-align: start;
+  font: inherit;
+  color: var(--gt-ink);
+  background: none;
+  border: 0;
+  border-radius: var(--gt-radius);
+  padding: 0;
+  min-block-size: 24px;
+  min-inline-size: 24px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  justify-content: flex-start;
+}
+
+.card-title-button:hover:not(:disabled) {
+  background: none;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  color: var(--gt-accent-ink);
+}
+
+.card-title-button:active:not(:disabled) {
+  background: none;
+  transform: none;
+}
+
+.card-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--gt-space-1);
+  flex: none;
+}
+
+/*
+ * A real button, so it is reachable by keyboard and large enough for touch. It is the handle
+ * and not the whole card: making the card itself draggable turns it into one giant button
+ * whose accessible name swallows every control inside it.
+ */
 .drag-handle {
-  min-height: 2.25rem;
-  min-width: 2.25rem;
-  padding: 0.2rem 0.4rem;
   cursor: grab;
-  line-height: 1;
   touch-action: none;
 }
 
@@ -507,31 +1571,405 @@ button.danger {
   cursor: grabbing;
 }
 
+/* The full 4,000 characters live in the dialog, one step away via the title. No expand toggle. */
 .card-description {
-  margin-block: 0.25rem;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--gt-ink-soft);
   white-space: pre-wrap;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 
-.card-actions {
+.card-meta {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  margin-block-start: 0.5rem;
+  align-items: center;
+  gap: var(--gt-space-2);
+  padding-block-start: var(--gt-space-2);
+  border-block-start: 1px solid var(--gt-line-soft);
+  font-size: 12px;
+  color: var(--gt-ink-soft);
+  min-inline-size: 0;
 }
 
-.card-actions button,
-.card-actions select {
-  font-size: 0.8rem;
-  min-height: 2.25rem;
-  padding: 0.25rem 0.5rem;
+.card-meta .isolate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-inline-size: 0;
 }
 
-.empty {
-  padding: 0.5rem;
+/*
+ * Derived purely from the address: the first character of the local part, uppercased, on a fill
+ * hashed from the whole address. The letter and the address carry the meaning; the colour is
+ * decoration.
+ */
+.avatar {
+  inline-size: 22px;
+  block-size: 22px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--gt-radius-chip);
+  font-family: var(--gt-font-head);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  background: var(--gt-avatar-0-fill);
+  color: var(--gt-avatar-0-ink);
+}
+
+.avatar-1 {
+  background: var(--gt-avatar-1-fill);
+  color: var(--gt-avatar-1-ink);
+}
+.avatar-2 {
+  background: var(--gt-avatar-2-fill);
+  color: var(--gt-avatar-2-ink);
+}
+.avatar-3 {
+  background: var(--gt-avatar-3-fill);
+  color: var(--gt-avatar-3-ink);
+}
+
+.avatar-none {
+  background: transparent;
+  color: var(--gt-ink-soft);
+  border: 1px dashed var(--gt-line);
+}
+
+/* --- drag states ------------------------------------------------------------------------- */
+
+.card-list .card.dragging {
+  box-shadow: var(--gt-elev-lg);
+  border: 2px solid var(--gt-accent-deep);
+  transform: rotate(-1deg) scale(1.02);
+  opacity: 0.98;
+}
+
+/*
+ * The held marker belongs to the component, not to the animation: it renders in both motion
+ * modes, so the picked-up state is never carried by movement alone.
+ */
+.held-marker {
+  align-self: flex-start;
+  font-family: var(--gt-font-head);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  background: var(--gt-accent-deep);
+  color: var(--gt-on-accent);
+  padding: 2px 6px;
+  border-radius: var(--gt-radius-chip);
+}
+
+/* --- the actions menu -------------------------------------------------------------------- */
+
+.card-menu {
+  position: relative;
+}
+
+.menu {
+  position: absolute;
+  inset-block-start: calc(100% + var(--gt-space-1));
+  inset-inline-end: 0;
+  z-index: 15;
+  inline-size: 238px;
+  max-inline-size: min(238px, 80vw);
+  background: var(--gt-raised);
+  border: 1px solid var(--gt-line);
+  border-radius: var(--gt-radius);
+  box-shadow: var(--gt-elev-md);
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.menu-item {
+  justify-content: flex-start;
+  text-align: start;
+  min-block-size: 44px;
+  inline-size: 100%;
+  border: 0;
+  border-block-end: 1px solid var(--gt-line-soft);
+  border-radius: 0;
+  padding-inline: var(--gt-space-4);
+  font-size: 14px;
+  font-weight: 400;
+  background: transparent;
+}
+
+.menu-item:last-child {
+  border-block-end: 0;
+}
+
+.menu-item.danger {
+  border-color: var(--gt-line-soft);
+}
+
+.menu-item.danger:hover:not(:disabled) {
+  border-color: var(--gt-line-soft);
+}
+
+/* Column choices are a flat, labelled group — no submenu, so no nested keyboard model. */
+.menu-group-label {
+  padding: var(--gt-space-2) var(--gt-space-4) var(--gt-space-1);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gt-ink-soft);
+  border-block-start: 1px solid var(--gt-line-soft);
+}
+
+.menu-item-column {
+  padding-inline-start: var(--gt-space-8);
+}
+
+@media (max-width: 833px) {
+  /*
+   * The same menu, presented as a sheet. Rows grow to 56px; one tap per action. This is how a
+   * card changes column on a phone — there is no drag handle there at all.
+   */
+  .card-menu .menu {
+    position: fixed;
+    inset-inline: 0;
+    inset-block: auto 0;
+    inline-size: 100%;
+    max-inline-size: none;
+    max-block-size: 85vh;
+    overflow: auto;
+    box-shadow: var(--gt-elev-lg);
+    border-inline: 0;
+    border-block-end: 0;
+    padding-block-end: env(safe-area-inset-bottom);
+    animation: gt-sheet-in var(--gt-dur-slow) var(--gt-ease-out);
+  }
+
+  .menu-item {
+    min-block-size: 56px;
+    font-size: 16px;
+  }
+}
+
+.menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 14;
+}
+
+@media (max-width: 833px) {
+  .menu-backdrop {
+    background: rgb(0 0 0 / 45%);
+  }
+}
+
+/* --- the phone column pager -------------------------------------------------------------- */
+
+/*
+ * One column fills the screen; the chip row above is the switcher. That row is the only
+ * sideways-scrolling thing on the screen — the page still never scrolls sideways.
+ */
+.pager {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gt-space-3);
+}
+
+.pager-tabs {
+  display: flex;
+  gap: var(--gt-space-2);
+  overflow-x: auto;
+  padding-block-end: var(--gt-space-1);
+  margin: 0;
+  list-style: none;
+}
+
+.pager-tab {
+  flex: none;
+  min-block-size: 44px;
+  padding: 0 var(--gt-space-4);
+  border: 1px solid var(--gt-line);
+  border-radius: var(--gt-radius-chip);
+  background: transparent;
+  font-size: 14px;
+  gap: var(--gt-space-2);
+}
+
+.pager-tab[aria-selected='true'] {
+  background: var(--gt-accent-ink);
+  border-color: var(--gt-accent-ink);
+  color: var(--gt-on-accent);
+  font-weight: 600;
+}
+
+.pager-tab[aria-selected='true'] .pager-tab-count {
+  color: var(--gt-on-accent);
+}
+
+.pager-tab-count {
+  font-size: 12px;
+  color: var(--gt-ink-soft);
+}
+
+.pager-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--gt-space-2);
+}
+
+.pager-nav button {
+  min-inline-size: 44px;
+  min-block-size: 44px;
+  padding: 0;
+  flex: none;
+}
+
+.pager-title {
+  flex: 1 1 auto;
+  text-align: center;
+  min-inline-size: 0;
+}
+
+.pager-title h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.pager-position {
+  margin: 0;
+  font-size: 12px;
+  color: var(--gt-ink-soft);
+}
+
+.pager-panel {
+  /* A horizontal swipe on the card list steps the column; the list itself never scrolls sideways. */
+  touch-action: pan-y;
+}
+
+.pager-dots {
+  display: flex;
+  justify-content: center;
+  gap: var(--gt-space-2);
+  padding-block: var(--gt-space-2) calc(var(--gt-space-4) + env(safe-area-inset-bottom));
+}
+
+.pager-dot {
+  inline-size: 8px;
+  block-size: 8px;
+  border-radius: var(--gt-radius-chip);
+  background: var(--gt-line);
+}
+
+.pager-dot[data-current='true'] {
+  background: var(--gt-accent-ink);
+  inline-size: 20px;
+}
+
+/* --- skeleton ---------------------------------------------------------------------------- */
+
+.skeleton-board {
+  display: flex;
+  gap: var(--gt-space-4);
+  overflow: hidden;
+}
+
+.skeleton-column {
+  flex: 0 0 272px;
+  border: 1px solid var(--gt-line);
+  background: var(--gt-plate);
+  padding: var(--gt-space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gt-space-2);
+}
+
+.skeleton-block {
+  block-size: 64px;
+  background: var(--gt-line-soft);
+  background-image: linear-gradient(90deg, transparent, rgb(255 255 255 / 35%), transparent);
+  background-repeat: no-repeat;
+  background-size: 340px 100%;
+  animation: gt-shimmer 1400ms linear infinite;
+}
+
+.skeleton-column:nth-child(2) .skeleton-block {
+  animation-delay: 100ms;
+}
+
+.skeleton-column:nth-child(3) .skeleton-block {
+  animation-delay: 200ms;
+}
+
+.skeleton-head {
+  block-size: 20px;
+  inline-size: 60%;
+  background: var(--gt-line-soft);
+}
+
+/* --- animations -------------------------------------------------------------------------- */
+
+@keyframes gt-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes gt-dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes gt-sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes gt-check-draw {
+  from {
+    stroke-dashoffset: 24;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes gt-shimmer {
+  from {
+    background-position: -200px 0;
+  }
+  to {
+    background-position: 340px 0;
+  }
 }
 
 /* --- preferences ------------------------------------------------------------------------- */
 
+/*
+ * Every animation has a reduced-motion fallback. Four of them substitute a static marker —
+ * the HELD chip, the drop-target position label, the busy squares and the flat skeleton — and
+ * those markers belong to the component, so they render in both modes.
+ */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -539,11 +1977,72 @@ button.danger {
     animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .busy-dots i {
+    opacity: 1;
+  }
+
+  .skeleton-block {
+    background-image: none;
+  }
+
+  .card-list .card.dragging {
+    transform: none;
   }
 }
 
-@media (max-width: 30rem) {
-  .column {
-    flex-basis: 15rem;
+/* --- breakpoints ------------------------------------------------------------------------- */
+
+@media (max-width: 833px) {
+  .app-header {
+    flex-wrap: nowrap;
+    gap: var(--gt-space-2);
+  }
+
+  .app-header > nav,
+  .app-header > .language-selector,
+  .app-header > .who {
+    display: none;
+  }
+
+  .nav-toggle {
+    display: inline-flex;
+  }
+
+  /* On a phone a card changes column through the actions sheet: no drag handle at all. */
+  .card-list .drag-handle {
+    display: none;
+  }
+
+  .panel {
+    padding: var(--gt-space-4);
+  }
+
+  .field input,
+  .field textarea,
+  .field select {
+    min-block-size: 52px;
+  }
+}
+
+@media (min-width: 834px) {
+  .pager {
+    display: none;
+  }
+}
+
+@media (min-width: 834px) and (max-width: 1199px) {
+  .column,
+  .add-column {
+    flex-basis: 296px;
+  }
+}
+
+@media (min-width: 1440px) {
+  .column,
+  .add-column {
+    flex-basis: 320px;
   }
 }

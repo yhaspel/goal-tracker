@@ -1,7 +1,17 @@
 import { Accessibility, defaultPreset } from '@dnd-kit/dom';
 import { DragDropProvider, useDroppable } from '@dnd-kit/react';
 import { useSortable } from '@dnd-kit/react/sortable';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import {
+  Fragment,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+  type TouchEvent as ReactTouchEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react';
 import type { BoardCard, BoardColumn, BoardMember, BoardMutationResponse, BoardSnapshot } from '../../../shared/api';
 import { ApiError } from '../api/client';
 import {
@@ -16,7 +26,18 @@ import {
 } from '../api/endpoints';
 import { useSession } from '../auth/session';
 import { errorText } from '../components/errors';
-import { Alert, Dialog, Field, Submit, useAnnounce, WithValue } from '../components/ui';
+import {
+  CheckIcon,
+  ChevronEndIcon,
+  ChevronStartIcon,
+  GripIcon,
+  MoreIcon,
+  PencilIcon,
+  PersonIcon,
+  PlusIcon,
+  TrashIcon
+} from '../components/icons';
+import { Alert, Dialog, Field, Submit, useAnnounce, useMediaQuery, WithValue } from '../components/ui';
 import { useTranslation } from '../i18n';
 import { CardDialog, type CardDraft, draftFromCard } from './CardDialog';
 import { type DropTarget, placeOfCard, projectedDrop, withMovedCard } from './reorder';
@@ -24,16 +45,44 @@ import { useBoard } from './useBoard';
 
 const DRAG_PLUGINS = defaultPreset.plugins.filter(plugin => plugin !== Accessibility);
 
+/** Below this the board is a column pager rather than a track, and dialogs are sheets. */
+const PHONE = '(max-width: 833px)';
+
 function columnLabel(column: BoardColumn, t: (key: 'board.column.todo' | 'board.column.in_progress' | 'board.column.done') => string): string {
   if (column.customName !== null) return column.customName;
   return t(`board.column.${column.nameKey ?? 'todo'}`);
 }
 
+/**
+ * The class set a column wears: the tinted plate identifies a built-in column, a renamed one
+ * drops the tint, and Done takes the reversed steel cap.
+ */
+function columnClass(column: BoardColumn): string {
+  if (column.customName !== null) return 'column column-custom';
+  return column.nameKey === 'done' ? 'column column-done' : 'column';
+}
+
+/**
+ * The avatar is derived purely from the address: the first character of the local part,
+ * uppercased, on one of four ramp pairs chosen by hashing the whole address. The letter and the
+ * address carry the meaning; the fill is decoration, which is why a non-Latin local part simply
+ * shows its own first character.
+ */
+function avatarOf(email: string): { letter: string; tone: number } {
+  const at = email.indexOf('@');
+  const local = at < 0 ? email : email.slice(0, at);
+  const letter = [...local][0]?.toLocaleUpperCase() ?? '?';
+  let hash = 0;
+  for (const character of email) hash = (hash * 31 + character.codePointAt(0)!) % 997;
+  return { letter, tone: hash % 4 };
+}
+
 export function BoardPage() {
   const translator = useTranslation();
-  const { t, plural } = translator;
+  const { t, plural, dir } = translator;
   const { state, forgetSession } = useSession();
   const announce = useAnnounce();
+  const phone = useMediaQuery(PHONE);
 
   const isOwner = state.status === 'active' && state.user.role === 'owner';
   const { board, error, loading, refresh, setOptimistic } = useBoard(state.status === 'active', forgetSession);
@@ -46,6 +95,10 @@ export function BoardPage() {
   const [deletingCard, setDeletingCard] = useState<BoardCard | null>(null);
   const [deletingColumn, setDeletingColumn] = useState<BoardColumn | null>(null);
   const [columnForm, setColumnForm] = useState<{ column: BoardColumn | null; name: string } | null>(null);
+  /** The column the phone pager is showing. Clamped in case columns disappear under it. */
+  const [pagerIndex, setPagerIndex] = useState(0);
+  /** Where the current swipe began. A ref, so a re-render mid-gesture cannot lose it. */
+  const swipeFrom = useRef<{ x: number; y: number } | null>(null);
 
   const members: readonly BoardMember[] = board?.activeMembers ?? [];
 
@@ -306,20 +359,79 @@ export function BoardPage() {
   }
 
   if (loading || !board) {
+    // The shape of the board that is coming rather than a spinner. The word is still rendered,
+    // for screen readers and for anyone who cannot see the shimmer.
     return (
-      <section className="panel">
-        <h1>{t('board.heading')}</h1>
-        <p>{t('app.loading')}</p>
-      </section>
+      <div className="board-page">
+        <div className="board-header">
+          <h1>{t('board.heading')}</h1>
+          <p className="board-count">{t('app.loading')}</p>
+        </div>
+        <div className="skeleton-board" aria-hidden="true">
+          {[0, 1, 2].map(index => (
+            <div className="skeleton-column" key={index}>
+              <div className="skeleton-head" />
+              <div className="skeleton-block" />
+              {index === 1 ? null : <div className="skeleton-block" />}
+            </div>
+          ))}
+        </div>
+      </div>
     );
   }
+
+  const columns = board.columns;
+  const active = columns.length === 0 ? 0 : Math.min(pagerIndex, columns.length - 1);
+  const activeColumn = columns[active];
+  const openColumnForm = () => setColumnForm({ column: null, name: '' });
+
+  const columnProps = (column: BoardColumn, columnIndex: number) => ({
+    column,
+    columnIndex,
+    columns,
+    members,
+    isOwner,
+    pending,
+    phone,
+    onAddCard: () => openCreate(column.id),
+    onRename: () => setColumnForm({ column, name: columnLabel(column, t) }),
+    onDelete: () => setDeletingColumn(column),
+    onMoveColumn: (index: number) =>
+      void runMutation(revision => moveColumn(column.id, { boardRevision: revision, targetIndex: index })),
+    onEditCard: openEdit,
+    onDeleteCard: setDeletingCard,
+    onMoveCard: requestMove
+  });
+
+  /** A horizontal swipe on the card list steps one column, mirrored for a right-to-left page. */
+  const onSwipeStart = (event: ReactTouchEvent) => {
+    const touch = event.touches[0];
+    swipeFrom.current = touch ? { x: touch.clientX, y: touch.clientY } : null;
+  };
+
+  const onSwipeEnd = (event: ReactTouchEvent) => {
+    const start = swipeFrom.current;
+    const touch = event.changedTouches[0];
+    swipeFrom.current = null;
+    if (!start || !touch) return;
+    const deltaX = touch.clientX - start.x;
+    const deltaY = touch.clientY - start.y;
+    // A mostly-vertical drag is the list scrolling, not a column change.
+    if (Math.abs(deltaX) < 56 || Math.abs(deltaX) <= Math.abs(deltaY)) return;
+    const towardsEnd = dir === 'rtl' ? deltaX > 0 : deltaX < 0;
+    setPagerIndex(current => Math.min(Math.max(current + (towardsEnd ? 1 : -1), 0), columns.length - 1));
+  };
 
   return (
     <div className="board-page">
       <div className="board-header">
         <h1>{t('board.heading')}</h1>
-        {isOwner ? (
-          <button type="button" onClick={() => setColumnForm({ column: null, name: '' })}>
+        <p className="board-count">{plural('board.cardCount', totalCards)}</p>
+        {/* On a phone the dashed add-a-column plate at the end of the track has nowhere to
+            live, so the owner's control sits in the header instead. */}
+        {isOwner && phone ? (
+          <button type="button" onClick={openColumnForm}>
+            <PlusIcon />
             {t('board.addColumn')}
           </button>
         ) : null}
@@ -341,28 +453,80 @@ export function BoardPage() {
         onDragOver={onDragOver}
         onDragEnd={onDragEnd}
       >
-        <ol className="board" aria-label={t('board.heading')} role="list">
-          {board.columns.map((column, columnIndex) => (
-            <ColumnView
-              key={column.id}
-              column={column}
-              columnIndex={columnIndex}
-              columns={board.columns}
-              members={members}
-              isOwner={isOwner}
-              pending={pending}
-              onAddCard={() => openCreate(column.id)}
-              onRename={() => setColumnForm({ column, name: columnLabel(column, t) })}
-              onDelete={() => setDeletingColumn(column)}
-              onMoveColumn={index =>
-                void runMutation(revision => moveColumn(column.id, { boardRevision: revision, targetIndex: index }))
-              }
-              onEditCard={openEdit}
-              onDeleteCard={setDeletingCard}
-              onMoveCard={requestMove}
-            />
-          ))}
-        </ol>
+        {phone && activeColumn ? (
+          <div className="pager">
+            {/* The chip row is the switcher, and it is the only sideways-scrolling thing on the
+                screen — the page itself still never scrolls sideways. */}
+            <div className="pager-tabs" role="tablist" aria-label={t('board.heading')}>
+              {columns.map((column, index) => (
+                <button
+                  key={column.id}
+                  type="button"
+                  role="tab"
+                  id={`pager-tab-${column.id}`}
+                  className="pager-tab"
+                  aria-selected={index === active}
+                  aria-controls={`pager-panel-${column.id}`}
+                  tabIndex={index === active ? 0 : -1}
+                  onClick={() => setPagerIndex(index)}
+                  onKeyDown={event => {
+                    const pressed = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
+                    if (pressed === 0) return;
+                    event.preventDefault();
+                    const forward = dir === 'rtl' ? -pressed : pressed;
+                    const next = (index + forward + columns.length) % columns.length;
+                    setPagerIndex(next);
+                    document.getElementById(`pager-tab-${columns[next]!.id}`)?.focus();
+                  }}
+                >
+                  <span dir="auto">{columnLabel(column, t)}</span>
+                  <span className="pager-tab-count">{column.cards.length}</span>
+                </button>
+              ))}
+            </div>
+
+            <div className="pager-nav">
+              <button
+                type="button"
+                className="icon"
+                disabled={active === 0}
+                aria-label={columnLabel(columns[active - 1] ?? activeColumn, t)}
+                onClick={() => setPagerIndex(active - 1)}
+              >
+                <ChevronStartIcon />
+              </button>
+              <div className="pager-title">
+                <h2 dir="auto">{columnLabel(activeColumn, t)}</h2>
+                <p className="pager-position">{t('board.columnPosition', { n: active + 1, total: columns.length })}</p>
+              </div>
+              <button
+                type="button"
+                className="icon"
+                disabled={active === columns.length - 1}
+                aria-label={columnLabel(columns[active + 1] ?? activeColumn, t)}
+                onClick={() => setPagerIndex(active + 1)}
+              >
+                <ChevronEndIcon />
+              </button>
+            </div>
+
+            <div className="pager-panel" onTouchStart={onSwipeStart} onTouchEnd={onSwipeEnd}>
+              <ColumnView key={activeColumn.id} {...columnProps(activeColumn, active)} />
+            </div>
+
+            <p className="pager-dots" aria-hidden="true">
+              {columns.map((column, index) => (
+                <span key={column.id} className="pager-dot" data-current={index === active} />
+              ))}
+            </p>
+          </div>
+        ) : (
+          <BoardTrack isOwner={isOwner} pending={pending} onAddColumn={openColumnForm} columnCount={columns.length}>
+            {columns.map((column, columnIndex) => (
+              <ColumnView key={column.id} {...columnProps(column, columnIndex)} />
+            ))}
+          </BoardTrack>
+        )}
       </DragDropProvider>
 
       {editing ? (
@@ -482,8 +646,78 @@ export function BoardPage() {
           </form>
         </Dialog>
       ) : null}
+    </div>
+  );
+}
 
-      <p className="visually-hidden">{plural('board.cardCount', totalCards)}</p>
+/**
+ * The desktop and tablet board: one contained horizontal track. The page itself never scrolls
+ * sideways, so when more board sits past the end edge the track says so with a fade and offers
+ * a keyboard-reachable button that scrolls it — a control that only exists while there is
+ * something left to scroll to.
+ */
+function BoardTrack({
+  children,
+  isOwner,
+  pending,
+  onAddColumn,
+  columnCount
+}: {
+  children: ReactNode;
+  isOwner: boolean;
+  pending: boolean;
+  onAddColumn: () => void;
+  columnCount: number;
+}) {
+  const { t, dir } = useTranslation();
+  const track = useRef<HTMLOListElement>(null);
+  const [canScrollEnd, setCanScrollEnd] = useState(false);
+
+  const measure = useCallback(() => {
+    const element = track.current;
+    if (!element) return;
+    // `scrollLeft` counts down from zero in a right-to-left track, so distance is its magnitude.
+    const travelled = Math.abs(element.scrollLeft);
+    setCanScrollEnd(travelled + element.clientWidth < element.scrollWidth - 1);
+  }, []);
+
+  useEffect(() => {
+    measure();
+    const element = track.current;
+    if (!element) return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [measure, columnCount]);
+
+  return (
+    <div className="board-track" data-overflow={canScrollEnd}>
+      <ol className="board" aria-label={t('board.heading')} role="list" ref={track} onScroll={measure}>
+        {children}
+        {isOwner ? (
+          <li role="listitem">
+            <button type="button" className="add-column" onClick={onAddColumn} disabled={pending}>
+              <PlusIcon />
+              {t('board.addColumn')}
+            </button>
+          </li>
+        ) : null}
+      </ol>
+      {canScrollEnd ? (
+        <button
+          type="button"
+          className="board-scroll-end"
+          aria-label={t('board.scrollEnd')}
+          onClick={() => {
+            const element = track.current;
+            if (!element) return;
+            const step = element.clientWidth * 0.8;
+            element.scrollBy({ left: dir === 'rtl' ? -step : step });
+          }}
+        >
+          <ChevronEndIcon />
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -495,6 +729,7 @@ function ColumnView({
   members,
   isOwner,
   pending,
+  phone,
   onAddCard,
   onRename,
   onDelete,
@@ -509,6 +744,7 @@ function ColumnView({
   members: readonly BoardMember[];
   isOwner: boolean;
   pending: boolean;
+  phone: boolean;
   onAddCard: () => void;
   onRename: () => void;
   onDelete: () => void;
@@ -519,39 +755,64 @@ function ColumnView({
 }) {
   const { t, plural } = useTranslation();
   const label = columnLabel(column, t);
+  const isDone = column.customName === null && column.nameKey === 'done';
   // Lets an empty column accept a drop; cards register their own sortable targets.
   const { ref } = useDroppable({ id: column.id, type: 'column', accept: 'card' });
 
-  return (
-    <li className="column" role="listitem">
-      <div className="column-header">
-        <h2 dir="auto">{label}</h2>
-        <span className="help">{plural('board.cardCount', column.cards.length)}</span>
-        {isOwner ? (
-          <div className="column-actions">
-            <button type="button" onClick={onRename} disabled={pending}>
-              {t('board.renameColumn', { name: label })}
-            </button>
-            <button
-              type="button"
-              onClick={() => onMoveColumn(columnIndex - 1)}
-              disabled={pending || columnIndex === 0}
-            >
-              {t('board.moveColumnStart', { name: label })}
-            </button>
-            <button
-              type="button"
-              onClick={() => onMoveColumn(columnIndex + 1)}
-              disabled={pending || columnIndex === columns.length - 1}
-            >
-              {t('board.moveColumnEnd', { name: label })}
-            </button>
-            <button type="button" onClick={onDelete} disabled={pending || columns.length <= 1}>
-              {t('board.deleteColumn', { name: label })}
-            </button>
-          </div>
-        ) : null}
-      </div>
+  const body = (
+    <>
+      {/* The pager already names the column above the panel, so it is not repeated inside. */}
+      {phone ? null : (
+        <div className="column-header">
+          {/* A card arriving in Done redraws the cap's check, once: a quiet acknowledgement,
+              not a reward. Keying it on the count is what makes the stroke run again. */}
+          {isDone ? <CheckIcon key={column.cards.length} className="done-check" /> : null}
+          <h2 dir="auto">{label}</h2>
+          <span className="column-count">{plural('board.cardCount', column.cards.length)}</span>
+        </div>
+      )}
+
+      {/*
+       * Owner controls are their own strip under the header, separated by a hairline — present
+       * for the owner, absent for members, never disabled-and-teasing. Each is an icon button
+       * whose accessible name is the same full sentence the button used to show: four names
+       * like "Move Waiting on someone towards the start" cannot be read as visible text inside
+       * a 272px column in any of the three languages.
+       */}
+      {isOwner ? (
+        <div className="column-actions">
+          <button type="button" className="icon" onClick={onRename} disabled={pending} aria-label={t('board.renameColumn', { name: label })}>
+            <PencilIcon className="icon icon-sm" />
+          </button>
+          <button
+            type="button"
+            className="icon"
+            onClick={() => onMoveColumn(columnIndex - 1)}
+            disabled={pending || columnIndex === 0}
+            aria-label={t('board.moveColumnStart', { name: label })}
+          >
+            <ChevronStartIcon className="icon icon-sm" />
+          </button>
+          <button
+            type="button"
+            className="icon"
+            onClick={() => onMoveColumn(columnIndex + 1)}
+            disabled={pending || columnIndex === columns.length - 1}
+            aria-label={t('board.moveColumnEnd', { name: label })}
+          >
+            <ChevronEndIcon className="icon icon-sm" />
+          </button>
+          <button
+            type="button"
+            className="icon"
+            onClick={onDelete}
+            disabled={pending || columns.length <= 1}
+            aria-label={t('board.deleteColumn', { name: label })}
+          >
+            <TrashIcon className="icon icon-sm" />
+          </button>
+        </div>
+      ) : null}
 
       {/* `list-style: none` with a flex layout drops list semantics in some browsers, so the
           roles are restored explicitly. */}
@@ -563,6 +824,7 @@ function ColumnView({
             index={index}
             column={column}
             columns={columns}
+            phone={phone}
             assigneeEmail={
               card.assigneeUserId === null
                 ? null
@@ -574,16 +836,40 @@ function ColumnView({
             onMove={onMoveCard}
           />
         ))}
+        {/* A dashed slot keeps the column's height and doubles as the visible drop target, so
+            an empty column never looks like a rendering error. */}
         {column.cards.length === 0 ? (
-          <li className="empty help" role="listitem">
+          <li className="card-slot" role="listitem">
             {t('board.columnEmpty')}
           </li>
         ) : null}
       </ol>
 
-      <button type="button" onClick={onAddCard} disabled={pending}>
-        {t('board.addCard')}
+      <button type="button" className="add-card" onClick={onAddCard} disabled={pending}>
+        <PlusIcon />
+        {/* On a phone the button names the column it will add to, so a card can never land in
+            the wrong one by accident. */}
+        {phone ? t('board.addCardTo', { column: label }) : t('board.addCard')}
       </button>
+    </>
+  );
+
+  if (phone) {
+    return (
+      <div
+        className={columnClass(column)}
+        role="tabpanel"
+        id={`pager-panel-${column.id}`}
+        aria-labelledby={`pager-tab-${column.id}`}
+      >
+        {body}
+      </div>
+    );
+  }
+
+  return (
+    <li className={columnClass(column)} role="listitem">
+      {body}
     </li>
   );
 }
@@ -593,6 +879,7 @@ function CardView({
   index,
   column,
   columns,
+  phone,
   assigneeEmail,
   pending,
   onEdit,
@@ -603,6 +890,7 @@ function CardView({
   index: number;
   column: BoardColumn;
   columns: readonly BoardColumn[];
+  phone: boolean;
   assigneeEmail: string | null;
   pending: boolean;
   onEdit: () => void;
@@ -620,75 +908,324 @@ function CardView({
     accept: 'card'
   });
   const assignee = assigneeEmail === null ? t('card.unassigned') : assigneeEmail;
+  const avatar = assigneeEmail === null ? null : avatarOf(assigneeEmail);
 
   return (
     <li className={isDragging ? 'card dragging' : 'card'} ref={ref} role="listitem">
+      {/* The held marker belongs to the card and not to the animation, so a reduced-motion
+          preference that removes the tilt still leaves the picked-up state visible. */}
+      {isDragging ? (
+        <span className="held-marker" aria-hidden="true">
+          <GripIcon className="icon-sm" />
+        </span>
+      ) : null}
+
       <div className="card-head">
-        <button
-          type="button"
-          className="drag-handle"
-          ref={handleRef}
-          aria-label={t('card.dragHandle', { title: card.title })}
-          aria-describedby="drag-instructions"
-        >
-          <span aria-hidden="true">⠿</span>
-        </button>
-        <h3 dir="auto">{card.title}</h3>
+        <h3 className="card-title">
+          {/* Activating the title opens Edit — that is how editing stays one step from the
+              board, and what let four of the five per-card controls move into the menu. */}
+          <button type="button" className="card-title-button" dir="auto" onClick={onEdit} disabled={pending}>
+            {card.title}
+          </button>
+        </h3>
+        <div className="card-tools">
+          {/* A phone has no drag handle at all: touch-dragging inside a swipeable, scrollable
+              list is a trap, and everything dragging could do lives in the actions menu. */}
+          {phone ? null : (
+            <button
+              type="button"
+              className="icon drag-handle"
+              ref={handleRef}
+              aria-label={t('card.dragHandle', { title: card.title })}
+              aria-describedby="drag-instructions"
+            >
+              <GripIcon />
+            </button>
+          )}
+          <ActionsMenu
+            card={card}
+            index={index}
+            column={column}
+            columns={columns}
+            pending={pending}
+            onEdit={onEdit}
+            onDelete={onDelete}
+            onMove={onMove}
+          />
+        </div>
       </div>
+
+      {/* Clamped to two lines. The full 4,000 characters live in the edit dialog, one step away
+          through the title, so there is no expand toggle and no new string for it. */}
       {card.description !== null ? (
         <p className="card-description" dir="auto">
           {card.description}
         </p>
       ) : null}
-      <p className="help">
-        {t('card.assignee')}:{' '}
-        <span className="isolate" dir="ltr">
+
+      <p className="card-meta">
+        <span className="visually-hidden">{t('card.assignee')}: </span>
+        {avatar === null ? (
+          <span className="avatar avatar-none" aria-hidden="true">
+            <PersonIcon className="icon-sm" />
+          </span>
+        ) : (
+          <span className={`avatar avatar-${avatar.tone}`} aria-hidden="true">
+            {avatar.letter}
+          </span>
+        )}
+        {/* The address is one line, ellipsised at the end by the stylesheet; the full value
+            stays in the DOM, and in the tooltip. It keeps its own direction in a Hebrew page. */}
+        <span className="isolate" dir="ltr" title={assignee}>
           {assignee}
         </span>
       </p>
-
-      <div className="card-actions" role="group" aria-label={t('card.actions', { title: card.title })}>
-        <button type="button" onClick={onEdit} disabled={pending}>
-          {t('app.edit')}
-        </button>
-        <button type="button" onClick={() => onMove(card, column.id, index - 1)} disabled={pending || index === 0}>
-          {t('card.moveUp')}
-        </button>
-        <button
-          type="button"
-          onClick={() => onMove(card, column.id, index + 1)}
-          disabled={pending || index === column.cards.length - 1}
-        >
-          {t('card.moveDown')}
-        </button>
-        {/* Named by `aria-label` rather than a `<label for>`: the drag overlay is a clone of
-            this whole card, and any `id` in here would be duplicated in the document while a
-            drag is in flight. */}
-        <select
-          aria-label={t('card.moveToColumn')}
-          value=""
-          disabled={pending}
-          onChange={event => {
-            const targetColumnId = event.target.value;
-            if (targetColumnId.length === 0) return;
-            const destination = columns.find(entry => entry.id === targetColumnId);
-            onMove(card, targetColumnId, destination?.cards.length ?? 0);
-            event.target.value = '';
-          }}
-        >
-          <option value="">{t('card.moveToColumn')}</option>
-          {columns
-            .filter(entry => entry.id !== column.id)
-            .map(entry => (
-              <option key={entry.id} value={entry.id}>
-                {columnLabel(entry, t)}
-              </option>
-            ))}
-        </select>
-        <button type="button" className="danger" onClick={onDelete} disabled={pending}>
-          {t('app.delete')}
-        </button>
-      </div>
     </li>
+  );
+}
+
+type MenuEntry = {
+  key: string;
+  label: string;
+  disabled: boolean;
+  danger?: boolean;
+  columnChoice?: boolean;
+  run: () => void;
+};
+
+/**
+ * Two controls per card instead of five.
+ *
+ * Edit, move up, move down, move to column and delete all call the same handlers they did when
+ * each was its own control on the card; nothing became drag-only, and every one of them is
+ * still one or two keystrokes away. The column choices are a flat labelled group rather than a
+ * submenu, so there is no nested keyboard model to learn.
+ */
+function ActionsMenu({
+  card,
+  index,
+  column,
+  columns,
+  pending,
+  onEdit,
+  onDelete,
+  onMove
+}: {
+  card: BoardCard;
+  index: number;
+  column: BoardColumn;
+  columns: readonly BoardColumn[];
+  pending: boolean;
+  onEdit: () => void;
+  onDelete: () => void;
+  onMove: (card: BoardCard, targetColumnId: string, targetIndex: number) => void;
+}) {
+  const { t, dir } = useTranslation();
+  const phone = useMediaQuery(PHONE);
+  const [open, setOpen] = useState(false);
+  const [activeItem, setActiveItem] = useState(0);
+  /**
+   * Where the trigger sat when the menu opened.
+   *
+   * The board track scrolls sideways, which makes it a scroll container on both axes, and a
+   * menu positioned inside it is clipped at the column's foot. Anchoring the menu to the
+   * viewport instead is what lets it stand clear of the track; a scroll or a resize closes it
+   * rather than letting it drift away from the card it belongs to.
+   */
+  const [anchor, setAnchor] = useState<DOMRect | null>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const items = useRef<Array<HTMLButtonElement | null>>([]);
+
+  const entries: MenuEntry[] = [
+    { key: 'edit', label: t('app.edit'), disabled: pending, run: onEdit },
+    // Disabled at the ends of the list rather than hidden, so the menu keeps its shape.
+    { key: 'up', label: t('card.moveUp'), disabled: pending || index === 0, run: () => onMove(card, column.id, index - 1) },
+    {
+      key: 'down',
+      label: t('card.moveDown'),
+      disabled: pending || index === column.cards.length - 1,
+      run: () => onMove(card, column.id, index + 1)
+    },
+    // The current column is omitted: a card can never be "moved" to where it already is.
+    ...columns
+      .filter(entry => entry.id !== column.id)
+      .map(entry => ({
+        key: `column-${entry.id}`,
+        label: columnLabel(entry, t),
+        disabled: pending,
+        columnChoice: true,
+        run: () => onMove(card, entry.id, entry.cards.length)
+      })),
+    { key: 'delete', label: t('app.delete'), disabled: pending, danger: true, run: onDelete }
+  ];
+
+  const reachable = entries
+    .map((entry, position) => (entry.disabled ? -1 : position))
+    .filter(position => position >= 0);
+
+  const close = (returnFocus: boolean) => {
+    setOpen(false);
+    if (returnFocus) trigger.current?.focus();
+  };
+
+  const openAt = (end: 'first' | 'last') => {
+    const target = end === 'first' ? reachable[0] : reachable[reachable.length - 1];
+    if (target === undefined) return;
+    setAnchor(trigger.current?.getBoundingClientRect() ?? null);
+    setActiveItem(target);
+    setOpen(true);
+  };
+
+  // A resize invalidates the anchor outright. A scroll cannot: the backdrop is what the pointer
+  // meets while the menu is open, so the board underneath does not move.
+  useEffect(() => {
+    if (!open) return;
+    const dismiss = () => setOpen(false);
+    window.addEventListener('resize', dismiss);
+    return () => window.removeEventListener('resize', dismiss);
+  }, [open]);
+
+  /** The sheet below 834px is positioned entirely by the stylesheet. */
+  const placement =
+    phone || anchor === null
+      ? undefined
+      : (() => {
+          const viewportHeight = document.documentElement.clientHeight;
+          const viewportWidth = document.documentElement.clientWidth;
+          const room = 340;
+          const upward = viewportHeight - anchor.bottom < room && anchor.top > room;
+          return {
+            position: 'fixed' as const,
+            insetBlockStart: upward ? undefined : Math.round(anchor.bottom + 4),
+            insetBlockEnd: upward ? Math.round(viewportHeight - anchor.top + 4) : undefined,
+            insetInlineStart: dir === 'rtl' ? Math.round(anchor.left) : undefined,
+            insetInlineEnd: dir === 'rtl' ? undefined : Math.round(viewportWidth - anchor.right),
+            maxBlockSize: 'min(60vh, 340px)',
+            overflowY: 'auto' as const
+          };
+        })();
+
+  // Focus follows the roving index whenever the menu is open, which is what makes ↑ ↓ Home and
+  // End move the reading position rather than just a highlight.
+  useEffect(() => {
+    if (open) items.current[activeItem]?.focus();
+  }, [open, activeItem]);
+
+  const step = (direction: 1 | -1) => {
+    if (reachable.length === 0) return;
+    const here = reachable.indexOf(activeItem);
+    const next = here < 0 ? 0 : (here + direction + reachable.length) % reachable.length;
+    setActiveItem(reachable[next]!);
+  };
+
+  const onMenuKeyDown = (event: ReactKeyboardEvent) => {
+    switch (event.key) {
+      case 'ArrowDown':
+        event.preventDefault();
+        step(1);
+        return;
+      case 'ArrowUp':
+        event.preventDefault();
+        step(-1);
+        return;
+      case 'Home':
+        event.preventDefault();
+        if (reachable[0] !== undefined) setActiveItem(reachable[0]);
+        return;
+      case 'End':
+        event.preventDefault();
+        if (reachable.length > 0) setActiveItem(reachable[reachable.length - 1]!);
+        return;
+      case 'Escape':
+        // Stopped here so an open menu inside a dialog does not also close the dialog.
+        event.preventDefault();
+        event.stopPropagation();
+        close(true);
+        return;
+      case 'Tab':
+        // Tab closes the menu and moves on rather than trapping inside it.
+        close(false);
+        return;
+      default:
+        return;
+    }
+  };
+
+  let columnGroupOpened = false;
+
+  return (
+    <div className="card-menu">
+      <button
+        type="button"
+        className="icon"
+        ref={trigger}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={t('card.actions', { title: card.title })}
+        onKeyDown={event => {
+          if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            openAt('first');
+          } else if (event.key === 'ArrowUp') {
+            event.preventDefault();
+            openAt('last');
+          }
+        }}
+        onClick={() => (open ? close(false) : openAt('first'))}
+      >
+        <MoreIcon />
+      </button>
+
+      {open ? (
+        <>
+          <div className="menu-backdrop" onMouseDown={() => close(false)} />
+          <div
+            className="menu"
+            role="menu"
+            aria-label={t('card.actions', { title: card.title })}
+            style={placement}
+            onKeyDown={onMenuKeyDown}
+          >
+            {entries.map((entry, position) => {
+              const heading = entry.columnChoice === true && !columnGroupOpened;
+              if (heading) columnGroupOpened = true;
+              return (
+                <Fragment key={entry.key}>
+                  {heading ? (
+                    <p className="menu-group-label" role="presentation">
+                      {t('card.moveToColumn')}
+                    </p>
+                  ) : null}
+                  <button
+                    type="button"
+                    role="menuitem"
+                    ref={element => {
+                      items.current[position] = element;
+                    }}
+                    tabIndex={position === activeItem ? 0 : -1}
+                    className={
+                      entry.danger === true
+                        ? 'menu-item danger'
+                        : entry.columnChoice === true
+                          ? 'menu-item menu-item-column'
+                          : 'menu-item'
+                    }
+                    disabled={entry.disabled}
+                    dir={entry.columnChoice === true ? 'auto' : undefined}
+                    onFocus={() => setActiveItem(position)}
+                    onClick={() => {
+                      close(true);
+                      entry.run();
+                    }}
+                  >
+                    {entry.label}
+                  </button>
+                </Fragment>
+              );
+            })}
+          </div>
+        </>
+      ) : null}
+    </div>
   );
 }

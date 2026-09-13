@@ -216,6 +216,40 @@ export function SettingsPage() {
           </Alert>
         ) : null}
 
+        {/*
+         * The API replaces the whole set against a revision, so a conflict cannot be merged
+         * automatically — and must not be. Both lists are shown side by side, the owner's own
+         * text untouched in the field below, and saving again sends it against the new revision.
+         */}
+        {saveError instanceof ApiError && saveError.code === 'allowlist_conflict' ? (
+          <div className="compare">
+            <div>
+              <h3>{t('settings.yourText')}</h3>
+              <ul className="list">
+                {entries.map((entry, index) => (
+                  <li key={`${entry}-${index}`}>
+                    <span className="isolate" dir="ltr">
+                      {entry}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <h3>{t('settings.currentList', { n: allowed.allowlistRevision })}</h3>
+              <ul className="list">
+                {allowed.emails.map(email => (
+                  <li key={email}>
+                    <span className="isolate" dir="ltr">
+                      {email}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        ) : null}
+
         <form onSubmit={saveList} noValidate>
           <Field
             label={t('settings.allowedLabel')}

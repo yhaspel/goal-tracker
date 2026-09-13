@@ -12,7 +12,7 @@ import type { LocaleDictionary } from './en';
  * Hebrew reads naturally. Card and column text the members wrote is never translated.
  */
 export const he: LocaleDictionary = {
-  'app.name': 'הלוח המשפחתי',
+  'app.name': 'Goal Tracker',
   'app.skipToContent': 'דילוג לתוכן הראשי',
   'app.loading': 'טוען…',
   'app.retry': 'לנסות שוב',
@@ -27,7 +27,10 @@ export const he: LocaleDictionary = {
   'app.required': 'שדה חובה',
   'app.optional': 'רשות',
   'app.language': 'שפה',
+  'app.menu': 'תפריט',
   'app.offline': 'נראה שאין חיבור לרשת. בדקו את החיבור ונסו שוב.',
+
+  'flow.step': 'שלב {n} מתוך {total}',
 
   'nav.board': 'לוח',
   'nav.settings': 'הגדרות',
@@ -113,6 +116,8 @@ export const he: LocaleDictionary = {
   'settings.duplicate': 'הכתובת הזו מופיעה יותר מפעם אחת: {email}',
   'settings.invalidEntry': 'זו לא נראית ככתובת אימייל: {entry}',
   'settings.tooMany': 'יש כאן {count} כתובות. המגבלה היא {max}, כולל שלכם.',
+  'settings.yourText': 'הטקסט שלכם (נשמר)',
+  'settings.currentList': 'הרשימה הנוכחית · גרסה {n}',
 
   'invitations.heading': 'הזמנות',
   'invitations.body': 'אפשר להזמין כתובת שכבר נמצאת ברשימת המורשים. את הקוד מעבירים בעצמכם; שום דבר לא נשלח באימייל.',
@@ -161,6 +166,9 @@ export const he: LocaleDictionary = {
   'board.cardCount.two': 'שני כרטיסים',
   'board.cardCount.other': '{count} כרטיסים',
   'board.reload': 'טעינת הלוח מחדש',
+  'board.columnPosition': 'עמודה {n} מתוך {total}',
+  'board.addCardTo': 'הוספת כרטיס לעמודה {column}',
+  'board.scrollEnd': 'גלילת הלוח לכיוון הסוף',
 
   'card.title': 'כותרת',
   'card.description': 'תיאור',
@@ -184,6 +192,8 @@ export const he: LocaleDictionary = {
   'card.deleted': '{title} נמחק.',
   'card.draftKept': 'הטקסט שלא נשמר עדיין כאן. בדקו אותו ושמרו שוב.',
   'card.changedElsewhere': 'מישהו אחר שינה את הכרטיס הזה בזמן שערכתם אותו.',
+  'card.descriptionCount': '{count} מתוך {max}',
+  'card.discardDraft': 'ביטול הטיוטה',
 
   'error.generic': 'משהו השתבש. נסו שוב.',
   'error.network': 'לא הצלחנו להגיע ללוח. בדקו את החיבור.',
