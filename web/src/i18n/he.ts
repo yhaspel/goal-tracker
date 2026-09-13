@@ -15,7 +15,6 @@ export const he: LocaleDictionary = {
   'app.name': 'הלוח המשפחתי',
   'app.skipToContent': 'דילוג לתוכן הראשי',
   'app.loading': 'טוען…',
-  'app.saving': 'שומר…',
   'app.retry': 'לנסות שוב',
   'app.cancel': 'ביטול',
   'app.save': 'שמירה',

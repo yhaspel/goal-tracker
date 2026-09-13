@@ -10,7 +10,6 @@ export const ru: LocaleDictionary = {
   'app.name': 'Семейная доска',
   'app.skipToContent': 'Перейти к основному содержимому',
   'app.loading': 'Загрузка…',
-  'app.saving': 'Сохранение…',
   'app.retry': 'Повторить',
   'app.cancel': 'Отмена',
   'app.save': 'Сохранить',

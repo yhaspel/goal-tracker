@@ -268,6 +268,11 @@ button.primary {
   font-weight: 600;
 }
 
+/* Decorative only. `aria-busy` is what assistive technology reads. */
+button.busy::after {
+  content: ' …';
+}
+
 button.danger {
   color: var(--danger);
   border-color: var(--danger);

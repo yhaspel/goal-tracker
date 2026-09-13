@@ -158,7 +158,14 @@ export function Dialog({
     const firstFocusable = panel.current?.querySelector<HTMLElement>(FOCUSABLE);
     (firstField ?? firstFocusable ?? panel.current)?.focus();
     return () => {
-      if (opener.current instanceof HTMLElement && document.contains(opener.current)) opener.current.focus();
+      // The control that opened the dialog is often gone by the time it closes — deleting a
+      // card removes its own Delete button. Falling back to the main landmark keeps focus
+      // somewhere sensible instead of dropping it on the document.
+      if (opener.current instanceof HTMLElement && document.contains(opener.current)) {
+        opener.current.focus();
+        return;
+      }
+      document.getElementById('main')?.focus();
     };
   }, []);
 
@@ -208,12 +215,18 @@ export function Dialog({
 
 // --- misc -----------------------------------------------------------------------------------
 
-/** A submit button that cannot be double-fired while its request is in flight. */
+/**
+ * A submit button that cannot be double-fired while its request is in flight.
+ *
+ * The label does not change while the request runs: a button whose accessible name rewrites
+ * itself mid-action is disorienting, and one generic word cannot be right for signing in,
+ * saving a card, and confirming a recovery phrase at once. The busy state is conveyed by
+ * `aria-busy` and by a marker that respects reduced-motion preferences.
+ */
 export function Submit({ pending, children }: { pending: boolean; children: ReactNode }) {
-  const { t } = useTranslation();
   return (
-    <button type="submit" className="primary" disabled={pending}>
-      {pending ? t('app.saving') : children}
+    <button type="submit" className={pending ? 'primary busy' : 'primary'} disabled={pending} aria-busy={pending}>
+      {children}
     </button>
   );
 }

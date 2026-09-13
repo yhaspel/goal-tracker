@@ -11,7 +11,6 @@ export const en = {
   'app.name': 'Family board',
   'app.skipToContent': 'Skip to main content',
   'app.loading': 'Loading…',
-  'app.saving': 'Saving…',
   'app.retry': 'Try again',
   'app.cancel': 'Cancel',
   'app.save': 'Save',
