@@ -9,8 +9,10 @@ Companion documents: [deployment](deployment.md) for publishing a Worker,
 [the production deployment record](production-deployment.md) for what production actually holds,
 and [CI](ci.md) for what the pipeline does and does not deploy.
 
-**Read this first.** Production has held real data since 2026-09-13. There is exactly one copy of
-it until the first encrypted backup below has been taken and verified.
+**Read this first.** Production has held real data since 2026-09-13. The first encrypted backup was
+taken and verified the same day, so there are now two copies — but both the copy and the key that
+reads it sit on the owner's laptop, and no restore into a deployed object has ever been proven.
+Treat the second copy as real and the recovery path as untested.
 
 ## What exists, and what is still unproven
 
@@ -21,7 +23,7 @@ it until the first encrypted backup below has been taken and verified.
 | Encrypted local backup, retention, verification, restore (`scripts/backup.ts`) | Implemented; proven end to end against local `wrangler dev` Workers, including sign-in on the restored household |
 | Security headers, CSP, shell `no-store` | Implemented and covered by `tests/routing.test.ts` |
 | **The same round trip against the deployed Free Workers** | **Not done.** See the release checklist at the end |
-| **A verified production backup** | **Not taken.** Until it is, production is one bad deploy away from unrecoverable |
+| **A verified production backup** | **Taken 2026-09-13** — `goal-tracker-production-2026-09-13-schema4-1f0ac18e.backup.enc`, verified by decrypting it back off the disk. It and its key live on one laptop, so the copy is real but not yet redundant |
 | Cloudflare point-in-time recovery on the Free plan | **Unverified.** See its section below |
 
 ## Configuration this stage adds
@@ -109,6 +111,12 @@ temporary file, `fsync`s it and renames it into place; **re-reads the file from 
 and re-verifies the digest**; and only then prunes. There is never an unencrypted temporary file
 and never a moment when pruning has happened but the new copy has not been verified.
 
+**A household that fails its own integrity checks prunes nothing at all.** The copy is still
+written and still verified — a data anomaly must not cost you a backup — but retention pins the
+newest copy without knowing whether a restore would accept it, so pruning on that run would keep
+the unusable copy and delete a clean older one. The command reports the issues and exits non-zero
+with every existing copy untouched.
+
 Both inputs are protected on purpose. The operator secret comes in on **stdin**, so it never
 appears in a command line, a process list or a shell history entry. The key file is named by path
 and is refused unless it is a regular file with mode 0600 and lives **outside** the backup
@@ -158,10 +166,26 @@ an environment that can be thrown away. Never into production, and never into a 
 already been imported into.
 
 1. **Provision a fresh drill Worker.** Copy the `restore` environment in `wrangler.jsonc` to a new
-   name (`family-board-restore-YYYY-MM`), keep `workers_dev: false`, keep
-   `__ENABLE_RESTORE_IMPORT__` true, and give its Durable Object class a name not already
-   provisioned on production. `npm run deploy:restore` publishes the standing one; a dated drill
-   Worker is published the same way with its own `--env`.
+   name (`family-board-restore-YYYY-MM`), keep `__ENABLE_RESTORE_IMPORT__` true, and give its
+   Durable Object class a name not already provisioned on production. `npm run deploy:restore`
+   publishes the standing one; a dated drill Worker is published the same way with its own
+   `--env`.
+
+   **The drill Worker needs `workers_dev: true`, and the standing `restore` environment does
+   not have it.** Step 3 imports over HTTPS, so the target must have a hostname; with
+   `workers_dev: false` and no `routes`, `family-board-restore` has none and there is nothing to
+   POST to. Set `workers_dev: true` on the *dated drill* environment only, and leave the standing
+   `restore` entry alone — its lack of a public route is the reason an idle restore Worker is not
+   an attack surface.
+
+   That also means the drill Worker **is** publicly reachable for as long as it exists. It answers
+   only to the bearer secret and refuses everything else with the usual `404`, but combined with
+   step 2 it holds production-equivalent credential material on a public hostname. Keep the window
+   short, and treat step 6 as part of the same sitting rather than a follow-up.
+
+   `family-board-restore` currently runs the pre-Stage-7 build published 2026-09-12, which has no
+   import route at all. Any drill has to deploy current code first, or the import answers `404`
+   and looks like a bad secret.
 2. **Configure it for one source.** The restore build has no `BACKUP_HOUSEHOLD_ID` in tracked
    configuration, so set it to the household the copy belongs to, and set the source's
    `RECOVERY_DIGEST_KEY` from escrow so phrase verification can be checked:
@@ -356,7 +380,11 @@ Outstanding, and each needs the deployed Free runtime:
       descriptions — and record response bytes, export time, import time, SQL rows and DO duration
       against the Free limits above
 - [ ] Rehearse the lost-phrase rescue against a deployed Worker
-- [ ] Take and verify the **first encrypted production backup**
+- [x] Take and verify the **first encrypted production backup** — done 2026-09-13,
+      `goal-tracker-production-2026-09-13-schema4-1f0ac18e.backup.enc`, schema 4, board revision 19,
+      digest `d56aa774755679e1…`. Verified by decrypting it back off the disk, and separately
+      confirmed to carry the owner's password hash, the recovery digest and the allowed list.
+      **It shares a laptop with its own key, so it is a second copy and not yet a redundant one.**
 - [ ] Run one full drill that restores that production copy into a fresh isolated namespace, then
       destroy it
 - [ ] Move the escrowed secrets off the single laptop

@@ -315,7 +315,23 @@ async function create(options: Options): Promise<void> {
   );
   console.log(`  verified by decrypting the stored file: digest ${envelope.digest.slice(0, 16)}…`);
 
-  // Pruning happens only now, with a verified new copy already on disk.
+  // The integrity gate comes before pruning, and that order is the whole point.
+  //
+  // A copy whose household failed its own checks is one `importBackup` refuses outright
+  // (`backup_integrity_failed`). It is still written — a household with a data anomaly still gets
+  // a backup, and that has not changed — but it must never *cost* a copy a restore would have
+  // accepted. Retention pins the newest copy, so pruning here would keep the unusable one and
+  // delete a clean older one on the strength of it; repeated weekly, every retained copy but the
+  // month's oldest ends up unrestorable. So this run keeps its copy and prunes nothing.
+  if (!envelope.payload.integrity.ok) {
+    console.error('\nThe backup is written and verified, but the household failed its own integrity checks:');
+    for (const issue of envelope.payload.integrity.issues) console.error(`  - ${issue}`);
+    console.error('A restore will refuse this copy. Fix the source data and take another backup.');
+    console.error('Retention: skipped. No older copy is removed on the strength of one a restore would refuse.');
+    process.exit(1);
+  }
+
+  // Pruning happens only now, with a verified and restorable new copy already on disk.
   const keep = retainedCopies(storedCopies(outDir), [name]);
   const removed: string[] = [];
   for (const copy of storedCopies(outDir)) {
@@ -325,13 +341,6 @@ async function create(options: Options): Promise<void> {
   }
   console.log(removed.length === 0 ? 'Retention: nothing to prune.' : `Retention: pruned ${removed.length} older copy(ies).`);
   for (const name of removed) console.log(`  removed ${name}`);
-
-  if (!envelope.payload.integrity.ok) {
-    console.error('\nThe backup is written and verified, but the household failed its own integrity checks:');
-    for (const issue of envelope.payload.integrity.issues) console.error(`  - ${issue}`);
-    console.error('A restore will refuse this copy. Fix the source data and take another backup.');
-    process.exit(1);
-  }
 }
 
 function verify(options: Options): void {

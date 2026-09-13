@@ -623,13 +623,12 @@ been visible from outside.
 
 ### What this deployment still does not give you
 
-A working export route is not a backup. **No production backup has been taken.** Production
-continues to hold the only copy of its data, and the owner account remains unrecoverable if its
-password and recovery phrase are both lost.
+A working export route is not a backup. At the time this section was written no production backup
+had been taken. One was taken immediately afterwards — see the next section — so the sentence that
+stood here ("production continues to hold the only copy of its data") is no longer true.
 
 Still outstanding on the Stage 7 release checklist, now that the deploy and the secret are done:
 
-- The first encrypted production backup, taken and verified
 - The full drill that restores that copy into a fresh isolated namespace, then destroys it
 - The maximum-size export measurement against the Free limits
 - The deployed lost-phrase rescue rehearsal
@@ -654,3 +653,85 @@ Name the version explicitly. A bare `wrangler rollback` goes to the previous ver
 would mean by "roll back". It removes the security headers and the export route. `BACKUP_OPERATOR_SECRET` would survive the
 rollback as a configured but unused secret, which is harmless; the route that reads it would no
 longer exist.
+
+## The first production backup, 2026-09-13
+
+**Copy:** `goal-tracker-production-2026-09-13-schema4-1f0ac18e.backup.enc`
+**Taken at:** `2026-09-13T19:25:43.293Z`, from production version
+`5d099a34-3480-4fc5-89cb-ec779a94ea39`
+**Where:** `~/goal-tracker-backups/` on the owner's machine, mode 0600, directory 0700
+**Key:** `~/.goal-tracker/backup.key`, mode 0600, generated fresh — **no copy of it existed before
+this, and there is still only one**
+
+Production has been holding the only copy of its data since 2026-09-13. It no longer is.
+
+```
+Wrote goal-tracker-production-2026-09-13-schema4-1f0ac18e.backup.enc
+  household goal-tracker-production, schema 4, board revision 19
+  1 users (1 active), 1 allowed addresses, 3 columns, 2 cards
+  verified by decrypting the stored file: digest d56aa774755679e1…
+Retention: nothing to prune.
+```
+
+`create` exited 0, which means the household passed its own integrity checks. `verify` then
+re-read the file from disk independently and agreed.
+
+### What was checked beyond the tool's own word
+
+The tool verifies its own copy, so it was also checked from outside:
+
+| Check | Result |
+| --- | --- |
+| The file decrypts under the key, independently of `backup.ts create` | Yes — `verify` reports `ok`, schema 4, 1 user, 2 cards |
+| The digest recomputes over the canonical payload | Yes, `d56aa774755679e1…` (64 hex chars) |
+| The stored file is genuinely ciphertext | No household string appears in it — the address, `todo`, `in_progress` and `done` are all absent |
+| No plaintext or `.partial` temporary file was left behind | None in the directory |
+| The owner account survives with a usable credential | `passwordHash` present, 100 chars, carrying its own scrypt parameters (`N=16384`) and salt |
+| The recovery credential survives and belongs to that user | `phraseDigest` present, 64 chars, `userId` matches |
+| The allowed-email list survives | 1 address, normalised |
+| Counts match the arrays they describe | users, columns, cards and allowed emails all agree |
+| Referential integrity inside the copy | Every card belongs to a column in the copy; every assignee is a user in the copy; column positions unique |
+| An active owner exists | Yes — role `owner`, status `active` |
+
+That inspection printed shapes and lengths only. No address, password hash or recovery digest was
+written to a terminal, a log, or a file.
+
+### The schema pin, which matters later rather than now
+
+The import refuses a payload whose `schemaVersion` is not equal to the restore object's own
+(`409 schema_mismatch`), and there is no upgrade path for an old payload. This copy is **schema 4**,
+so restoring it needs a build whose `SCHEMA_VERSION` is still 4. Every commit from `9c10e19` to
+`5a20694` qualifies. The moment a migration 5 lands, this file can only be restored by checking out
+a schema-4 commit first — and nothing in the filename or the envelope records that. Keep this note
+with the copy.
+
+### Still not proven
+
+The copy is intact and complete. What has **not** happened is a restore into a deployed Cloudflare
+object, and no automated test signs in to a restored household — the suite compares password-hash
+strings and stops there. The only end-to-end sign-in evidence anywhere is one local `wrangler dev`
+run from a previous session, against disposable data rather than this copy.
+
+Three things remain genuinely unproven, in order of how much they matter:
+
+1. **The copy and its key are on the same laptop.** If that machine is the disaster, the backup
+   dies with it. This is the single largest real risk and it is not a code defect. Carrying the
+   `.enc` file and the key to a second location and running `verify` there would settle it.
+2. **No deployed restore has ever run.** See the drill in [the operator runbook](operator-runbook.md).
+3. **The recovery phrase has never been shown to verify on a restored object.** Signing in does not
+   prove it: login never touches `phrase_digest`, and the route context only checks that
+   `RECOVERY_DIGEST_KEY` is present, not that it is the right one.
+
+### A defect found while taking it
+
+Auditing the path around this backup turned up one real bug in `scripts/backup.ts`, fixed in the
+same change. `create()` knew whether the household had passed its integrity checks before it
+pruned, but pruned first and reported afterwards. Retention pins the newest copy and has no idea
+whether a copy is restorable, so a run that produced a copy `importBackup` would refuse also
+deleted an older clean one — and repeated weekly, every retained copy but the month's oldest ends
+up unrestorable. The integrity gate now runs before pruning, and a failed household skips pruning
+entirely while still keeping its copy. `tests/backup-retention.test.ts` pins the retention
+mechanism that made it dangerous.
+
+The bug could not have affected this backup: it was the first, and with one copy on disk retention
+keeps it under every rule.

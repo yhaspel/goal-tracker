@@ -81,4 +81,27 @@ describe('what a pruning pass keeps', () => {
   it('keeps nothing from an empty directory and does not throw', () => {
     expect(retainedCopies([]).size).toBe(0);
   });
+
+  /**
+   * Why `create()` refuses to prune at all when the household failed its own integrity checks.
+   *
+   * Retention has no idea whether a copy is restorable; it ranks by date and pins the newest. So a
+   * copy `importBackup` would reject, taken today, both survives the pass and displaces the clean
+   * copy from earlier in the same ISO week. This case pins that mechanism so the ordering in
+   * `create()` cannot be "tidied" back into pruning before the integrity gate.
+   */
+  it('would discard a clean copy in favour of a newer pinned one, which is why a failed integrity check skips pruning', () => {
+    const monthOldest = copy('2026-09-01', 'aaaaaaaa');
+    const clean = copy('2026-09-08', 'bbbbbbbb');
+    const newestButUnrestorable = copy('2026-09-09', 'cccccccc');
+
+    // 2026-09-08 and 2026-09-09 fall in one ISO week, so only one of them can represent it.
+    expect(isoWeek('2026-09-08')).toBe(isoWeek('2026-09-09'));
+
+    const keep = retainedCopies([monthOldest, clean, newestButUnrestorable], [newestButUnrestorable.name]);
+    expect(keep.has(newestButUnrestorable.name)).toBe(true);
+    expect(keep.has(monthOldest.name)).toBe(true);
+    // The one a restore would actually accept is the one retention drops.
+    expect(keep.has(clean.name)).toBe(false);
+  });
 });
