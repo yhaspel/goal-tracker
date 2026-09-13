@@ -65,6 +65,9 @@ export function SignInPage() {
       <p>
         <Link to="/recover">{t('signIn.forgot')}</Link>
       </p>
+      <p>
+        <Link to="/register">{t('nav.join')}</Link>
+      </p>
     </section>
   );
 }

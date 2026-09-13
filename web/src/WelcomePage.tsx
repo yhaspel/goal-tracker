@@ -35,9 +35,14 @@ export function WelcomePage() {
           </p>
         </>
       ) : (
-        <p>
-          <Link to="/login">{t('nav.signIn')}</Link>
-        </p>
+        <>
+          <p>
+            <Link to="/login">{t('nav.signIn')}</Link>
+          </p>
+          <p>
+            <Link to="/register">{t('nav.join')}</Link>
+          </p>
+        </>
       )}
     </section>
   );

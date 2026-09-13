@@ -4,7 +4,7 @@ import { confirmRegistration, prepareRegistration } from '../api/endpoints';
 import { errorText, fieldErrorText } from '../components/errors';
 import { Alert, Field, Submit } from '../components/ui';
 import { useTranslation } from '../i18n';
-import { useRouter } from '../router';
+import { Link, useRouter } from '../router';
 import { PhraseStep } from './PhraseStep';
 import { useSession } from './session';
 
@@ -70,6 +70,10 @@ export function RegisterPage() {
       ) : (
         <>
           <p>{t('register.body')}</p>
+          <p className="help">{t('register.inviteHow')}</p>
+          <p>
+            {t('register.ownerPrompt')} <Link to="/bootstrap">{t('welcome.bootstrapAction')}</Link>
+          </p>
           <form onSubmit={prepare} noValidate>
             <Field
               label={t('register.code')}

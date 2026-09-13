@@ -42,6 +42,14 @@ falling back to a weaker derivation. Use values like these only locally; deploye
 environments get their own separate Cloudflare secrets. `npm test` generates its own
 disposable values and needs no `.dev.vars`.
 
+To create the first account, open `/bootstrap` on your local board and enter the
+`BOOTSTRAP_SECRET` from `.dev.vars` with the owner's email and a new password. The owner
+does **not** need an invitation code. After confirming the recovery phrase, the owner
+is signed in. Open **Settings**: add each member's email to the allowed list, create an invitation for
+that address, and share its one-time code directly. The app sends no email. Each member
+uses **Join with invitation** (`/register`) with that code and the same email address.
+The owner setup page closes after the first owner account is created.
+
 ```sh
 npm run dev
 ```
@@ -121,12 +129,16 @@ This repository uses **Cloudflare Workers**, Static Assets, and SQLite-backed Du
 
    ```sh
    umask 077
+   # Keep this until you create the first owner in this test environment.
+   openssl rand -hex 32 > .secrets.bootstrap-secret
+   npx wrangler secret put BOOTSTRAP_SECRET --env test < .secrets.bootstrap-secret
+
    # Keep this one. Cloudflare cannot show a secret again, and the lost-phrase rescue
    # runbook needs it. Move it to your separate secret escrow before you delete the file.
    openssl rand -hex 32 > .secrets.recovery-digest-key
    npx wrangler secret put RECOVERY_DIGEST_KEY --env test < .secrets.recovery-digest-key
 
-   for name in BOOTSTRAP_SECRET CSRF_SECRET RATE_LIMIT_KEY; do
+   for name in CSRF_SECRET RATE_LIMIT_KEY; do
      openssl rand -hex 32 > .secrets.tmp
      npx wrangler secret put "$name" --env test < .secrets.tmp
    done
@@ -140,12 +152,18 @@ This repository uses **Cloudflare Workers**, Static Assets, and SQLite-backed Du
    from a signed-in session, and anyone who cannot sign in needs an operator rescue.
 
    Then exercise the whole account flow against your deployed test Worker, keeping the
-   bootstrap value in a file so it stays off the command line. The flow creates a disposable
-   owner and six members, so run it once against a fresh namespace:
+   bootstrap value in `.secrets.bootstrap-secret` so it stays off the command line. The
+   flow creates a disposable owner and six members, so run it once against a fresh namespace:
 
    ```sh
-   node scripts/auth-smoke.ts https://your-test-worker.your-subdomain.workers.dev < your-bootstrap-secret-file
+   node scripts/auth-smoke.ts https://your-test-worker.your-subdomain.workers.dev < .secrets.bootstrap-secret
    ```
+
+   The smoke script consumes first-owner setup. For a group you create yourself, skip
+   the smoke script and open `/bootstrap` on that environment's URL with the same
+   setup secret. Then add allowed emails and create invitations in owner **Settings**.
+   Do not reuse the test secret for production; production owner activation waits for
+   the Stage 7 backup and restore gate.
 
 4. The [Stage 1 feasibility result](docs/stage-1-feasibility.md) applies to the original Cloudflare account. If you intend to follow this project's release plan, repeat the account-specific test gate using the [deployment runbook](docs/deployment.md). After that gate passes, `npm run deploy:prod` publishes the **current placeholder shell** under your separate production Worker; `npm run deploy:restore` creates the private restore Worker without a public route. Run the routing check against your production URL as well. Do not create real accounts or production data before the Stage 7 backup and restore gate.
 5. If you fork the repository and want GitHub Actions to deploy your test Worker, change the original test URL in [`.github/workflows/ci.yml`](.github/workflows/ci.yml) to **your** URL. Create a Cloudflare API token scoped to your account for Worker deployment, then add `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` as GitHub repository secrets and set `CLOUDFLARE_TEST_DEPLOY_ENABLED=true` as a repository variable. Follow [Cloudflare's GitHub Actions authentication guide](https://developers.cloudflare.com/workers/ci-cd/external-cicd/github-actions/) and [account ID guide](https://developers.cloudflare.com/fundamentals/account/find-account-and-zone-ids/). Enable this only after the manual test deploy and URL check succeed. The workflow deploys test after passing checks on the default branch; it never deploys production. Use this GitHub Actions pipeline as the only automatic deployer for that Worker.

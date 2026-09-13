@@ -29,6 +29,7 @@ export const en = {
   'nav.settings': 'Settings',
   'nav.account': 'Account',
   'nav.signIn': 'Sign in',
+  'nav.join': 'Join with invitation',
   'nav.signOut': 'Sign out',
   'nav.signedInAs': 'Signed in as {email}',
 
@@ -45,14 +46,16 @@ export const en = {
   'signIn.noEmail': 'This app never sends email. There is no email reset link.',
 
   'bootstrap.heading': 'Set up the owner account',
-  'bootstrap.body': 'This can be done once. The owner manages who is allowed to join.',
+  'bootstrap.body': 'The first owner sets up this board once, without an invitation code. After signing in, the owner can allow email addresses and create invitations in Settings.',
   'bootstrap.secret': 'Setup secret',
-  'bootstrap.secretHelp': 'The value configured for this deployment.',
+  'bootstrap.secretHelp': 'Get this from the person who deployed the board. It is not an invitation code.',
   'bootstrap.closed': 'The owner account already exists. Sign in instead.',
   'bootstrap.submit': 'Continue',
 
   'register.heading': 'Join the board',
   'register.body': 'Enter the invitation code the owner gave you, together with the address it was issued for.',
+  'register.inviteHow': 'The owner adds your email to the allowed list in Settings, creates a one-time invitation code there, and shares it with you directly. This app does not send email.',
+  'register.ownerPrompt': 'Setting up a new group?',
   'register.code': 'Invitation code',
   'register.codeHelp': '32 characters, given to you by the owner.',
   'register.email': 'Email address',

@@ -33,6 +33,7 @@ export const he: LocaleDictionary = {
   'nav.settings': 'הגדרות',
   'nav.account': 'חשבון',
   'nav.signIn': 'כניסה',
+  'nav.join': 'הצטרפות עם הזמנה',
   'nav.signOut': 'יציאה',
   'nav.signedInAs': 'מחוברים בתור {email}',
 
@@ -49,14 +50,16 @@ export const he: LocaleDictionary = {
   'signIn.noEmail': 'האפליקציה לא שולחת אימייל, ואין קישור לאיפוס סיסמה במייל.',
 
   'bootstrap.heading': 'הקמת חשבון הבעלים',
-  'bootstrap.body': 'אפשר לעשות זאת פעם אחת בלבד. הבעלים מנהלים את רשימת המורשים להצטרף.',
+  'bootstrap.body': 'הבעלים הראשונים מקימים את הלוח פעם אחת, בלי קוד הזמנה. לאחר הכניסה הם יכולים להוסיף כתובות אימייל לרשימת המורשים וליצור הזמנות בהגדרות.',
   'bootstrap.secret': 'סוד ההתקנה',
-  'bootstrap.secretHelp': 'הערך שהוגדר עבור הפריסה הזו.',
+  'bootstrap.secretHelp': 'קבלו את הערך ממי שפרס את הלוח. זה אינו קוד הזמנה.',
   'bootstrap.closed': 'חשבון הבעלים כבר קיים. אפשר להיכנס במקום זאת.',
   'bootstrap.submit': 'המשך',
 
   'register.heading': 'הצטרפות ללוח',
   'register.body': 'הזינו את קוד ההזמנה שקיבלתם מהבעלים, יחד עם הכתובת שעבורה הוא הונפק.',
+  'register.inviteHow': 'הבעלים מוסיפים את כתובת האימייל שלכם לרשימת המורשים בהגדרות, יוצרים שם קוד הזמנה חד־פעמי ומעבירים אותו אליכם ישירות. האפליקציה אינה שולחת אימייל.',
+  'register.ownerPrompt': 'מקימים קבוצה חדשה?',
   'register.code': 'קוד הזמנה',
   'register.codeHelp': '32 תווים, שקיבלתם מהבעלים.',
   'register.email': 'כתובת אימייל',

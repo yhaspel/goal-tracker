@@ -74,7 +74,10 @@ export default function App() {
               </button>
             </>
           ) : (
-            <Link to="/login">{t('nav.signIn')}</Link>
+            <>
+              <Link to="/login">{t('nav.signIn')}</Link>
+              <Link to="/register">{t('nav.join')}</Link>
+            </>
           )}
         </nav>
         <LanguageSelector />
