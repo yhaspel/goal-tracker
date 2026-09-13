@@ -245,3 +245,48 @@ day, and `board-smoke.ts` would only repeat a result already current, since noth
 changed. Re-running any of them would have produced noise, not signal. This sandbox still has no
 `git push` credentials, so pushing this closure, confirming its CI, and the final read-only
 production re-check are handed off the same way the previous push was.
+
+## The recorded findings were fixed, 2026-09-13 (later)
+
+The owner confirmed that the screen reader works and asked for the outstanding defects to be
+fixed and released. All four findings from the structural walkthrough above are now fixed in
+commit `e040f63`, and each was re-checked in a Chrome browser driven against a local Durable
+Object running that code, using a disposable local owner account. The section above stays as
+written — it is the record of what was found, and it should not be edited to look as though
+the defects were never there.
+
+| Finding | Fix | How it was checked |
+| --- | --- | --- |
+| Keyboard drag silent between pick-up and drop | `onDragStart` and `onDragOver` announce the card, its column, and its projected position; a canceled drag announces that it was canceled | Space then two arrow presses announced "position 1 … 2 … 3", `ArrowRight` announced the next column, and the drop's own confirmation reported the same position the drag had projected. Repeated in Hebrew with `ArrowLeft`, which is the same direction of travel in a right-to-left board |
+| Language switcher confirmed in the previous locale | The message is built from the incoming locale instead of the render's own translator | English → Hebrew announced `השפה נשמרה.`; Hebrew → Russian announced `Язык сохранён.` |
+| Mixed-script title reordering | Card title, description, and column-name **inputs** now carry `dir="auto"`, matching the elements that display them | In a Hebrew interface the editor and the card both resolve to `ltr` for `Buy milk לחלב 2%`. Removing the attribute in the live page reproduced the old mismatch — editor `rtl`, card `ltr` — so the disagreement was real and is gone |
+| Drag-overlay clone duplicated a DOM `id` | The "Move to column" select is named by `aria-label` rather than a `<label for>` | Mid-drag, with the clone present in the document, a scan for repeated `id` values returned none |
+
+On the first finding: what a screen-reader user hears is fixed, but the *visual* reordering of
+`Buy milk לחלב 2%` into "Buy milk 2% לחלב" is the Unicode bidi algorithm resolving that string
+correctly, and it is not changed. Forcing a different visual order would mean rewriting what the
+member typed. What was genuinely broken — the editor and the board laying the same text out
+differently — is what the fix addresses.
+
+Verifying the drag announcements in a browser caught a bug that the unit tests as first written
+did not: collision detection reports the card's *own* column as a drop target mid-drag, and the
+first version of the projection read that as an append, announcing "position 4" for a one-step
+move in a three-card column. That is fixed and now has its own regression test.
+
+### Mobile, which had never been reviewed
+
+A 390×844 mobile viewport with touch emulation, across `/board`, `/account`, and `/members`, in
+all three locales, driven by each locale's **stored account preference** rather than the guest
+cookie — the first attempt measured nine iframes that were all Hebrew, because a signed-in
+member's saved language overrides the cookie, and that is worth knowing for any later test.
+All nine combinations: correct `lang` and `dir`, no horizontal overflow at 390 CSS pixels, and
+no interactive target under 24 × 24 CSS pixels.
+
+That sweep found one defect of its own, now fixed: a header navigation link is only as wide as
+its word, and Hebrew's three-letter `לוח` left a 22 px wide target, just under the 24 px
+minimum. English `Board` and Russian `Доска` were wide enough to hide it. The link is now sized
+rather than the text.
+
+Still not performed, and still claimed nowhere: a screen-reader session run by this project's
+tooling, and any test on physical touch hardware. The owner's confirmation that the screen
+reader works is recorded here as their report, not as a review this session carried out.

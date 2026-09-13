@@ -136,3 +136,61 @@ fixing them was out of scope for this closure and was not requested.
 Nothing in this closure changes application behavior — no code, migration, or configuration
 changed. There is nothing to roll back. Reopening Stage 6 later only means running the review
 this report describes as outstanding and fixing what it finds.
+
+## The findings were fixed after this report was written, 2026-09-13
+
+The owner confirmed that the screen reader works and asked for the outstanding defects to be
+fixed and released. Everything above stays as written: it is the accurate record of what was
+found and of the basis on which Stage 6 was closed, and rewriting it to look as though the
+defects were never there would destroy the only evidence that they were.
+
+All four findings are fixed in commit `e040f63`, plus one more that the mobile pass turned up.
+Each was re-checked in a Chrome browser driven against a local Durable Object running that
+code. The [execution log](stages-2-6-execution-log.md) records the checks in detail.
+
+- **Finding 1, mixed-script order.** The card title, description, and column-name *inputs* now
+  carry `dir="auto"`, matching the elements that display them. The specific visual reordering
+  reported above — `Buy milk לחלב 2%` showing as "Buy milk 2% לחלב" — is the Unicode bidi
+  algorithm resolving that string correctly and is deliberately **not** changed; forcing another
+  order would mean rewriting what the member typed. What was genuinely broken was the editor and
+  the board laying the same text out differently: in a Hebrew interface the dialog resolved
+  `rtl` while the card resolved `ltr`. Both now resolve the same way, and removing the attribute
+  in the live page reproduced the old mismatch, confirming the diagnosis rather than assuming it.
+- **Finding 2, the language switcher.** Fixed. English → Hebrew now announces `השפה נשמרה.` and
+  Hebrew → Russian announces `Язык сохранён.`
+- **Finding 3, keyboard drag.** Pick-up, every intermediate position, and cancellation are all
+  announced now. Verifying this in a browser caught a further bug the unit tests had not:
+  collision detection reports the dragged card's own column as a target, and reading that as an
+  append announced "position 4" for a one-step move in a three-card column. Both are fixed and
+  covered by tests.
+- **Minor, the duplicated `id`.** Fixed; the select is named by `aria-label` now. A mid-drag scan
+  with the clone present found no repeated `id`.
+- **New, found during the mobile pass.** A header navigation link is only as wide as its word,
+  and Hebrew's three-letter `לוח` was a 22 px target, under the 24 px minimum. English `Board`
+  and Russian `Доска` were wide enough to hide it. Fixed by sizing the link, not the text.
+
+### Coverage matrix, updated
+
+Mobile is now covered at 390 × 844 with touch emulation, for `/board`, `/account`, and
+`/members`, driven by each locale's stored account preference. The screen-reader column still
+reads "Not performed by this project's tooling" everywhere, because that remains the literal
+fact — the owner's confirmation that the screen reader works is their report, recorded as such,
+not a review carried out here.
+
+| Device | Locale | Direction | Keyboard | Screen reader | Mixed script |
+| --- | --- | --- | --- | --- | --- |
+| Desktop | English | ltr | Pick-up, each arrow step, drop, and cancel all announced; mid-drag position matches the confirmed move | Not performed by this project's tooling | Editor and card agree; bidi resolution itself unchanged and correct |
+| Desktop | Hebrew | rtl | Re-exercised end to end, including `ArrowLeft` as the direction of travel in a right-to-left board | Not performed by this project's tooling | Editor and card agree in an RTL interface, which is where they used to differ |
+| Desktop | Russian | ltr | Announcement strings present and complete; shares the English code path | Not performed by this project's tooling | Dictionary complete; same `dir="auto"` handling |
+| Mobile | English | ltr | Explicit move controls sized above the minimum | Not performed by this project's tooling | No overflow at 390 px |
+| Mobile | Hebrew | rtl | Same, and the 22 px navigation target found here is fixed | Not performed by this project's tooling | No overflow at 390 px |
+| Mobile | Russian | ltr | Same | Not performed by this project's tooling | No overflow at 390 px |
+
+Still not performed, and claimed nowhere: a screen-reader session run by this project's tooling,
+and any test on physical touch hardware.
+
+### Rollback, revised
+
+The "nothing to roll back" note above applied to the closure commit. It no longer applies to the
+repository as a whole: `e040f63` changes application behaviour. Reverting it restores the four
+defects and the 22 px target; it changes no schema, route, or stored data.
