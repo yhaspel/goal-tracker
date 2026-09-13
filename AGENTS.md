@@ -9,15 +9,25 @@ Stage 1 is complete. The repository currently contains only the React shell, API
 ## Plans and traceability
 
 - Start at the [development-plan index](development-plans/README.md). Implement the numbered stages in order. Stage 2, [users, invitations, and sessions](development-plans/stage-2-users-invitations-sessions.md), is next; its own scope, contracts, acceptance tests, and exit gate control that work.
+- The [autonomous Stages 2–6 execution prompt](development-plans/execute-stages-2-through-6-autonomously.md) is the active handoff for that bounded run. Read it in full before implementation and again after a session restart or context compaction. It authorizes test-environment implementation and verification only; Stage 7 production initialization is outside its scope. The prompt archives itself only after every Stage 2–6 deployed exit gate passes; then update this link and the current-state text here.
 - Completed stage plans live in [`development-plans/archived/`](development-plans/archived/). The [archived Stage 1 plan](development-plans/archived/stage-1-hosting-security-feasibility.md) remains available for decisions and acceptance criteria. When completing a later stage, move its plan into `archived/`, update the index and all references, and fix relative links within the moved plan.
 - Record deployed evidence, limitations, and go/no-go decisions in `docs/`. Keep the stage plan and index statuses consistent with the evidence. Do not treat a local test as proof of behavior that a plan requires in the deployed Free runtime.
 - The saved text in [`prompts/goal-settings-prompt.md`](prompts/goal-settings-prompt.md) is historical reference material, not a feature or integration requirement.
+
+## Agent execution and handoff
+
+`CLAUDE.md` imports this file so Claude Code loads the same project instructions as agents that read `AGENTS.md` directly. The execution prompt supplies the specific authorization and sequence for Stages 2–6; these standing rules do not authorize Stage 7 or production data changes. Claude CLI tool permissions and account authentication are separate from repository instructions. If a required live check cannot run, document the exact blocker and leave its stage and execution prompt unarchived.
+
+Before editing, inspect the worktree and preserve unrelated changes. Use `development-plans/README.md` to find current plan paths; completed plans move. Follow the active stage's contracts and exit gate, reconcile any conflict with the master and dependent plans before implementing it, and keep API/schema changes synchronized across stages. Maintain `docs/stages-2-6-execution-log.md` during the handoff so a resumed session can identify the current stage, tested commit, deployed evidence, open risks, and next action without relying on chat history. Do not put credentials or personal data in the log.
+
+For each stage, run the relevant local checks, commit candidate code, verify CI and the exact version deployed to the isolated test Worker, then run that stage's live acceptance checks. A passing local suite, CI `checks` job, or routing/health smoke alone does not satisfy a later stage's deployed gate. After the gate passes, record `docs/stage-N-completion.md` evidence, update the index and project-state documentation, archive the completed plan, and repair links. Keep a compatible rollback path that preserves allowed-email enforcement and any committed SQL migrations. Do not claim browser, accessibility, or screen-reader checks that were not performed.
 
 ## Repository map and local checks
 
 | Path | Role |
 | --- | --- |
 | `README.md` | Project overview, local setup, commands, and deployment entry points |
+| `CLAUDE.md` | Imports this guide into Claude Code's project context |
 | `web/` | React/TypeScript/Vite shell and generated Static Assets (`web/dist/`) |
 | `worker/src/index.ts` | API-first routing, bounded request forwarding, and explicit SPA route allowlist |
 | `worker/src/household-do.ts` | Durable Object API, SQLite migration startup, and test-only diagnostics |

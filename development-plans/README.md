@@ -8,6 +8,8 @@ Stage 1 was completed on 2026-09-13. The [deployed feasibility report](../docs/s
 
 On 2026-09-13, the Stage 2 account plan was extended with an owner-managed allowed-email list. Its API and authorization rules are in Stage 2; recovery, board, UI, localization, and backup implications are reflected in Stages 3–7 and the master plan.
 
+The [autonomous execution prompt for Stages 2–6](execute-stages-2-through-6-autonomously.md) is ready for handoff. Give Claude Code this file as its task; the link alone does not start execution. It remains here while work is in progress and moves to `archived/` only after all five deployed stage gates pass.
+
 | Stage | Plan |
 | --- | --- |
 | 1 (complete) | [Hosting and security feasibility](archived/stage-1-hosting-security-feasibility.md) |
