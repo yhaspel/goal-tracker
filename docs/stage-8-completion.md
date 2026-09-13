@@ -1,7 +1,7 @@
 # Stage 8 — due dates, goals, and the vision board
 
 **Date:** 2026-09-14
-**Deployed test Worker:** `https://family-board-test.yuval3000.workers.dev`
+**Deployed test Worker:** `https://family-board-test.yuval3000.workers.dev`, version `aa5f9bf2-e1e8-4a45-bcab-7021f71ff149`
 **Schema version:** 5 (migration 5 applied to the existing test object, which held real disposable data)
 **Status:** implemented and proven on the deployed **test** Worker. **Not deployed to production, and it must not be** — Stage 7's exit gate has not passed. See [the Stage 7 status record](stage-7-status.md).
 
@@ -284,6 +284,25 @@ The plan's own delivery condition names one more thing this record cannot claim:
 backup taken at the Stage 8 caps and restored into a pristine isolated namespace. The **restore
 drill at the caps passed in the Workers runtime** — sixty images through both phases, byte for
 byte, with the restored household re-exporting to identical counts, images and cards — but it has
-**not** been run against a deployed restore Worker with a real encrypted archive on disk. That is
-the first thing to do when this is picked up, and it belongs with the Stage 7 checklist in
-[the operator runbook](operator-runbook.md#stage-7-release-checklist).
+**not** been run against a deployed restore Worker with a real encrypted archive on disk.
+
+**Why it stopped there, precisely.** Every operator route on the deployed test Worker answers
+`404`, verified on 2026-09-14 with no bearer, with a wrong bearer, and on the paged image export:
+
+```
+GET  /api/v1/operator/export              → 404
+GET  /api/v1/operator/export/images/abc   → 404
+POST /api/v1/operator/import              → 404
+```
+
+That is correct and expected. Test has no `BACKUP_OPERATOR_SECRET`, so `authorize()` fails closed
+and answers with the same `404` an unknown path gets; and the import route is compiled out of the
+test build entirely. Exercising the two-phase backup against a deployed Worker therefore needs two
+things this run deliberately did not do on its own: **provisioning a `BACKUP_OPERATOR_SECRET` on
+test**, and **standing up a dated drill Worker with a public hostname** — the standing `restore`
+environment has `workers_dev: false` and no route, which is exactly why an idle restore Worker is
+not an attack surface. Both are operator actions with their own procedure in
+[the operator runbook](operator-runbook.md#monthly-restore-drill).
+
+That drill is the first thing to do when this is picked up, and it belongs with the Stage 7
+checklist in the same runbook.
