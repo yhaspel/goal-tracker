@@ -27,6 +27,19 @@ token, or personal address appears in this file.
 | Test host | <https://family-board-test.yuval3000.workers.dev> |
 | Next action | The two checks in [`handoff-remaining-checks.md`](../development-plans/handoff-remaining-checks.md). The execution prompt must not self-archive until both pass |
 
+## Production was deployed on 2026-09-13, ahead of the Stage 7 gate
+
+The owner asked for the application to be published to production, was told why the plans
+sequence that behind Stage 7's backup and restore work and that the lost-phrase rescue has
+never been proven on a deployed Worker, and confirmed the request. It was deployed manually
+from commit `6d1538b` as version `e1b889bd-e89e-45ec-98ce-fe19af832844`, with its own four
+secrets escrowed at creation. No owner account was created, so production holds no user data.
+
+This departs from the execution prompt's instruction not to deploy new application behaviour to
+production. It was a deliberate owner decision, not an oversight, and it does not change what
+Stages 3 and 6 still owe. [The production deployment record](production-deployment.md) is the
+authoritative description of what is and is not in place there.
+
 ## Local files this run left behind
 
 All are Git-ignored, mode 0600, and hold disposable test material only. The handoff needs the
@@ -38,6 +51,7 @@ first two.
 | `.secrets.test-recovery-key` | The test environment's escrowed `RECOVERY_DIGEST_KEY`, required by the lost-phrase runbook |
 | `.secrets.bootstrap` | The test `BOOTSTRAP_SECRET`, needed only to bootstrap a reset namespace |
 | `.dev.vars` | Four throwaway secrets for `npm run dev`; regenerate freely |
+| `.secrets.production.env` | **The production environment's four secrets.** Cloudflare will not show them again. Move this into real escrow, separately from any data backup |
 
 ## Environment facts confirmed at session start (2026-09-13)
 

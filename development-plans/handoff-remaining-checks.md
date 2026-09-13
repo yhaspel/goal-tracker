@@ -10,8 +10,17 @@ before touching anything.
 short of its exit gate — and both of those checks need capabilities the previous session did
 not have: a signed-in Cloudflare dashboard, and a real screen reader.
 
+**Production now runs the application**, deployed by hand on 2026-09-13 at the owner's request,
+ahead of the Stage 7 gate. It has no owner account and no user data, and no backup or restore
+path exists. Read [the production deployment record](../docs/production-deployment.md) before
+going anywhere near it. Task D below is its validation.
+
 Do not change application behaviour to make a check pass. If a check fails, report the failure
 and stop; that is a real defect, not an obstacle.
+
+Throughout: **never point a smoke script at production.** All three refuse a hostname
+containing `production`, but the rule matters more than the guard — they create accounts,
+rotate credentials, and deactivate members.
 
 ## Before you start
 
@@ -152,9 +161,48 @@ meant to be the only automatic deployer. Record whatever you find in the executi
 
 ---
 
+## Task D — validate production, without changing it
+
+Production is <https://family-board-production.yuval3000.workers.dev>, Worker
+`family-board-production`, Durable Object class `HouseholdDO`, version
+`e1b889bd-e89e-45ec-98ce-fe19af832844` from commit `6d1538b`. Its four secrets are escrowed at
+`.secrets.production.env`.
+
+Everything here is read-only. Do **not** run a smoke script against it, create an owner, or
+insert anything through Data Studio.
+
+```sh
+python3 scripts/verify_stage_1.py https://family-board-production.yuval3000.workers.dev routing
+```
+
+Then confirm by hand:
+
+| Check | Expected |
+| --- | --- |
+| `GET /api/v1/health` | `schemaVersion: 4`, `Cache-Control: no-store` |
+| `GET /api/v1/auth/bootstrap/status` | `{"bootstrapAvailable":true}` — still no owner |
+| `GET /api/v1/board`, `GET /api/v1/members`, `GET /api/v1/settings/allowed-emails` | `401`, and the body must not name any address |
+| `GET /api/v1/diagnostics/probe?nonce=<32 hex>` | `404`; the diagnostic strings are compiled out of the production bundle |
+| `POST /api/v1/auth/bootstrap/prepare` with a wrong secret | `403`, and repeated attempts reach `429` with `Retry-After` |
+| `POST /api/v1/auth/login` for any address | `401 invalid_credentials`, identical whether or not the address exists |
+| Any mutation without an `Origin` header | `403` |
+| `https://family-board-restore.yuval3000.workers.dev` | `404`; the restore Worker must stay unexposed |
+| Browser: `/board`, `/login`, `/register`, `/recover`, `/bootstrap`, `/account`, `/members` | Each serves the shell; `/board` as a guest redirects to `/login` |
+| Browser: `localStorage`, `sessionStorage`, `document.cookie` | Empty apart from `kanban_locale`; the session cookie must not be script-readable |
+| Cloudflare dashboard | Production and test are distinct Durable Object namespaces with distinct secret stores, and production has no Workers Builds connection |
+
+Record the result in [`docs/production-deployment.md`](../docs/production-deployment.md).
+
+**Creating the production owner is a separate decision and not part of this validation.** The
+lost-phrase rescue is unproven on a deployed Worker and no backup exists, so an account created
+now is unrecoverable if its password and phrase are both lost. If the owner still wants to
+proceed, Task A closes the first gap first; the deployment record describes the bootstrap
+procedure.
+
 ## Closing the run
 
-Only when **both** Task A and Task B have passed:
+Only when **both** Task A and Task B have passed. Task D is production validation and does not
+gate the run; Task C is optional.
 
 1. Run the full local suite and the three deployed smoke scripts against the final commit.
 2. Confirm that commit's CI, including its `deploy-test` job, and record the deployed version id.
