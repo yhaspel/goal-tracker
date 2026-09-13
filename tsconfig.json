@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "skipLibCheck": true,
+    "types": ["@cloudflare/workers-types", "@cloudflare/vitest-plugin/types", "node", "vitest/globals"]
+  },
+  "include": ["worker/**/*.ts", "web/**/*.ts", "web/**/*.tsx", "shared/**/*.ts", "tests/**/*.ts", "vitest.config.ts", "worker-env.d.ts"]
+}

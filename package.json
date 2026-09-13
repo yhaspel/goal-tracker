@@ -1,0 +1,39 @@
+{
+  "name": "family-kanban-board",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "npm@11.12.1",
+  "engines": {
+    "node": "25.2.1",
+    "npm": "11.12.1"
+  },
+  "scripts": {
+    "dev": "npm run build && wrangler dev --env test",
+    "build": "vite build --config web/vite.config.ts",
+    "lint": "eslint worker web/src shared tests",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run build && vitest run",
+    "deploy:test": "npm run build && wrangler deploy --env test",
+    "deploy:prod": "npm run build && wrangler deploy --env production",
+    "deploy:restore": "npm run build && wrangler deploy --env restore"
+  },
+  "dependencies": {
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-plugin": "1.1.8",
+    "@cloudflare/workers-types": "5.20260911.1",
+    "@types/node": "25.2.1",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@typescript-eslint/eslint-plugin": "8.70.0",
+    "@typescript-eslint/parser": "8.70.0",
+    "eslint": "10.10.0",
+    "typescript": "5.9.3",
+    "vite": "8.3.0",
+    "vitest": "4.1.11",
+    "wrangler": "4.131.1"
+  }
+}

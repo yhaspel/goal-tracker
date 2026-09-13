@@ -1,0 +1,10 @@
+node_modules/
+web/dist/
+.wrangler/
+.dev.vars*
+.secrets*
+.probe-nonce*
+.cold-samples*
+coverage/
+*.log
+__pycache__/
