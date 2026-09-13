@@ -1,0 +1,4 @@
+# Two trailing spaces are a hard line break in Markdown, which the plan documents use in their
+# header blocks. Exempt only that check so `git diff --check` still catches real whitespace
+# damage in Markdown, and everything else everywhere.
+*.md whitespace=-trailing-space

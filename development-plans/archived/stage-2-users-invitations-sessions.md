@@ -1,6 +1,7 @@
 # Stage 2 — Users, Invitations, and Sessions
 
-**Parent:** [Family Kanban Board master plan](personal-business-goals-dashboard-master-plan.md)  
+**Parent:** [Family Kanban Board master plan](../personal-business-goals-dashboard-master-plan.md)  
+**Status:** Complete on 2026-09-13. See the [Stage 2 completion report](../../docs/stage-2-completion.md).  
 **Dependency:** Stage 1 exit gate has passed in the deployed Cloudflare Free runtime.  
 **Outcome:** One disposable test owner (the group's only admin) can maintain an allowed-email list. After owner bootstrap, only allowlisted invitees can register and only allowlisted active accounts can access the group. The owner and up to six members can complete phrase-backed registration, sign in, use protected endpoints, and sign out. No recovery/reset operation is implemented until Stage 3; no real production account is created before Stage 7.
 

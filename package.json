@@ -13,6 +13,7 @@
     "build": "vite build --config web/vite.config.ts",
     "lint": "eslint worker web/src shared tests scripts",
     "typecheck": "tsc --noEmit",
+    "check:links": "node scripts/check-links.mjs",
     "test": "npm run build && vitest run",
     "deploy:test": "npm run build && wrangler deploy --env test",
     "deploy:prod": "npm run build && wrangler deploy --env production",

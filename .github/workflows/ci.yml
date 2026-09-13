@@ -26,6 +26,8 @@ jobs:
         run: npm run lint
       - name: Typecheck
         run: npm run typecheck
+      - name: Check Markdown links
+        run: npm run check:links
       - name: Build and test in Workers runtime
         run: npm test
       - name: Audit dependencies

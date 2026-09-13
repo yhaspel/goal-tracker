@@ -2,7 +2,7 @@
 
 A private, shared Kanban board for one household or small working group, planned for up to seven active users including the owner. The owner will manage an allowed-email list; joining will also require an invitation. The intended release has recovery phrases and an English, Hebrew, and Russian interface. The [master plan](development-plans/personal-business-goals-dashboard-master-plan.md) defines the product scope and architecture.
 
-**Current status:** Stage 1 is complete. This repository runs a React placeholder shell and a Cloudflare Worker with an API, a SQLite-backed Durable Object, migrations, and test-only diagnostics. Accounts, invitations, and board features are not implemented yet. The [development-plan index](development-plans/README.md) tracks the stages; [Stage 2](development-plans/stage-2-users-invitations-sessions.md) is next. The [Stage 1 feasibility report](docs/stage-1-feasibility.md) records the hosting and security gate.
+**Current status:** Stages 1 and 2 are complete. The Cloudflare Worker now serves the account API — owner bootstrap, the owner-managed allowed-email list, invitations, phrase-backed registration, sessions, and member deactivation — backed by a SQLite-backed Durable Object. The web page is still a placeholder: the interface for all of this arrives in Stage 5, and board features in Stage 4. The [development-plan index](development-plans/README.md) tracks the stages; [Stage 3](development-plans/stage-3-recovery-manual-rescue.md) is next. The [Stage 1 feasibility report](docs/stage-1-feasibility.md) records the hosting and security gate, and the [Stage 2 completion report](docs/stage-2-completion.md) records the deployed account evidence.
 
 ## Local setup
 
@@ -71,17 +71,20 @@ ignored by Git) so a later run can sign in again once bootstrap has been consume
 | --- | --- |
 | `npm run dev` | Build the web shell and start the local Worker |
 | `npm run build` | Build static web assets into `web/dist/` |
-| `npm run lint` | Lint Worker, web, shared code, and tests |
+| `npm run lint` | Lint Worker, web, shared, test, and script code |
 | `npm run typecheck` | Type-check TypeScript |
+| `npm run check:links` | Verify every relative Markdown link in the repository resolves |
 | `npm test` | Build the web shell and run tests in the Cloudflare Workers runtime |
 
-Run `npm run lint`, `npm run typecheck`, and `npm test` before submitting application changes. Dependencies are locked in `package-lock.json`; use `npm ci` for a clean install. `web/dist/` and local Wrangler state are generated and ignored by Git.
+Run `npm run lint`, `npm run typecheck`, and `npm test` before submitting application changes, and `npm run check:links` when you move or rename a document. Dependencies are locked in `package-lock.json`; use `npm ci` for a clean install. `web/dist/` and local Wrangler state are generated and ignored by Git.
 
 ## Architecture and environments
 
 The app is a Vite/React frontend (`web/`) served as Static Assets by one Cloudflare Worker (`worker/`). The Worker handles `/api` routes before assets. A single SQLite-backed Durable Object owns household data and migrations; shared API types live in `shared/`, and Workers-runtime tests live in `tests/`. [`wrangler.jsonc`](wrangler.jsonc) defines separate `test`, `production`, and `restore` Workers and Durable Object namespaces. The restore Worker has no public route.
 
-The deployed [test shell](https://family-board-test.yuval3000.workers.dev) is used for stage work. The [production shell](https://family-board-production.yuval3000.workers.dev) has no accounts or real user data. Test-only diagnostic endpoints require a disposable secret and are currently disabled in the deployed test Worker. Do not put secrets, passwords, recovery phrases, or session tokens in source, logs, URLs, or snapshots.
+The deployed [test Worker](https://family-board-test.yuval3000.workers.dev) is used for stage work and holds only disposable accounts. The [production shell](https://family-board-production.yuval3000.workers.dev) has no accounts or real user data and stays on the Stage 1 placeholder until the Stage 7 release gate. Test-only diagnostic endpoints require a disposable secret and are currently disabled in the deployed test Worker.
+
+Each deployed environment keeps its own secrets. `BOOTSTRAP_SECRET` opens one-time owner creation, and `RECOVERY_DIGEST_KEY`, `CSRF_SECRET`, and `RATE_LIMIT_KEY` are required for the account routes to work at all — without them those routes answer `503 unavailable` rather than weakening a derivation. Do not put secrets, passwords, recovery phrases, invitation codes, or session tokens in source, logs, URLs, or snapshots.
 
 ## Host your own copy on Cloudflare
 
@@ -101,10 +104,31 @@ This repository uses **Cloudflare Workers**, Static Assets, and SQLite-backed Du
    npm run deploy:test
    ```
 
-   Check that the dry run binds `HOUSEHOLD` to `TestHouseholdDO` and includes `ASSETS`. Wrangler reports your test URL, in the form `https://<your-test-worker>.<your-subdomain>.workers.dev`. Substitute your actual URL in the routing check below; it uses Python 3's standard library:
+   Check that the dry run binds `HOUSEHOLD` to `TestHouseholdDO` and includes `ASSETS`. Wrangler reports your test URL, in the form `https://<your-test-worker>.<your-subdomain>.workers.dev`. Substitute your actual URL in the routing check below; it uses Python 3's standard library and waits until the deployed Worker reports this checkout's schema version:
 
    ```sh
    python3 scripts/verify_stage_1.py https://your-test-worker.your-subdomain.workers.dev routing
+   ```
+
+   The account routes need their own secrets in each deployed environment. Generate fresh
+   values per environment, pipe them in so they never reach a command line, and keep them out
+   of Git:
+
+   ```sh
+   umask 077
+   for name in BOOTSTRAP_SECRET RECOVERY_DIGEST_KEY CSRF_SECRET RATE_LIMIT_KEY; do
+     openssl rand -hex 32 > .secrets.tmp
+     npx wrangler secret put "$name" --env test < .secrets.tmp
+   done
+   rm -f .secrets.tmp
+   ```
+
+   Then exercise the whole account flow against your deployed test Worker, keeping the
+   bootstrap value in a file so it stays off the command line. The flow creates a disposable
+   owner and six members, so run it once against a fresh namespace:
+
+   ```sh
+   node scripts/auth-smoke.ts https://your-test-worker.your-subdomain.workers.dev < your-bootstrap-secret-file
    ```
 
 4. The [Stage 1 feasibility result](docs/stage-1-feasibility.md) applies to the original Cloudflare account. If you intend to follow this project's release plan, repeat the account-specific test gate using the [deployment runbook](docs/deployment.md). After that gate passes, `npm run deploy:prod` publishes the **current placeholder shell** under your separate production Worker; `npm run deploy:restore` creates the private restore Worker without a public route. Run the routing check against your production URL as well. Do not create real accounts or production data before the Stage 7 backup and restore gate.
@@ -114,7 +138,7 @@ For repeatable manual deployment, diagnostic-secret handling, and cleanup, use [
 
 ## CI and deployment
 
-[GitHub Actions](.github/workflows/ci.yml) runs locked installation, lint, type checks, Workers-runtime tests, dependency audit, and a production bundle dry run on pushes and pull requests. After checks pass on a default-branch push, its `deploy-test` job deploys the **test** Worker and checks live routing. Pull requests do not deploy. A passing checks job alone does not mean a deployment succeeded; verify the `deploy-test` job. **Production is not deployed automatically** and remains at the Stage 1 shell until the Stage 7 release gate.
+[GitHub Actions](.github/workflows/ci.yml) runs locked installation, lint, type checks, a Markdown link check, Workers-runtime tests, dependency audit, and a production bundle dry run on pushes and pull requests. After checks pass on a default-branch push, its `deploy-test` job deploys the **test** Worker and checks live routing. Pull requests do not deploy. A passing checks job alone does not mean a deployment succeeded; verify the `deploy-test` job. **Production is not deployed automatically** and remains at the Stage 1 shell until the Stage 7 release gate.
 
 See [CI configuration and credential maintenance](docs/ci.md) for the GitHub/Cloudflare setup and [the manual deployment runbook](docs/deployment.md) for reproducible deployment, verification, and diagnostic-secret cleanup. Cloudflare credentials are needed for manual remote deployments, not for local setup.
 
