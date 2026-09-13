@@ -735,3 +735,108 @@ mechanism that made it dangerous.
 
 The bug could not have affected this backup: it was the first, and with one copy on disk retention
 keeps it under every rule.
+
+## The first restore drill, 2026-09-13
+
+**Drill Worker:** `family-board-restore-2026-09` →
+`https://family-board-restore-2026-09.yuval3000.workers.dev`, version
+`f4776157-bfe1-40ce-af43-713341ebf14c`
+**Copy restored:** `goal-tracker-production-2026-09-13-schema4-1f0ac18e.backup.enc`
+**Lifetime:** created and destroyed in the same sitting
+**Outcome:** the restored household re-exported **byte-identically** to the backup
+
+The copy had been proven to decrypt. This proves the other half: that a deployed Cloudflare object
+will accept it and reconstruct the household from it.
+
+### What was done
+
+A dated environment was added to `wrangler.jsonc`, deployed, drilled, and removed again; the file
+is back to its committed state. The Worker got its own Durable Object namespace — a namespace is
+keyed by (script name, class name), so reusing `RestoreHouseholdDO` under a different Worker name
+gives a fresh, empty one and avoids a throwaway export in `worker/src/index.ts`.
+
+Before the import the target was confirmed pristine: `bootstrapAvailable: true`, schema 4,
+migrations applied, no owner.
+
+```
+Importing household goal-tracker-production into family-board-restore-2026-09.yuval3000.workers.dev
+  taken 2026-09-13T19:25:43.293Z, schema 4
+Imported. {"imported":true,"boardRevision":19,"schemaVersion":4,
+           "counts":{"allowedEmails":1,"users":1,"activeUsers":1,
+                     "recoveryCredentials":1,"invitations":0,"columns":3,"cards":2}}
+```
+
+### The decisive check: export(import(backup)) == backup
+
+The restored household was re-exported through `GET /api/v1/operator/export` and compared field by
+field against the backup's decrypted payload.
+
+| Field | Result |
+| --- | --- |
+| `formatVersion`, `schemaVersion`, `householdId` | Identical |
+| `counts` | Identical |
+| `appState` — `bootstrapConsumed`, `allowlistRevision` | Identical |
+| `boardState.revision` | Identical (19) |
+| `allowedEmails` | Identical |
+| `users` — ids, addresses, **password hashes**, roles, status, language, credential epoch, timestamps | Identical |
+| `recoveryCredentials` — userId, **phraseDigest**, version, createdAt | Identical |
+| `invitations` | Identical (none) |
+| `columns` — ids, `nameKey`, positions | Identical |
+| `cards` — ids, columnId, position, title, description, assignee, timestamps | Identical |
+| `integrity` | Identical, `ok: true` on both sides |
+| `createdAt` | Differs, as it must — the re-export's own timestamp |
+| **Whole payload excluding `createdAt`** | **Identical** |
+
+The re-export was also the same size as the production export, 2,318 bytes. Nothing was dropped,
+renamed, coerced or regenerated.
+
+### The refusals
+
+| Check | Result |
+| --- | --- |
+| A second import into the restored object | `409 restore_target_not_pristine` — *"users already holds 1 row(s)"* |
+| `GET /api/v1/auth/bootstrap/status` after the import | `false` — `bootstrap_consumed` came back with the household, so the drill Worker is closed to a second owner |
+| `GET /api/v1/board`, `GET /api/v1/members`, no session | `401` — no session survived the restore |
+| The real owner address with a wrong password | `401 invalid_credentials`, **not** a `500` — the stored scrypt record was parsed and re-derived against, so the hash restored intact |
+| An address not in the household | The same generic `401` |
+| `GET /api/v1/operator/export` with a wrong bearer | `404`, indistinguishable from an unknown path |
+| `POST /api/v1/operator/import` on **production** and **test** | `404` on both — the route is absent from those builds on the deployed Workers, not merely in the bundle |
+
+### One deliberate deviation from the runbook
+
+The runbook said to put production's `RECOVERY_DIGEST_KEY` on the drill Worker "so phrase
+verification can be checked". A throwaway key was used instead.
+
+Phrase verification cannot be checked without someone's *actual* recovery phrase, which this
+session did not have. Production's key would therefore have bought nothing testable while putting
+production-equivalent credential material on a public hostname. Phrase digests restore as opaque
+strings either way, so the round trip above is unaffected — the digests compared identical. The
+runbook now recommends the throwaway by default and keeps production's key for the case where
+someone is actually rehearsing the phrase flow with a phrase in hand.
+
+### Teardown
+
+`npx wrangler delete --env restore-drill-2026-09`, after a `--dry-run` and after re-reading the
+Worker name. Confirmed afterwards: the drill hostname answers Cloudflare's `1042`, and
+`family-board-production`, `family-board-test` and `family-board-restore` all answer exactly as
+they did before. Production is still on `5d099a34-3480-4fc5-89cb-ec779a94ea39`. The five disposable
+drill secrets were destroyed on disk.
+
+The runbook's teardown instruction was wrong and has been corrected: this configuration uses the
+`exports` map, which rejects a `deleted` tombstone outright — *"exports.&lt;Class&gt;.type must be
+`durable-object` or `worker`"*. Tombstones belong to the older `migrations`/`deleted_classes`
+syntax. Deleting the Worker is the mechanism, and it takes the namespace and the public hostname
+with it.
+
+### What is still not proven
+
+**A successful sign-in.** Everything above proves the credential material survived intact and that
+the verification path runs against it, but not that a correct password completes a login on a
+restored household. The hash is one-way, so only someone holding an account's password can close
+that gap — a few minutes' work the next time the owner runs a drill.
+
+**The recovery phrase verifying on a restored object**, for the same reason, and because a
+throwaway digest key was used here by choice.
+
+**Off-machine survival.** The copy and its key are still on one laptop. That remains the largest
+real risk to this backup, and no drill can settle it.

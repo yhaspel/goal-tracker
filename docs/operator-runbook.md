@@ -10,9 +10,13 @@ Companion documents: [deployment](deployment.md) for publishing a Worker,
 and [CI](ci.md) for what the pipeline does and does not deploy.
 
 **Read this first.** Production has held real data since 2026-09-13. The first encrypted backup was
-taken and verified the same day, so there are now two copies — but both the copy and the key that
-reads it sit on the owner's laptop, and no restore into a deployed object has ever been proven.
-Treat the second copy as real and the recovery path as untested.
+taken and verified the same day, and restored into a throwaway deployed Worker the same day, where
+it re-exported byte-identically to the copy on disk. So the recovery path is no longer theoretical.
+
+Two caveats survive that, and both matter. **The copy and the AES key that reads it sit on one
+laptop**, so the pair is a second copy of the data but not a second place to keep it. And **nobody
+has signed in to a restored household on a deployed Worker** — the hash is one-way, so proving that
+needs whoever holds an account's password.
 
 ## What exists, and what is still unproven
 
@@ -22,7 +26,7 @@ Treat the second copy as real and the recovery path as untested.
 | Restore import (`POST /api/v1/operator/import`) | Implemented in the `restore` build only; absent from the production and test bundles, and CI fails if it ever appears in production's |
 | Encrypted local backup, retention, verification, restore (`scripts/backup.ts`) | Implemented; proven end to end against local `wrangler dev` Workers, including sign-in on the restored household |
 | Security headers, CSP, shell `no-store` | Implemented and covered by `tests/routing.test.ts` |
-| **The same round trip against the deployed Free Workers** | **Not done.** See the release checklist at the end |
+| **The same round trip against the deployed Free Workers** | **Done 2026-09-13.** Export, encrypt, decrypt and import all ran against deployed Workers; the restored household re-exported byte-identically. A successful sign-in is still unproven — see the drill record |
 | **A verified production backup** | **Taken 2026-09-13** — `goal-tracker-production-2026-09-13-schema4-1f0ac18e.backup.enc`, verified by decrypting it back off the disk. It and its key live on one laptop, so the copy is real but not yet redundant |
 | Cloudflare point-in-time recovery on the Free plan | **Unverified.** See its section below |
 
@@ -166,10 +170,34 @@ an environment that can be thrown away. Never into production, and never into a 
 already been imported into.
 
 1. **Provision a fresh drill Worker.** Copy the `restore` environment in `wrangler.jsonc` to a new
-   name (`family-board-restore-YYYY-MM`), keep `__ENABLE_RESTORE_IMPORT__` true, and give its
-   Durable Object class a name not already provisioned on production. `npm run deploy:restore`
-   publishes the standing one; a dated drill Worker is published the same way with its own
-   `--env`.
+   name. This block is the one that was actually used on 2026-09-13; add it under `env`, deploy,
+   and delete it from the file again at step 6:
+
+   ```jsonc
+   "restore-drill-2026-09": {
+     "name": "family-board-restore-2026-09",
+     "workers_dev": true,
+     "minify": true,
+     "define": { "__ENABLE_DIAGNOSTICS__": "false", "__ENABLE_RESTORE_IMPORT__": "true" },
+     "durable_objects": { "bindings": [{ "name": "HOUSEHOLD", "class_name": "RestoreHouseholdDO" }] },
+     "exports": { "RestoreHouseholdDO": { "type": "durable-object", "storage": "sqlite" } },
+     "vars": { "DEPLOYMENT_ENV": "restore" }
+   }
+   ```
+
+   ```sh
+   npm run build && npx wrangler deploy --env restore-drill-YYYY-MM
+   ```
+
+   **Reuse the class name; do not invent one.** A Durable Object namespace is identified by the
+   pair (script name, class name), so `RestoreHouseholdDO` on `family-board-restore-2026-09` is a
+   different and empty namespace from the same class on `family-board-restore`. The distinct
+   *Worker* name is what isolates the storage. Inventing a class name instead would require adding
+   it to the `export { … }` line in `worker/src/index.ts`, which means a throwaway source change
+   on `main` for a Worker you are about to delete.
+
+   `DEPLOYMENT_ENV` must stay `"restore"`. The import handler refuses outright when it reads
+   `production`, and that second lock is worth keeping armed.
 
    **The drill Worker needs `workers_dev: true`, and the standing `restore` environment does
    not have it.** Step 3 imports over HTTPS, so the target must have a hostname; with
@@ -187,22 +215,40 @@ already been imported into.
    import route at all. Any drill has to deploy current code first, or the import answers `404`
    and looks like a bad secret.
 2. **Configure it for one source.** The restore build has no `BACKUP_HOUSEHOLD_ID` in tracked
-   configuration, so set it to the household the copy belongs to, and set the source's
-   `RECOVERY_DIGEST_KEY` from escrow so phrase verification can be checked:
+   configuration, so set it to the household the copy belongs to. Five secrets, all newline-free
+   — `BACKUP_HOUSEHOLD_ID` is compared for exact equality against the payload's `householdId`, and
+   a stored newline makes it silently unequal:
 
    ```sh
    umask 077
-   printf 'goal-tracker-production' > .secrets.drill-household
-   npx wrangler secret put BACKUP_HOUSEHOLD_ID     --env restore < .secrets.drill-household
-   npx wrangler secret put BACKUP_OPERATOR_SECRET  --env restore < .secrets.drill-operator
-   npx wrangler secret put RECOVERY_DIGEST_KEY     --env restore < .secrets.production-digest-key
-   npx wrangler secret put CSRF_SECRET             --env restore < .secrets.drill-csrf
-   npx wrangler secret put RATE_LIMIT_KEY          --env restore < .secrets.drill-rate-limit
+   printf 'goal-tracker-production'        > .secrets.drill-household
+   openssl rand -hex 32 | tr -d '\n'       > .secrets.drill-operator
+   openssl rand -hex 32 | tr -d '\n'       > .secrets.drill-csrf
+   openssl rand -hex 32 | tr -d '\n'       > .secrets.drill-rate-limit
+   openssl rand -hex 32 | tr -d '\n'       > .secrets.drill-digest-key
+   chmod 600 .secrets.drill-*
+
+   E=restore-drill-YYYY-MM
+   npx wrangler secret put BACKUP_HOUSEHOLD_ID     --env $E < .secrets.drill-household
+   npx wrangler secret put BACKUP_OPERATOR_SECRET  --env $E < .secrets.drill-operator
+   npx wrangler secret put RECOVERY_DIGEST_KEY     --env $E < .secrets.drill-digest-key
+   npx wrangler secret put CSRF_SECRET             --env $E < .secrets.drill-csrf
+   npx wrangler secret put RATE_LIMIT_KEY          --env $E < .secrets.drill-rate-limit
    ```
 
-   **A drill that restores production puts production's `RECOVERY_DIGEST_KEY` on that Worker.** It
-   holds production-equivalent credential material for as long as it exists. That is the reason
-   step 6 is not optional.
+   Do **not** set `BOOTSTRAP_SECRET`. A restored household already has its owner, and the import
+   restores `bootstrap_consumed`, so owner creation is closed on the drill Worker by database state.
+
+   **`RECOVERY_DIGEST_KEY` is a fresh throwaway here, not production's.** The runbook previously
+   said to take production's from escrow "so phrase verification can be checked". That trade is a
+   bad one in the common case: phrase verification cannot be checked without someone's *actual*
+   recovery phrase, so unless you are holding one, production's key buys nothing testable while
+   putting production-equivalent credential material on a public hostname. Phrase digests restore
+   as opaque strings either way, so a throwaway key changes nothing about the round trip — it only
+   means `/api/v1/recovery/phrase/*` on the drill Worker will not verify a real phrase. If you
+   *are* rehearsing the phrase flow with a real phrase in hand, use
+   `.secrets.production-digest-key` instead, and treat step 6 as urgent rather than merely
+   required.
 
 3. **Import a recent copy.**
 
@@ -211,22 +257,56 @@ already been imported into.
      --out-dir ~/goal-tracker-backups \
      --key-file ~/.goal-tracker/backup.key \
      --file <household>-<date>-schema4-<suffix>.backup.enc \
-     < ~/.goal-tracker/backup-operator.secret
+     < .secrets.drill-operator
    ```
 
-   The tool refuses outright to import into a host whose name contains `production`.
+   The operator secret on stdin is the **drill Worker's**, not production's. The tool refuses
+   outright to import into a host whose name contains `production`, and a dated drill name such as
+   `family-board-restore-2026-09` passes that check.
 
-4. **Validate the restored household.** Counts and board revision come back in the import
-   response. Then, against the drill Worker: sign in as a known account and confirm the board,
-   the columns, the card order and the assignments match the source; confirm an address that was
-   removed from the allowed list is still refused; confirm no session survived — every account has
-   to sign in again; and confirm a second import answers `409 restore_target_not_pristine`.
+   Before importing, confirm the target is pristine: `GET /api/v1/auth/bootstrap/status` on a
+   fresh object answers `{"bootstrapAvailable":true}`, because no owner exists yet.
+
+4. **Validate the restored household.** Counts and board revision come back in the import response.
+   Then, against the drill Worker:
+
+   **Re-export and compare, which is the strongest check and needs nobody's password.** Call
+   `GET /api/v1/operator/export` on the drill Worker with its bearer, and compare the payload
+   field by field against the backup's decrypted payload. Everything except `createdAt` — which is
+   the new export's own timestamp — must be **identical**, including password hashes, recovery
+   digests, card ids, positions and `boardState.revision`. If `export(import(backup))` reproduces
+   `backup` byte for byte, the restore is faithful and nothing was silently dropped or coerced.
+
+   Then confirm the refusals: a second import answers `409 restore_target_not_pristine`;
+   `bootstrap/status` now answers `false`, because `bootstrap_consumed` came back with the
+   household; `/api/v1/board` and `/api/v1/members` answer `401`, because no session survived; a
+   real account address with a wrong password answers `401 invalid_credentials` rather than a
+   `500`, which is what proves the stored scrypt record was parsed and re-derived against rather
+   than restored corrupt; and an address that is not in the household answers the same generic
+   `401`.
+
+   **A successful sign-in needs a real password and is the one part of this that cannot be
+   automated.** The hash is one-way, so a drill run by anyone who does not hold an account's
+   password proves everything above and stops short of the login itself. Record which of the two
+   you did.
 5. **Record it.** Date, copy used, source household, counts, what was checked, and anything that
    did not match. A drill nobody wrote down did not happen.
-6. **Destroy the drill Worker and its namespace.** Use the `deleted` tombstone in that Worker's own
-   `exports` map. Cloudflare's wording is that deleting a class "removes its namespace and all of
-   its stored data permanently" — read the Worker name twice before you deploy that change, and
-   never issue it against `family-board-production`.
+6. **Destroy the drill Worker and its namespace.** Delete the whole Worker, which takes its Durable
+   Object namespaces and its public hostname with it:
+
+   ```sh
+   npx wrangler delete --env restore-drill-YYYY-MM --dry-run   # confirm the target first
+   npx wrangler delete --env restore-drill-YYYY-MM
+   ```
+
+   **Read the Worker name twice before running it, and never issue it against
+   `family-board-production` or `family-board-test`.** Confirm afterwards that the drill hostname
+   answers Cloudflare's `1042` and that production's `/api/v1/health` is untouched.
+
+   This project's `exports` map does **not** accept a `deleted` tombstone — `wrangler` rejects the
+   config with *"exports.&lt;Class&gt;.type must be `durable-object` or `worker`"*. Tombstones belong to
+   the older `migrations` array (`deleted_classes`), which this configuration does not use, so
+   deleting the Worker is the mechanism here.
    [Class lifecycle](https://developers.cloudflare.com/durable-objects/reference/durable-objects-migrations/)
 
 ## Cloudflare point-in-time recovery
@@ -385,8 +465,11 @@ Outstanding, and each needs the deployed Free runtime:
       digest `d56aa774755679e1…`. Verified by decrypting it back off the disk, and separately
       confirmed to carry the owner's password hash, the recovery digest and the allowed list.
       **It shares a laptop with its own key, so it is a second copy and not yet a redundant one.**
-- [ ] Run one full drill that restores that production copy into a fresh isolated namespace, then
-      destroy it
+- [x] Run one full drill that restores that production copy into a fresh isolated namespace, then
+      destroy it — done 2026-09-13 on `family-board-restore-2026-09`, deleted in the same sitting.
+      The restored household re-exported byte-identically to the backup. **A successful sign-in was
+      not performed**: this session did not hold the owner's password, and the hash is one-way. See
+      [the production deployment record](production-deployment.md).
 - [ ] Move the escrowed secrets off the single laptop
 - [ ] Confirm whether point-in-time recovery is available on this Free account
 - [ ] Record the release version, schema version, measurements and terms checked in
