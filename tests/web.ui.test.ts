@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { BoardSnapshot } from '../shared/api';
 import { ApiError } from '../web/src/api/client';
-import { withMovedCard } from '../web/src/board/reorder';
+import { placeOfCard, projectedDrop, withMovedCard } from '../web/src/board/reorder';
 import { errorText, fieldErrorText } from '../web/src/components/errors';
 import { en } from '../web/src/i18n/en';
 import { he } from '../web/src/i18n/he';
@@ -210,6 +210,78 @@ describe('optimistic reordering', () => {
     const moved = withMovedCard(snapshot(), 'a1', 'b', 99);
     expect(moved.columns[1]?.cards.map(card => card.id)).toEqual(['b1', 'a1']);
     assertDense(moved);
+  });
+});
+
+describe('drag announcements', () => {
+  it('reports where a card sits, one-based, wherever it is', () => {
+    const board = snapshot();
+    expect(placeOfCard(board, 'a2')).toMatchObject({ position: 2 });
+    expect(placeOfCard(board, 'a2')?.column.id).toBe('a');
+    expect(placeOfCard(board, 'b1')).toMatchObject({ position: 1 });
+    expect(placeOfCard(board, 'missing')).toBeNull();
+  });
+
+  it('projects the slot a hovered card would hand over', () => {
+    const board = snapshot();
+    // Hovering the second card of column a means landing in position 2 of column a.
+    expect(projectedDrop(board, 'a1', { id: 'a2', index: 1, group: 'a' })).toMatchObject({ position: 2 });
+    expect(projectedDrop(board, 'a1', { id: 'a2', index: 1, group: 'a' })?.column.id).toBe('a');
+  });
+
+  it('projects an append when the target is some other column', () => {
+    const board = snapshot();
+    // Column b holds one card, so a card arriving from column a lands at position 2...
+    expect(projectedDrop(board, 'a1', { id: 'b' })).toMatchObject({ position: 2 });
+    // ...and an empty column always lands at position 1.
+    expect(projectedDrop(board, 'a1', { id: 'c' })).toMatchObject({ position: 1 });
+  });
+
+  it('does not call the column a card is already in an append', () => {
+    // Collision detection reports the card's own column as a target mid-drag. Treating that as
+    // an append announced a jump to the end of the list that no drop would have performed.
+    const board = snapshot();
+    expect(projectedDrop(board, 'a1', { id: 'a' })).toMatchObject({ position: 1 });
+    expect(projectedDrop(board, 'a2', { id: 'a' })).toMatchObject({ position: 2 });
+  });
+
+  it('agrees with the position the confirmed move announces', () => {
+    // `requestMove` appends with `targetIndex = cards.length` and announces `targetIndex + 1`.
+    // A mid-drag announcement that disagreed would have the card audibly jump on drop.
+    const board = snapshot();
+    const column = board.columns[1]!;
+    expect(projectedDrop(board, 'a1', { id: column.id })?.position).toBe(column.cards.length + 1);
+  });
+
+  it('says nothing when the target is unknown or carries no position', () => {
+    const board = snapshot();
+    expect(projectedDrop(board, 'a1', {})).toBeNull();
+    expect(projectedDrop(board, 'a1', { id: 'a2', group: 'a' })).toBeNull();
+    expect(projectedDrop(board, 'a1', { id: 'a2', index: 0, group: 'gone' })).toBeNull();
+  });
+
+  it('phrases pick-up, hover, and cancel in every locale', () => {
+    // The announcement keys are the only feedback a screen-reader user gets mid-drag, so a
+    // locale missing one would leave that language silent where the others speak.
+    for (const locale of LOCALES) {
+      const speak = createTranslate(locale);
+      for (const key of ['card.dragPickedUp', 'card.dragOver', 'card.dragCanceled'] as const) {
+        const spoken = speak.t(key, { title: 'Milk', column: 'To do', position: 2 });
+        expect(spoken).not.toContain('{');
+        expect(spoken).toContain('Milk');
+        expect(DICTIONARIES[locale][key]).toBeDefined();
+      }
+    }
+  });
+
+  it('confirms a language change in the language just chosen', () => {
+    // The selector builds this from the incoming locale rather than from the render's own
+    // translator, which still holds the outgoing one.
+    for (const locale of LOCALES) {
+      expect(createTranslate(locale).t('account.languageSaved')).toBe(DICTIONARIES[locale]['account.languageSaved']);
+    }
+    const spoken = LOCALES.map(locale => createTranslate(locale).t('account.languageSaved'));
+    expect(new Set(spoken).size).toBe(LOCALES.length);
   });
 });
 

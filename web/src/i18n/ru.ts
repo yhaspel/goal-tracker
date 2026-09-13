@@ -175,6 +175,10 @@ export const ru: LocaleDictionary = {
   'card.moveToColumn': 'Переместить в колонку',
   'card.dragInstructions':
     'Нажмите пробел или Enter, чтобы взять карточку, стрелки — чтобы переместить её, пробел или Enter — чтобы отпустить.',
+  'card.dragPickedUp':
+    '{title} поднята. Позиция {position} в колонке «{column}». Используйте клавиши со стрелками, чтобы переместить её.',
+  'card.dragOver': '{title} над колонкой «{column}», позиция {position}.',
+  'card.dragCanceled': 'Перемещение отменено. {title} осталась в колонке «{column}».',
   'card.movedTo': '{title} перемещена в «{column}», позиция {position}.',
   'card.moveRejected': '{title} не перемещена. Доска изменилась и была обновлена.',
   'card.saved': '{title} сохранена.',

@@ -68,6 +68,13 @@ type FieldProps = {
   autoComplete?: string;
   /** Email addresses, codes, and phrases stay left-to-right inside a right-to-left page. */
   isolate?: boolean;
+  /**
+   * Free text the member writes — a card title, a description, a column name — takes its
+   * direction from what was typed rather than from the interface language, matching the
+   * `dir="auto"` on the element that will display it. Without this, a Latin title typed into a
+   * Hebrew interface is laid out right-to-left in the editor and left-to-right on the board.
+   */
+  autoDir?: boolean;
   rows?: number;
   inputMode?: 'text' | 'email';
 };
@@ -82,6 +89,7 @@ export function Field({
   required,
   autoComplete,
   isolate,
+  autoDir,
   rows,
   inputMode
 }: FieldProps) {
@@ -96,7 +104,7 @@ export function Field({
     autoComplete,
     'aria-describedby': describedBy,
     'aria-invalid': error ? (true as const) : undefined,
-    dir: isolate ? ('ltr' as const) : undefined,
+    dir: isolate ? ('ltr' as const) : autoDir ? ('auto' as const) : undefined,
     className: isolate ? 'isolate' : undefined,
     onChange: (event: { target: { value: string } }) => onChange(event.target.value)
   };

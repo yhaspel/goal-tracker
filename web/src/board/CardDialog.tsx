@@ -66,6 +66,7 @@ export function CardDialog({
           onChange={title => onDraftChange({ ...draft, title })}
           error={fieldErrorText(translator, failure, 'title')}
           autoComplete="off"
+          autoDir
           required
         />
         <Field
@@ -74,6 +75,7 @@ export function CardDialog({
           onChange={description => onDraftChange({ ...draft, description })}
           error={fieldErrorText(translator, failure, 'description')}
           autoComplete="off"
+          autoDir
           rows={5}
         />
         <p className="field">

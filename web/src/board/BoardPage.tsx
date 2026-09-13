@@ -1,7 +1,7 @@
 import { Accessibility, defaultPreset } from '@dnd-kit/dom';
 import { DragDropProvider, useDroppable } from '@dnd-kit/react';
 import { useSortable } from '@dnd-kit/react/sortable';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import type { BoardCard, BoardColumn, BoardMember, BoardMutationResponse } from '../../../shared/api';
 import { ApiError } from '../api/client';
 import {
@@ -19,7 +19,7 @@ import { errorText } from '../components/errors';
 import { Alert, Dialog, Field, Submit, useAnnounce, WithValue } from '../components/ui';
 import { useTranslation } from '../i18n';
 import { CardDialog, type CardDraft, draftFromCard } from './CardDialog';
-import { withMovedCard } from './reorder';
+import { type DropTarget, placeOfCard, projectedDrop, withMovedCard } from './reorder';
 import { useBoard } from './useBoard';
 
 const DRAG_PLUGINS = defaultPreset.plugins.filter(plugin => plugin !== Accessibility);
@@ -146,9 +146,73 @@ export function BoardPage() {
     [board, runMutation, setOptimistic, announce, t, refresh]
   );
 
+  /** Resolves the card a drag operation is carrying, if the board still knows about it. */
+  const draggedCard = useCallback(
+    (source: unknown): BoardCard | null => {
+      const id = (source as { id?: unknown } | null)?.id;
+      if (id === undefined || id === null || !board) return null;
+      return board.columns.flatMap(column => column.cards).find(entry => entry.id === String(id)) ?? null;
+    },
+    [board]
+  );
+
+  /** Suppresses repeats while a drag rests on one slot, so the live region stays legible. */
+  const lastSpokenPlace = useRef('');
+
+  /**
+   * A drag used to be silent between pick-up and drop: nothing said the card had been lifted,
+   * and nothing said where the arrow keys had taken it. Both are announced here.
+   */
+  const onDragStart = useCallback(
+    (event: { operation: { source: unknown } }) => {
+      const card = draggedCard(event.operation.source);
+      const place = card && board ? placeOfCard(board, card.id) : null;
+      if (!card || !place) return;
+      lastSpokenPlace.current = `${place.column.id}:${place.position}`;
+      announce(
+        t('card.dragPickedUp', {
+          title: card.title,
+          column: columnLabel(place.column, t),
+          position: place.position
+        })
+      );
+    },
+    [board, draggedCard, announce, t]
+  );
+
+  const onDragOver = useCallback(
+    (event: { operation: { source: unknown; target: unknown } }) => {
+      const card = draggedCard(event.operation.source);
+      const place = card && board ? projectedDrop(board, card.id, (event.operation.target ?? {}) as DropTarget) : null;
+      if (!card || !place) return;
+      const key = `${place.column.id}:${place.position}`;
+      if (key === lastSpokenPlace.current) return;
+      lastSpokenPlace.current = key;
+      announce(
+        t('card.dragOver', {
+          title: card.title,
+          column: columnLabel(place.column, t),
+          position: place.position
+        })
+      );
+    },
+    [board, draggedCard, announce, t]
+  );
+
   const onDragEnd = useCallback(
     (event: { canceled: boolean; operation: { source: unknown; target: unknown } }) => {
-      if (event.canceled || !board) return;
+      lastSpokenPlace.current = '';
+      if (event.canceled) {
+        // Escape during a drag was silent too, leaving no way to tell a cancel from a move
+        // that never registered.
+        const card = draggedCard(event.operation.source);
+        const place = card && board ? placeOfCard(board, card.id) : null;
+        if (card && place) {
+          announce(t('card.dragCanceled', { title: card.title, column: columnLabel(place.column, t) }));
+        }
+        return;
+      }
+      if (!board) return;
       const source = event.operation.source as {
         id?: string;
         index?: number;
@@ -242,7 +306,12 @@ export function BoardPage() {
       {/* The library's own announcer names items by opaque id, and would speak alongside our
           own result announcement. Dropping it leaves exactly one voice, in the chosen
           language, describing what the server actually saved. */}
-      <DragDropProvider plugins={DRAG_PLUGINS} onDragEnd={onDragEnd}>
+      <DragDropProvider
+        plugins={DRAG_PLUGINS}
+        onDragStart={onDragStart}
+        onDragOver={onDragOver}
+        onDragEnd={onDragEnd}
+      >
         <ol className="board" aria-label={t('board.heading')} role="list">
           {board.columns.map((column, columnIndex) => (
             <ColumnView
@@ -371,6 +440,7 @@ export function BoardPage() {
               value={columnForm.name}
               onChange={name => setColumnForm({ ...columnForm, name })}
               autoComplete="off"
+              autoDir
               required
             />
             {failure ? <Alert tone="error">{errorText(translator, failure)}</Alert> : null}
@@ -562,11 +632,11 @@ function CardView({
         >
           {t('card.moveDown')}
         </button>
-        <label className="visually-hidden" htmlFor={`move-${card.id}`}>
-          {t('card.moveToColumn')}
-        </label>
+        {/* Named by `aria-label` rather than a `<label for>`: the drag overlay is a clone of
+            this whole card, and any `id` in here would be duplicated in the document while a
+            drag is in flight. */}
         <select
-          id={`move-${card.id}`}
+          aria-label={t('card.moveToColumn')}
           value=""
           disabled={pending}
           onChange={event => {

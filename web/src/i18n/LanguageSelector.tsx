@@ -5,6 +5,7 @@ import { updateLanguage } from '../api/endpoints';
 import { useSession } from '../auth/session';
 import { useAnnounce } from '../components/ui';
 import { useTranslation } from '.';
+import { createTranslate } from './translate';
 
 /**
  * Language names are written in their own language and are the same in every interface
@@ -35,7 +36,9 @@ export function LanguageSelector() {
     if (state.status !== 'active') return;
     try {
       await updateLanguage(next);
-      announce(t('account.languageSaved'));
+      // Built from `next`, not from the hook's `t`: this render still holds the old locale, so
+      // the confirmation would otherwise be spoken in the language just switched away from.
+      announce(createTranslate(next).t('account.languageSaved'));
       // Keeps the session copy of `user.language` in step with what was just stored.
       await refresh();
     } catch {
