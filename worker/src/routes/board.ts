@@ -21,7 +21,6 @@ import {
   updateCardFields
 } from '../board/repository';
 import {
-  assertCurrentRevision,
   compactColumn,
   compactColumns,
   moveCard,
@@ -31,6 +30,7 @@ import {
   validateDescription,
   validateTitle
 } from '../board/service';
+import { findMilestone } from '../goals/repository';
 import {
   assertOnlyKeys,
   assertSameOrigin,
@@ -43,6 +43,8 @@ import {
   requiredString,
   unauthenticated
 } from '../http';
+import { assertCurrentRevision, BOARD_REVISION } from '../revisions';
+import { validateDueDate } from '../validation';
 import type { RouteContext } from './context';
 
 /** Large enough for a full 4,000-code-point description, unlike the 16 KiB auth limit. */
@@ -88,6 +90,23 @@ function optionalAssignee(body: Record<string, unknown>): string | null {
   return value;
 }
 
+function optionalMilestone(body: Record<string, unknown>): string | null {
+  const value = body.milestoneId;
+  if (value === undefined || value === null) return null;
+  if (typeof value !== 'string' || value.length === 0) {
+    throw invalidRequest('That milestone is not valid.', { milestoneId: 'invalid' });
+  }
+  return value;
+}
+
+/** Validated like an assignee: the referenced milestone has to exist, inside the transaction. */
+function assertMilestone(ctx: RouteContext, milestoneId: string | null): void {
+  if (milestoneId === null) return;
+  if (!findMilestone(ctx.sql, milestoneId)) {
+    throw invalidRequest('That milestone is not valid.', { milestoneId: 'invalid' });
+  }
+}
+
 // --- read ---------------------------------------------------------------------------------
 
 function readBoard(ctx: RouteContext, request: Request): Response {
@@ -111,7 +130,7 @@ async function createColumn(ctx: RouteContext, request: Request): Promise<Respon
 
   const revision = ctx.storage.transactionSync(() => {
     assertStillOwner(ctx, request, actor);
-    assertCurrentRevision(ctx.sql, body.boardRevision);
+    assertCurrentRevision(ctx.sql, body.boardRevision, BOARD_REVISION);
     const total = countColumns(ctx.sql);
     if (total >= MAX_COLUMNS) {
       throw conflict('column_limit', `A board can hold at most ${MAX_COLUMNS} columns.`);
@@ -139,7 +158,7 @@ async function patchColumn(ctx: RouteContext, request: Request, id: string): Pro
 
   const result = ctx.storage.transactionSync(() => {
     assertStillOwner(ctx, request, actor);
-    assertCurrentRevision(ctx.sql, body.boardRevision);
+    assertCurrentRevision(ctx.sql, body.boardRevision, BOARD_REVISION);
     const column = findColumn(ctx.sql, id);
     if (!column) throw notFound();
     if (column.custom_name === name) return { revision: readBoardRevision(ctx.sql), changed: false };
@@ -158,7 +177,7 @@ async function moveColumnRoute(ctx: RouteContext, request: Request, id: string):
 
   const result = ctx.storage.transactionSync(() => {
     assertStillOwner(ctx, request, actor);
-    assertCurrentRevision(ctx.sql, body.boardRevision);
+    assertCurrentRevision(ctx.sql, body.boardRevision, BOARD_REVISION);
     if (!findColumn(ctx.sql, id)) throw notFound();
     const changed = moveColumn(ctx.sql, id, body.targetIndex, ctx.nowIso);
     return { revision: changed ? bumpBoardRevision(ctx.sql) : readBoardRevision(ctx.sql), changed };
@@ -175,7 +194,7 @@ async function removeColumn(ctx: RouteContext, request: Request, id: string): Pr
 
   const revision = ctx.storage.transactionSync(() => {
     assertStillOwner(ctx, request, actor);
-    assertCurrentRevision(ctx.sql, body.boardRevision);
+    assertCurrentRevision(ctx.sql, body.boardRevision, BOARD_REVISION);
     if (!findColumn(ctx.sql, id)) throw notFound();
     if (countCardsInColumn(ctx.sql, id) > 0) {
       throw conflict('column_not_empty', 'Move or delete the cards in that column first.');
@@ -197,21 +216,24 @@ async function createCard(ctx: RouteContext, request: Request): Promise<Response
   const actor = requireActor(ctx, request);
   assertCsrf(ctx, request, actor);
   const body = await readJsonObject(request, MAX_BOARD_BODY);
-  assertOnlyKeys(body, ['boardRevision', 'columnId', 'title', 'description', 'assigneeUserId']);
+  assertOnlyKeys(body, ['boardRevision', 'columnId', 'title', 'description', 'assigneeUserId', 'dueDate', 'milestoneId']);
   const columnId = requiredString(body, 'columnId');
   const title = validateTitle(body.title);
   const description = validateDescription(body.description);
   const assigneeUserId = optionalAssignee(body);
+  const dueDate = validateDueDate(body.dueDate);
+  const milestoneId = optionalMilestone(body);
   const id = newId();
 
   const revision = ctx.storage.transactionSync(() => {
     const fresh = assertStillEligible(ctx, request, actor);
-    assertCurrentRevision(ctx.sql, body.boardRevision);
+    assertCurrentRevision(ctx.sql, body.boardRevision, BOARD_REVISION);
     if (!findColumn(ctx.sql, columnId)) throw notFound();
     if (countCards(ctx.sql) >= MAX_CARDS) {
       throw conflict('board_full', `A board can hold at most ${MAX_CARDS} cards.`);
     }
     assertAssignee(ctx, assigneeUserId);
+    assertMilestone(ctx, milestoneId);
     insertCard(ctx.sql, {
       id,
       column_id: columnId,
@@ -220,6 +242,8 @@ async function createCard(ctx: RouteContext, request: Request): Promise<Response
       assignee_user_id: assigneeUserId,
       creator_user_id: fresh.user.id,
       position: countCardsInColumn(ctx.sql, columnId),
+      due_date: dueDate,
+      milestone_id: milestoneId,
       created_at: ctx.nowIso,
       updated_at: ctx.nowIso
     });
@@ -233,28 +257,35 @@ async function patchCard(ctx: RouteContext, request: Request, id: string): Promi
   const actor = requireActor(ctx, request);
   assertCsrf(ctx, request, actor);
   const body = await readJsonObject(request, MAX_BOARD_BODY);
-  assertOnlyKeys(body, ['boardRevision', 'title', 'description', 'assigneeUserId']);
-  const touched = ['title', 'description', 'assigneeUserId'].filter(key => key in body);
+  assertOnlyKeys(body, ['boardRevision', 'title', 'description', 'assigneeUserId', 'dueDate', 'milestoneId']);
+  const touched = ['title', 'description', 'assigneeUserId', 'dueDate', 'milestoneId'].filter(key => key in body);
   if (touched.length === 0) throw invalidRequest('Nothing to change.');
 
   const result = ctx.storage.transactionSync(() => {
     assertStillEligible(ctx, request, actor);
-    assertCurrentRevision(ctx.sql, body.boardRevision);
+    assertCurrentRevision(ctx.sql, body.boardRevision, BOARD_REVISION);
     const card = findCard(ctx.sql, id);
     if (!card) throw notFound();
 
-    // An edit never moves a card: column and position stay exactly as they are.
+    // An edit never moves a card: column and position stay exactly as they are. An omitted key
+    // keeps the stored value and an explicit `null` clears it, for all five fields alike — so
+    // editing only a title cannot silently drop a due date or a milestone link.
     const next = {
       title: 'title' in body ? validateTitle(body.title) : card.title,
       description: 'description' in body ? validateDescription(body.description) : card.description,
-      assignee_user_id: 'assigneeUserId' in body ? optionalAssignee(body) : card.assignee_user_id
+      assignee_user_id: 'assigneeUserId' in body ? optionalAssignee(body) : card.assignee_user_id,
+      due_date: 'dueDate' in body ? validateDueDate(body.dueDate) : card.due_date,
+      milestone_id: 'milestoneId' in body ? optionalMilestone(body) : card.milestone_id
     };
     if ('assigneeUserId' in body) assertAssignee(ctx, next.assignee_user_id);
+    if ('milestoneId' in body) assertMilestone(ctx, next.milestone_id);
 
     if (
       next.title === card.title &&
       next.description === card.description &&
-      next.assignee_user_id === card.assignee_user_id
+      next.assignee_user_id === card.assignee_user_id &&
+      next.due_date === card.due_date &&
+      next.milestone_id === card.milestone_id
     ) {
       return { revision: readBoardRevision(ctx.sql), changed: false };
     }
@@ -274,7 +305,7 @@ async function moveCardRoute(ctx: RouteContext, request: Request, id: string): P
 
   const result = ctx.storage.transactionSync(() => {
     assertStillEligible(ctx, request, actor);
-    assertCurrentRevision(ctx.sql, body.boardRevision);
+    assertCurrentRevision(ctx.sql, body.boardRevision, BOARD_REVISION);
     const card = findCard(ctx.sql, id);
     if (!card) throw notFound();
     if (!findColumn(ctx.sql, targetColumnId)) throw notFound();
@@ -293,7 +324,7 @@ async function removeCard(ctx: RouteContext, request: Request, id: string): Prom
 
   const revision = ctx.storage.transactionSync(() => {
     assertStillEligible(ctx, request, actor);
-    assertCurrentRevision(ctx.sql, body.boardRevision);
+    assertCurrentRevision(ctx.sql, body.boardRevision, BOARD_REVISION);
     const card = findCard(ctx.sql, id);
     if (!card) throw notFound();
     deleteCard(ctx.sql, id);

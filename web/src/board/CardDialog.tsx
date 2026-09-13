@@ -1,10 +1,17 @@
 import { type FormEvent, useState } from 'react';
-import type { BoardCard, BoardMember } from '../../../shared/api';
+import type { BoardCard, BoardMember, GoalsIndex } from '../../../shared/api';
 import { errorText, fieldErrorText } from '../components/errors';
-import { Alert, Dialog, Field, Submit } from '../components/ui';
+import { Alert, Dialog, Field, Submit, useMonthNames } from '../components/ui';
 import { useTranslation } from '../i18n';
 
-export type CardDraft = { title: string; description: string; assigneeUserId: string };
+export type CardDraft = {
+  title: string;
+  description: string;
+  assigneeUserId: string;
+  /** Always `YYYY-MM-DD` or empty, which is what a native date input's value is. */
+  dueDate: string;
+  milestoneId: string;
+};
 
 /** Mirrors `MAX_DESCRIPTION_LENGTH` in `worker/src/board/service.ts`, in code points. */
 const DESCRIPTION_MAX = 4000;
@@ -16,7 +23,9 @@ export function draftFromCard(card: BoardCard | null): CardDraft {
   return {
     title: card?.title ?? '',
     description: card?.description ?? '',
-    assigneeUserId: card?.assigneeUserId ?? ''
+    assigneeUserId: card?.assigneeUserId ?? '',
+    dueDate: card?.dueDate ?? '',
+    milestoneId: card?.milestoneId ?? ''
   };
 }
 
@@ -30,6 +39,7 @@ export function CardDialog({
   draft,
   onDraftChange,
   members,
+  goalsIndex,
   onSubmit,
   onClose,
   pending,
@@ -40,6 +50,12 @@ export function CardDialog({
   draft: CardDraft;
   onDraftChange: (draft: CardDraft) => void;
   members: readonly BoardMember[];
+  /**
+   * `null` when the compact goals read failed. That is isolated state: the selector is hidden
+   * and the rest of the editor works, rather than a working board being blocked by a list that
+   * changes rarely.
+   */
+  goalsIndex: GoalsIndex | null;
   onSubmit: () => void;
   onClose: () => void;
   pending: boolean;
@@ -48,7 +64,9 @@ export function CardDialog({
 }) {
   const translator = useTranslation();
   const { t } = translator;
+  const months = useMonthNames();
   const [assigneeId] = useState(draft.assigneeUserId);
+  const [milestoneId] = useState(draft.milestoneId);
   // The server counts code points, so the count shown here has to as well.
   const descriptionLength = [...draft.description].length;
 
@@ -57,6 +75,15 @@ export function CardDialog({
     if (pending) return;
     onSubmit();
   };
+
+  /** Milestones grouped under their goal, in the order the goals screen shows them. */
+  const groups = (goalsIndex?.goals ?? []).map(goal => ({
+    goal,
+    milestones: (goalsIndex?.milestones ?? [])
+      .filter(milestone => milestone.goalId === goal.id)
+      .sort((a, b) => a.month - b.month)
+  }));
+  const known = new Set((goalsIndex?.milestones ?? []).map(milestone => milestone.id));
 
   return (
     <Dialog title={card ? t('card.editHeading') : t('card.createHeading')} onClose={onClose}>
@@ -91,6 +118,15 @@ export function CardDialog({
           autoDir
           rows={5}
         />
+        <Field
+          label={`${t('card.dueDate')} (${t('app.optional')})`}
+          value={draft.dueDate}
+          onChange={dueDate => onDraftChange({ ...draft, dueDate })}
+          error={fieldErrorText(translator, failure, 'dueDate')}
+          help={t('card.dueDateHelp')}
+          type="date"
+          autoComplete="off"
+        />
         <p className="field">
           <label htmlFor="card-assignee">{t('card.assignee')}</label>
           <select
@@ -113,6 +149,44 @@ export function CardDialog({
             <span className="error">{fieldErrorText(translator, failure, 'assigneeUserId')}</span>
           ) : null}
         </p>
+
+        {/* Hidden outright when the goals index could not be read, rather than shown empty. */}
+        {goalsIndex ? (
+          <p className="field">
+            <label htmlFor="card-milestone">{t('card.partOf')}</label>
+            <select
+              id="card-milestone"
+              value={draft.milestoneId}
+              onChange={event => onDraftChange({ ...draft, milestoneId: event.target.value })}
+            >
+              <option value="">{t('card.partOfNone')}</option>
+              {groups.map(({ goal, milestones }) =>
+                milestones.length === 0 ? null : (
+                  // An `<optgroup label>` and an `<option>` are plain text, so the bidi isolates
+                  // are part of the dictionary template rather than elements around the parts.
+                  <optgroup key={goal.id} label={t('goals.optgroupLabel', { title: goal.title, year: goal.year })}>
+                    {milestones.map(milestone => (
+                      <option key={milestone.id} value={milestone.id}>
+                        {t('milestone.optionLabel', {
+                          month: months[milestone.month - 1] ?? String(milestone.month),
+                          title: milestone.title
+                        })}
+                      </option>
+                    ))}
+                  </optgroup>
+                )
+              )}
+              {/* Keeps a milestone deleted elsewhere visible, so the editor cannot silently
+                  detach the card behind the person's back. */}
+              {milestoneId.length > 0 && !known.has(milestoneId) ? (
+                <option value={milestoneId}>{t('card.partOfUnknown')}</option>
+              ) : null}
+            </select>
+            {fieldErrorText(translator, failure, 'milestoneId') ? (
+              <span className="error">{fieldErrorText(translator, failure, 'milestoneId')}</span>
+            ) : null}
+          </p>
+        ) : null}
 
         <div className="dialog-footer">
           {/*

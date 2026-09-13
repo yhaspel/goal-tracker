@@ -7,14 +7,21 @@ import type {
   CreatedInvitationResponse,
   CredentialRotationConfirmResponse,
   CredentialRotationStartResponse,
+  GoalsIndex,
+  GoalsMutationResponse,
+  GoalsSnapshot,
   InvitationListResponse,
   Locale,
   MemberListResponse,
   MemberResponse,
+  MilestoneStatus,
   PreferencesResponse,
   PreparedRegistrationResponse,
   RevokedInvitationResponse,
-  SignedOutResponse
+  SignedOutResponse,
+  VisionMediaType,
+  VisionMutationResponse,
+  VisionSnapshot
 } from '../../../shared/api';
 import { api, type RequestOptions } from './client';
 
@@ -105,11 +112,21 @@ export const createCard = (body: {
   title: string;
   description?: string | null;
   assigneeUserId?: string | null;
+  dueDate?: string | null;
+  milestoneId?: string | null;
 }) => api.post<BoardMutationResponse>('/api/v1/cards', body);
 
+/** An omitted key keeps the stored value; an explicit `null` clears it. */
 export const patchCard = (
   id: string,
-  body: { boardRevision: number; title?: string; description?: string | null; assigneeUserId?: string | null }
+  body: {
+    boardRevision: number;
+    title?: string;
+    description?: string | null;
+    assigneeUserId?: string | null;
+    dueDate?: string | null;
+    milestoneId?: string | null;
+  }
 ) => api.patch<BoardMutationResponse>(`/api/v1/cards/${encodeURIComponent(id)}`, body);
 
 export const moveCard = (id: string, body: { boardRevision: number; targetColumnId: string; targetIndex: number }) =>
@@ -117,3 +134,88 @@ export const moveCard = (id: string, body: { boardRevision: number; targetColumn
 
 export const deleteCard = (id: string, body: { boardRevision: number }) =>
   api.delete<BoardMutationResponse>(`/api/v1/cards/${encodeURIComponent(id)}`, body);
+
+// --- goals and milestones -------------------------------------------------------------------
+
+export const readGoals = (options?: RequestOptions) => api.get<GoalsSnapshot>('/api/v1/goals', options);
+
+/** The compact form the card editor's "Part of" selector reads. No notes, no card links. */
+export const readGoalsIndex = (options?: RequestOptions) =>
+  api.get<GoalsIndex>('/api/v1/goals?view=index', options);
+
+export const createGoal = (body: { goalsRevision: number; year: number; title: string; notes?: string | null }) =>
+  api.post<GoalsMutationResponse>('/api/v1/goals', body);
+
+export const patchGoal = (
+  id: string,
+  body: { goalsRevision: number; title?: string; notes?: string | null; year?: number }
+) => api.patch<GoalsMutationResponse>(`/api/v1/goals/${encodeURIComponent(id)}`, body);
+
+export const moveGoal = (id: string, body: { goalsRevision: number; targetIndex: number }) =>
+  api.post<GoalsMutationResponse>(`/api/v1/goals/${encodeURIComponent(id)}/move`, body);
+
+export const deleteGoal = (id: string, body: { goalsRevision: number }) =>
+  api.delete<GoalsMutationResponse>(`/api/v1/goals/${encodeURIComponent(id)}`, body);
+
+export const createMilestone = (body: {
+  goalsRevision: number;
+  goalId: string;
+  month: number;
+  title: string;
+  notes?: string | null;
+}) => api.post<GoalsMutationResponse>('/api/v1/milestones', body);
+
+export const patchMilestone = (
+  id: string,
+  body: {
+    goalsRevision: number;
+    title?: string;
+    notes?: string | null;
+    month?: number;
+    status?: MilestoneStatus;
+  }
+) => api.patch<GoalsMutationResponse>(`/api/v1/milestones/${encodeURIComponent(id)}`, body);
+
+export const moveMilestone = (id: string, body: { goalsRevision: number; targetIndex: number }) =>
+  api.post<GoalsMutationResponse>(`/api/v1/milestones/${encodeURIComponent(id)}/move`, body);
+
+export const deleteMilestone = (id: string, body: { goalsRevision: number }) =>
+  api.delete<GoalsMutationResponse>(`/api/v1/milestones/${encodeURIComponent(id)}`, body);
+
+// --- vision board ---------------------------------------------------------------------------
+
+export const readVision = (options?: RequestOptions) => api.get<VisionSnapshot>('/api/v1/vision', options);
+
+/**
+ * The bytes route, written down here with everything else so no component builds an image URL
+ * of its own. It is the one `/api` response this app allows a private cache to keep.
+ */
+export const visionImageUrl = (id: string, variant: 'full' | 'thumb'): string =>
+  variant === 'thumb'
+    ? `/api/v1/vision/images/${encodeURIComponent(id)}/content?variant=thumb`
+    : `/api/v1/vision/images/${encodeURIComponent(id)}/content`;
+
+export const uploadVisionImage = (body: {
+  visionRevision: number;
+  mediaType: VisionMediaType;
+  data: string;
+  width: number;
+  height: number;
+  thumbMediaType: VisionMediaType;
+  thumbData: string;
+  thumbWidth: number;
+  thumbHeight: number;
+  caption?: string | null;
+  goalId?: string | null;
+}) => api.post<VisionMutationResponse>('/api/v1/vision/images', body);
+
+export const patchVisionImage = (
+  id: string,
+  body: { visionRevision: number; caption?: string | null; goalId?: string | null }
+) => api.patch<VisionMutationResponse>(`/api/v1/vision/images/${encodeURIComponent(id)}`, body);
+
+export const moveVisionImage = (id: string, body: { visionRevision: number; targetIndex: number }) =>
+  api.post<VisionMutationResponse>(`/api/v1/vision/images/${encodeURIComponent(id)}/move`, body);
+
+export const deleteVisionImage = (id: string, body: { visionRevision: number }) =>
+  api.delete<VisionMutationResponse>(`/api/v1/vision/images/${encodeURIComponent(id)}`, body);

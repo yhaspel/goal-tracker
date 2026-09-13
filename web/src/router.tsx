@@ -5,7 +5,18 @@ import { createContext, type ReactNode, useCallback, useContext, useEffect, useM
  * SPA allowlist in `worker/src/index.ts` must stay in step. Anything else 404s rather than
  * rendering the shell.
  */
-export const ROUTES = ['/', '/login', '/register', '/recover', '/bootstrap', '/board', '/account', '/members'] as const;
+export const ROUTES = [
+  '/',
+  '/login',
+  '/register',
+  '/recover',
+  '/bootstrap',
+  '/board',
+  '/goals',
+  '/vision',
+  '/account',
+  '/members'
+] as const;
 
 export type RoutePath = (typeof ROUTES)[number];
 

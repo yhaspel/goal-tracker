@@ -1,16 +1,32 @@
 import { jsonData, jsonError } from '../../../shared/api';
-import { BackupFormatError, parseBackupEnvelope, serializeEnvelope } from '../../../shared/backup';
+import {
+  BackupFormatError,
+  parseBackupEnvelope,
+  parseImageBytes,
+  serializeEnvelope
+} from '../../../shared/backup';
 import { constantTimeEquals } from '../auth/crypto';
 import { clientIp, consumeRateLimit, RATE_RULES, rateLimitKey } from '../auth/rate-limits';
-import { buildBackupPayload } from '../backup/export';
-import { importBackup } from '../backup/import';
-import { HttpError, MAX_BACKUP_BODY, methodNotAllowed, readTextBody } from '../http';
+import { buildBackupPayload, readImageForBackup } from '../backup/export';
+import { completeImport, importBackup, importImage, readMarker } from '../backup/import';
+import { HttpError, MAX_BACKUP_BODY, methodNotAllowed, readJsonObject, readTextBody } from '../http';
 import { securityEvent } from '../security-log';
+import { MAX_VISION_BODY } from './vision';
 import type { RouteContext } from './context';
 
 declare const __ENABLE_RESTORE_IMPORT__: boolean;
 
 export const OPERATOR_EXPORT_PATH = '/api/v1/operator/export';
+
+/**
+ * The paged image export. Deployed in production **and** restore, under the same bearer check as
+ * the envelope export — a drill needs a source, and production is where the real images are.
+ *
+ * It returns JSON rather than `application/octet-stream`, which keeps the front Worker's
+ * `application/json` gate intact, needs no second parser, and shares one validator with the
+ * member upload route.
+ */
+export const OPERATOR_IMAGE_EXPORT_PATTERN = /^\/api\/v1\/operator\/export\/images\/([A-Za-z0-9-]{1,64})$/;
 
 /**
  * Operator-only backup routes.
@@ -116,6 +132,19 @@ function exportBackup(ctx: RouteContext, request: Request): Response {
   });
 }
 
+/** One image's bytes, base64 in both directions — the same shape the member upload sends. */
+function exportImage(ctx: RouteContext, request: Request, id: string): Response {
+  const authorized = authorize(ctx, request, 'operator.backup.export', 'operatorImagePerIp');
+  if (!authorized) return hidden();
+  if (request.method !== 'GET') throw methodNotAllowed('GET');
+
+  const image = ctx.storage.transactionSync(() => readImageForBackup(ctx.sql, id));
+  if (!image) return hidden();
+  securityEvent('operator.backup.export', 'allowed', { reason: 'exported_image' });
+  // `no-store`, unlike the member-facing content route: an operator copy is not a page asset.
+  return jsonData(image);
+}
+
 async function importIntoRestore(ctx: RouteContext, request: Request): Promise<Response> {
   // The build guard already keeps this code out of the production bundle. This is the second
   // lock: a restore build accidentally deployed over production still refuses to write.
@@ -168,6 +197,74 @@ async function importIntoRestore(ctx: RouteContext, request: Request): Promise<R
   return jsonData({ imported: true, ...result }, 201);
 }
 
+/**
+ * One image of the restore's second phase.
+ *
+ * Restore-only, like the envelope import, and guarded the same two ways: the build-time `define`
+ * keeps it out of every other bundle, and the `DEPLOYMENT_ENV` check refuses to write even if a
+ * restore build were deployed over production by accident.
+ */
+async function importImageIntoRestore(ctx: RouteContext, request: Request, id: string): Promise<Response> {
+  if (ctx.env.DEPLOYMENT_ENV === 'production') {
+    securityEvent('operator.backup.import', 'denied', { reason: 'import_refused_in_production' });
+    return hidden();
+  }
+  // The image budget, not the envelope one: a restore at the caps posts sixty of these.
+  const authorized = authorize(ctx, request, 'operator.backup.import', 'operatorImagePerIp');
+  if (!authorized) return hidden();
+  if (request.method !== 'POST') throw methodNotAllowed('POST');
+
+  const body = await readJsonObject(request, MAX_VISION_BODY);
+  let image;
+  try {
+    image = parseImageBytes(body);
+  } catch (error) {
+    const reason = error instanceof BackupFormatError ? error.reason : 'the image could not be read';
+    throw new HttpError(400, 'invalid_backup', `That image was rejected: ${reason}.`);
+  }
+  if (image.id !== id) {
+    throw new HttpError(400, 'invalid_backup', 'That image payload is for a different image than the path names.');
+  }
+
+  const result = await importImage(ctx.storage, ctx.sql, image, ctx.nowIso);
+  securityEvent('operator.backup.import', 'allowed', { reason: 'imported_image' });
+  return jsonData({ imported: true, ...result }, 201);
+}
+
+/**
+ * Finishes the restore. A distinct path rather than a reserved id, so the `/images/${ID}` pattern
+ * cannot swallow it.
+ */
+async function completeRestore(ctx: RouteContext, request: Request): Promise<Response> {
+  if (ctx.env.DEPLOYMENT_ENV === 'production') {
+    securityEvent('operator.backup.import', 'denied', { reason: 'import_refused_in_production' });
+    return hidden();
+  }
+  const authorized = authorize(ctx, request, 'operator.backup.import', 'operatorImportPerIp');
+  if (!authorized) return hidden();
+  if (request.method !== 'POST') throw methodNotAllowed('POST');
+
+  const body = await readJsonObject(request, MAX_BACKUP_BODY);
+  const expected = body.bytesUsed;
+  if (typeof expected !== 'number' || !Number.isSafeInteger(expected) || expected < 0) {
+    throw new HttpError(400, 'invalid_request', 'Send the bytesUsed the backup recorded.');
+  }
+
+  const result = completeImport(ctx.storage, ctx.sql, expected);
+  securityEvent('operator.backup.import', 'allowed', { reason: 'import_completed' });
+  return jsonData({ complete: true, ...result });
+}
+
+/** Lets an operator see how far a half-finished restore got without guessing. */
+function restoreStatus(ctx: RouteContext, request: Request): Response {
+  if (ctx.env.DEPLOYMENT_ENV === 'production') return hidden();
+  const authorized = authorize(ctx, request, 'operator.backup.import', 'operatorImportPerIp');
+  if (!authorized) return hidden();
+  if (request.method !== 'GET') throw methodNotAllowed('GET');
+  const marker = ctx.storage.transactionSync(() => readMarker(ctx.sql));
+  return jsonData(marker ?? { state: null });
+}
+
 export function handleOperatorRoute(
   ctx: RouteContext,
   request: Request,
@@ -176,8 +273,17 @@ export function handleOperatorRoute(
   if (path === OPERATOR_EXPORT_PATH) {
     return (async () => exportBackup(ctx, request))();
   }
-  if (__ENABLE_RESTORE_IMPORT__ && path === '/api/v1/operator/import') {
-    return importIntoRestore(ctx, request);
+  const imageExport = OPERATOR_IMAGE_EXPORT_PATTERN.exec(path);
+  if (imageExport) {
+    const id = imageExport[1]!;
+    return (async () => exportImage(ctx, request, id))();
+  }
+  if (__ENABLE_RESTORE_IMPORT__) {
+    if (path === '/api/v1/operator/import') return importIntoRestore(ctx, request);
+    if (path === '/api/v1/operator/import/complete') return completeRestore(ctx, request);
+    if (path === '/api/v1/operator/import/status') return (async () => restoreStatus(ctx, request))();
+    const imageImport = /^\/api\/v1\/operator\/import\/images\/([A-Za-z0-9-]{1,64})$/.exec(path);
+    if (imageImport) return importImageIntoRestore(ctx, request, imageImport[1]!);
   }
   return undefined;
 }

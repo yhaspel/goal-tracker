@@ -104,4 +104,85 @@ describe('front Worker routing', () => {
       error: { code: 'unsupported_media_type', message: 'Send application/json.' }
     });
   });
+
+  /**
+   * Every Stage 8 path has to be on `API_ROUTES` as well as inside the Durable Object. The front
+   * Worker refuses an unlisted `/api` path before a Durable Object request is spent, and these
+   * tests go through `SELF.fetch`, so a route wired only into the object would 404 here and in
+   * production alike. An anonymous caller gets `401` on a read and `403` on a mutation — the
+   * same-origin check runs first — and either proves the request reached the object.
+   */
+  it('routes every new goals and vision path to the Durable Object', async () => {
+    const reachable: Array<[string, string]> = [
+      ['GET', '/api/v1/goals'],
+      ['GET', '/api/v1/goals?view=index'],
+      ['POST', '/api/v1/goals'],
+      ['PATCH', '/api/v1/goals/abc'],
+      ['DELETE', '/api/v1/goals/abc'],
+      ['POST', '/api/v1/goals/abc/move'],
+      ['POST', '/api/v1/milestones'],
+      ['PATCH', '/api/v1/milestones/abc'],
+      ['POST', '/api/v1/milestones/abc/move'],
+      ['GET', '/api/v1/vision'],
+      ['POST', '/api/v1/vision/images'],
+      ['PATCH', '/api/v1/vision/images/abc'],
+      ['DELETE', '/api/v1/vision/images/abc'],
+      ['POST', '/api/v1/vision/images/abc/move'],
+      ['GET', '/api/v1/vision/images/abc/content']
+    ];
+    for (const [method, path] of reachable) {
+      const init =
+        method === 'GET'
+          ? undefined
+          : { method, headers: { 'Content-Type': 'application/json' }, body: '{}' };
+      const response = await fetchRoute(path, init);
+      const body = (await response.json()) as { error?: { code: string } };
+      expect([401, 403], `${method} ${path} → ${response.status}`).toContain(response.status);
+      expect(['unauthenticated', 'forbidden'], `${method} ${path}`).toContain(body.error?.code);
+    }
+  });
+
+  it('still refuses near-misses with a JSON 404, before a Durable Object request is spent', async () => {
+    for (const path of [
+      '/api/v1/goalz',
+      '/api/v1/goal',
+      '/api/v1/goals/abc/archive',
+      '/api/v1/milestone',
+      '/api/v1/vision/images/x/bytes',
+      '/api/v1/vision/image/abc',
+      '/api/v1/vision/images/abc/content/full'
+    ]) {
+      const response = await fetchRoute(path);
+      expect(response.status, path).toBe(404);
+      expect(await response.json(), path).toEqual({ error: { code: 'not_found', message: 'Not found' } });
+    }
+  });
+
+  it('gives the image upload its own body limit, and leaves every other route at the board cap', async () => {
+    // Over the board cap but inside the vision cap: refused on a card, forwarded on an upload
+    // (which the object then refuses for want of an `Origin`, as it should).
+    const oversizedForBoard = JSON.stringify({ padding: 'x'.repeat(100 * 1024) });
+    const card = await fetchRoute('/api/v1/cards', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: oversizedForBoard
+    });
+    expect(card.status).toBe(413);
+
+    const upload = await fetchRoute('/api/v1/vision/images', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: oversizedForBoard
+    });
+    expect(upload.status).toBe(403);
+
+    // And past the vision cap it is refused by the front Worker too.
+    const tooBig = await fetchRoute('/api/v1/vision/images', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ padding: 'x'.repeat(4 * 1024 * 1024) })
+    });
+    expect(tooBig.status).toBe(413);
+    expect(await tooBig.json()).toEqual({ error: { code: 'payload_too_large', message: 'Payload too large' } });
+  });
 });

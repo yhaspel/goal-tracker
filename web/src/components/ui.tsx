@@ -85,7 +85,13 @@ type FieldProps = {
   label: string;
   value: string;
   onChange: (value: string) => void;
-  type?: 'text' | 'email' | 'password';
+  /**
+   * `'date'` renders a native date input, whose value is always `YYYY-MM-DD` whatever the
+   * browser displays. The stylesheet restores its picker indicator, which the global
+   * `appearance: none` on `input` would otherwise remove along with the only affordance saying
+   * the field opens a picker.
+   */
+  type?: 'text' | 'email' | 'password' | 'date';
   help?: string;
   error?: string;
   required?: boolean;
@@ -175,12 +181,19 @@ export function Dialog({
   title,
   onClose,
   children,
-  footer
+  footer,
+  size = 'default'
 }: {
   title: string;
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
+  /**
+   * `'wide'` is the carousel. The default dialog is `min(34rem, 100%)`, which would show a
+   * "full-size" image at 544px; `.dialog-wide` carries its own token-driven width instead. The
+   * focus contract, the Escape handling and the sheet treatment below 834px are identical.
+   */
+  size?: 'default' | 'wide';
 }) {
   const { t } = useTranslation();
   const panel = useRef<HTMLDivElement>(null);
@@ -228,7 +241,7 @@ export function Dialog({
   return (
     <div className="dialog-backdrop" onMouseDown={event => event.target === event.currentTarget && onClose()}>
       <div
-        className="dialog"
+        className={size === 'wide' ? 'dialog dialog-wide' : 'dialog'}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
@@ -344,5 +357,29 @@ export function useFormattedDate(): (iso: string) => string {
   return useMemo(() => {
     const formatter = new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' });
     return (iso: string) => formatter.format(new Date(iso));
+  }, [locale]);
+}
+
+/**
+ * A calendar day, `YYYY-MM-DD`, with no time of day.
+ *
+ * A second shape on the same formatter family rather than a second `Intl.DateTimeFormat`
+ * constructed in board code. `timeZone: 'UTC'` is not cosmetic: the string is parsed as UTC
+ * midnight, so formatting it in a timezone behind UTC would render the previous day.
+ */
+export function useCalendarDay(): (day: string) => string {
+  const { locale } = useTranslation();
+  return useMemo(() => {
+    const formatter = new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeZone: 'UTC' });
+    return (day: string) => formatter.format(new Date(`${day}T00:00:00Z`));
+  }, [locale]);
+}
+
+/** The twelve month names the locale itself supplies, for the milestone month selector. */
+export function useMonthNames(): string[] {
+  const { locale } = useTranslation();
+  return useMemo(() => {
+    const formatter = new Intl.DateTimeFormat(locale, { month: 'long', timeZone: 'UTC' });
+    return Array.from({ length: 12 }, (_, index) => formatter.format(new Date(Date.UTC(2026, index, 1))));
   }, [locale]);
 }

@@ -1,6 +1,6 @@
 import { jsonError } from '../../shared/api';
 import { HouseholdImplementation } from './household-do';
-import { OPERATOR_EXPORT_PATH } from './routes/operator';
+import { OPERATOR_EXPORT_PATH, OPERATOR_IMAGE_EXPORT_PATTERN } from './routes/operator';
 
 declare const __ENABLE_DIAGNOSTICS__: boolean;
 declare const __ENABLE_RESTORE_IMPORT__: boolean;
@@ -37,6 +37,8 @@ export const SPA_ROUTES: ReadonlySet<string> = new Set([
   '/recover',
   '/bootstrap',
   '/board',
+  '/goals',
+  '/vision',
   '/account',
   '/members'
 ]);
@@ -44,6 +46,13 @@ export const SPA_ROUTES: ReadonlySet<string> = new Set([
 /** Auth bodies are small. A board card may carry a 4,000-code-point description. */
 const AUTH_BODY_LIMIT = 16 * 1024;
 const BOARD_BODY_LIMIT = 64 * 1024;
+/**
+ * `POST /api/v1/vision/images`, and the two operator image routes. A maximum upload is a
+ * 1,400,000-byte image and a 120,000-byte thumbnail, which is 2,026,668 bytes once base64 has
+ * added its 33%; this leaves room for the metadata and the JSON around it. Kept in step with
+ * `MAX_VISION_BODY` in `routes/vision.ts`, which the Durable Object re-enforces.
+ */
+const VISION_BODY_LIMIT = 3 * 1024 * 1024;
 /** The restore import, and nothing else. Kept in step with `MAX_BACKUP_BODY` in `http.ts`. */
 const BACKUP_BODY_LIMIT = 16 * 1024 * 1024;
 
@@ -71,9 +80,22 @@ const API_ROUTES: ReadonlyArray<{ pattern: RegExp; bodyLimit: number }> = [
   { pattern: new RegExp(`^/api/v1/columns/${ID}(/move)?$`), bodyLimit: BOARD_BODY_LIMIT },
   { pattern: /^\/api\/v1\/cards$/, bodyLimit: BOARD_BODY_LIMIT },
   { pattern: new RegExp(`^/api/v1/cards/${ID}(/move)?$`), bodyLimit: BOARD_BODY_LIMIT },
+  { pattern: /^\/api\/v1\/goals$/, bodyLimit: BOARD_BODY_LIMIT },
+  { pattern: new RegExp(`^/api/v1/goals/${ID}(/move)?$`), bodyLimit: BOARD_BODY_LIMIT },
+  { pattern: /^\/api\/v1\/milestones$/, bodyLimit: BOARD_BODY_LIMIT },
+  { pattern: new RegExp(`^/api/v1/milestones/${ID}(/move)?$`), bodyLimit: BOARD_BODY_LIMIT },
+  { pattern: /^\/api\/v1\/vision$/, bodyLimit: BOARD_BODY_LIMIT },
+  // The one route that carries an image. Everything else about the vision board is small.
+  { pattern: /^\/api\/v1\/vision\/images$/, bodyLimit: VISION_BODY_LIMIT },
+  { pattern: new RegExp(`^/api/v1/vision/images/${ID}(/move)?$`), bodyLimit: BOARD_BODY_LIMIT },
+  { pattern: new RegExp(`^/api/v1/vision/images/${ID}/content$`), bodyLimit: BOARD_BODY_LIMIT },
   // Export is available in every environment; it is gated by the operator bearer secret, and
   // the test environment needs it to run a drill from disposable data.
-  { pattern: new RegExp(`^${OPERATOR_EXPORT_PATH}$`), bodyLimit: AUTH_BODY_LIMIT }
+  { pattern: new RegExp(`^${OPERATOR_EXPORT_PATH}$`), bodyLimit: AUTH_BODY_LIMIT },
+  // The paged image export carries one image back, so it takes the vision cap rather than the
+  // envelope's. Its request body is empty; the limit bounds nothing here but is stated for the
+  // same reason every other route states one.
+  { pattern: OPERATOR_IMAGE_EXPORT_PATTERN, bodyLimit: VISION_BODY_LIMIT }
 ];
 
 /** Board deletes carry `{boardRevision}`, so DELETE can have a body too. */
@@ -150,12 +172,21 @@ function isDiagnosticPath(path: string, env: Env): boolean {
 }
 
 /**
- * True only in the restore build. The path string lives inside the guard so it is absent from
+ * True only in the restore build. The path strings live inside the guard so they are absent from
  * the production and test bundles, the same way the diagnostic routes are.
  */
 function isRestoreImportPath(path: string): boolean {
   if (!__ENABLE_RESTORE_IMPORT__) return false;
   return path === '/api/v1/operator/import';
+}
+
+/** The rest of the restore-only surface: the image phase and the two bookkeeping paths. */
+function restoreImagePhaseLimit(path: string): number | null {
+  if (!__ENABLE_RESTORE_IMPORT__) return null;
+  if (path === '/api/v1/operator/import/complete' || path === '/api/v1/operator/import/status') {
+    return AUTH_BODY_LIMIT;
+  }
+  return new RegExp(`^/api/v1/operator/import/images/${ID}$`).test(path) ? VISION_BODY_LIMIT : null;
 }
 
 function householdStub(env: Env): DurableObjectStub {
@@ -213,6 +244,13 @@ async function handleApi(request: Request, env: Env, path: string): Promise<Resp
     // stranger gets the same 404 the object gives every unauthorized operator request.
     if (request.method !== 'POST') return forwardBounded(request, stub, AUTH_BODY_LIMIT);
     return forwardStreamed(request, stub, BACKUP_BODY_LIMIT);
+  }
+
+  // The image phase is small enough to buffer — one image, not a whole household — so it goes
+  // down the ordinary bounded path rather than the streamed one the envelope needs.
+  const restorePhaseLimit = restoreImagePhaseLimit(path);
+  if (restorePhaseLimit !== null) {
+    return forwardBounded(request, householdStub(env), restorePhaseLimit);
   }
 
   const route = API_ROUTES.find(candidate => candidate.pattern.test(path));

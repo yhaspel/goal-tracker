@@ -26,13 +26,39 @@ import { basename, dirname, join, resolve } from 'node:path';
 // Explicit extension: Node runs this file directly, and its loader does not guess extensions.
 import {
   BACKUP_FORMAT_VERSION,
+  type BackupImageBytes,
   type BackupPayload,
   canonicalJson,
-  parseBackupEnvelope
+  parseBackupEnvelope,
+  parseImageBytes
 } from '../shared/backup.ts';
 import { FILE_SUFFIX, parseCopyName, retainedCopies, sortCopies, type StoredCopy } from './backup-retention.ts';
 
-const ENCRYPTION_FORMAT = 'goal-tracker-backup-v1';
+/**
+ * The stored archive's own format.
+ *
+ * `v1` encrypted the envelope JSON on its own. `v2` encrypts `{envelope, images}`, because Stage
+ * 8 has image bytes that do not fit inside the envelope. **Both are still readable**: the copies
+ * taken before Stage 8 are the household's only history, and a tool that could no longer open
+ * them would have destroyed the thing it exists to protect.
+ */
+const ENCRYPTION_FORMAT = 'goal-tracker-backup-v2';
+const ENCRYPTION_FORMAT_V1 = 'goal-tracker-backup-v1';
+const READABLE_ENCRYPTION_FORMATS = [ENCRYPTION_FORMAT, ENCRYPTION_FORMAT_V1];
+
+/**
+ * A backup is two phases now, and they are not one SQLite snapshot.
+ *
+ * The envelope carries `visionState.revision`; after the last image is fetched the CLI re-reads
+ * it, and if it moved — or if any listed image answered 404, which one member deleting one image
+ * mid-backup is enough to cause — the partial archive is discarded and the whole backup re-runs
+ * from a fresh envelope. A backup is declared successful only when the envelope and every byte
+ * come from the same `visionRevision`.
+ *
+ * Without this, one member deleting one image during the backup window would fail every
+ * subsequent backup and the household would silently age on an old copy.
+ */
+const MAX_BACKUP_ATTEMPTS = 3;
 const ALGORITHM = 'aes-256-gcm';
 const NONCE_BYTES = 12;
 const KEY_BYTES = 32;
@@ -62,6 +88,13 @@ type EncryptedHeader = {
   payloadDigest: string;
   nonce: string;
 };
+
+/**
+ * What is stored on disk. `images` is a map from image id to its base64 payloads, encrypted
+ * inside the same archive and under the same authentication tag as the envelope: a household's
+ * photographs are exactly as private as its card titles.
+ */
+type ArchiveContents = { envelope: string; images: Record<string, BackupImageBytes> };
 
 type EncryptedFile = { header: EncryptedHeader; ciphertext: string; tag: string };
 
@@ -182,6 +215,27 @@ function encryptedName(payload: BackupPayload): string {
   return `${safeHouseholdId(payload.householdId)}-${date}-schema${payload.schemaVersion}-${suffix}${FILE_SUFFIX}`;
 }
 
+/**
+ * Reads a decrypted archive in either stored format. A `v1` copy holds the envelope on its own
+ * and therefore has no images, which is exactly right: it predates them.
+ */
+function readArchive(stored: EncryptedFile, plaintext: string): ArchiveContents {
+  if (stored.header.encryption === ENCRYPTION_FORMAT_V1) return { envelope: plaintext, images: {} };
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(plaintext);
+  } catch {
+    return fail('The stored copy decrypted, but its contents are not readable.');
+  }
+  const archive = parsed as Partial<ArchiveContents>;
+  if (typeof archive.envelope !== 'string' || archive.images === null || typeof archive.images !== 'object') {
+    return fail('The stored copy decrypted, but it is missing its envelope or its image map.');
+  }
+  const images: Record<string, BackupImageBytes> = {};
+  for (const [id, value] of Object.entries(archive.images)) images[id] = parseImageBytes(value);
+  return { envelope: archive.envelope, images };
+}
+
 function encrypt(plaintext: string, key: Buffer, payload: BackupPayload, digest: string): EncryptedFile {
   const nonce = randomBytes(NONCE_BYTES);
   const header: EncryptedHeader = {
@@ -203,7 +257,7 @@ function encrypt(plaintext: string, key: Buffer, payload: BackupPayload, digest:
 }
 
 function decrypt(stored: EncryptedFile, key: Buffer): string {
-  if (stored.header.encryption !== ENCRYPTION_FORMAT) {
+  if (!READABLE_ENCRYPTION_FORMATS.includes(stored.header.encryption)) {
     fail(`Unknown encryption format ${stored.header.encryption}.`);
   }
   if (stored.header.algorithm !== ALGORITHM) fail(`Unknown algorithm ${stored.header.algorithm}.`);
@@ -278,13 +332,26 @@ async function download(baseUrl: string, secret: string): Promise<string> {
   return response.text();
 }
 
-async function create(options: Options): Promise<void> {
-  const outDir = options.outDir;
-  ensureOutDir(outDir);
-  const key = readKey(options.keyFile!, outDir);
-  const secret = readOperatorSecret();
+/** `null` means the image is gone — a member deleted it while the backup was running. */
+async function downloadImage(baseUrl: string, secret: string, id: string): Promise<BackupImageBytes | null> {
+  const response = await fetch(`${baseUrl}/api/v1/operator/export/images/${encodeURIComponent(id)}`, {
+    headers: { Authorization: `Bearer ${secret}`, Accept: 'application/json' }
+  });
+  if (response.status === 404) return null;
+  if (!response.ok) fail(`Fetching image ${id} failed with HTTP ${response.status}.`);
+  const body = (await response.json()) as { data?: unknown };
+  return parseImageBytes(body.data);
+}
 
-  const text = await download(options.baseUrl!, secret);
+type Attempt = { text: string; envelope: ReturnType<typeof parseBackupEnvelope>; images: Record<string, BackupImageBytes> };
+
+/**
+ * One coherent attempt: an envelope, every image it lists, and a re-read of `visionRevision`
+ * proving nothing moved in between. Returns `null` when the household changed underneath, which
+ * the caller retries from a fresh envelope.
+ */
+async function collect(baseUrl: string, secret: string): Promise<Attempt | null> {
+  const text = await download(baseUrl, secret);
   let envelope;
   try {
     envelope = parseBackupEnvelope(text);
@@ -295,23 +362,86 @@ async function create(options: Options): Promise<void> {
     fail(`The Worker produced format version ${envelope.payload.formatVersion}; this tool writes ${BACKUP_FORMAT_VERSION}.`);
   }
 
+  const images: Record<string, BackupImageBytes> = {};
+  for (const listed of envelope.payload.visionImages) {
+    const image = await downloadImage(baseUrl, secret, listed.id);
+    if (image === null) {
+      console.error(`  image ${listed.id} disappeared mid-backup; starting again from a fresh envelope.`);
+      return null;
+    }
+    // Checked against the envelope's own record rather than trusted, so a transfer fault cannot
+    // put an image into the archive under another image's metadata.
+    if (image.contentDigest !== listed.contentDigest || image.thumbDigest !== listed.thumbDigest) {
+      fail(`Image ${listed.id} came back with a digest the envelope does not record.`);
+    }
+    images[listed.id] = image;
+  }
+
+  if (envelope.payload.visionImages.length > 0) {
+    // The envelope and the bytes are no longer one SQLite snapshot, so the gap is closed here.
+    const after = parseBackupEnvelope(await download(baseUrl, secret));
+    if (after.payload.visionState.revision !== envelope.payload.visionState.revision) {
+      console.error(
+        `  the vision board changed during the backup ` +
+          `(revision ${envelope.payload.visionState.revision} → ${after.payload.visionState.revision}); starting again.`
+      );
+      return null;
+    }
+  }
+
+  return { text, envelope, images };
+}
+
+async function create(options: Options): Promise<void> {
+  const outDir = options.outDir;
+  ensureOutDir(outDir);
+  const key = readKey(options.keyFile!, outDir);
+  const secret = readOperatorSecret();
+
+  let attempt: Attempt | null = null;
+  for (let round = 1; round <= MAX_BACKUP_ATTEMPTS && attempt === null; round += 1) {
+    if (round > 1) console.error(`Attempt ${round} of ${MAX_BACKUP_ATTEMPTS}.`);
+    attempt = await collect(options.baseUrl!, secret);
+  }
+  if (attempt === null) {
+    fail(
+      `The household kept changing across ${MAX_BACKUP_ATTEMPTS} attempts, so no coherent backup was taken. ` +
+        'Run this again when the vision board is quiet. Nothing was written, and no older copy was pruned.'
+    );
+  }
+  const { text, envelope, images } = attempt;
+
   const name = encryptedName(envelope.payload);
   const path = join(outDir, name);
-  writeAtomically(path, `${JSON.stringify(encrypt(text, key, envelope.payload, envelope.digest))}\n`);
+  const archive: ArchiveContents = { envelope: text, images };
+  writeAtomically(path, `${JSON.stringify(encrypt(JSON.stringify(archive), key, envelope.payload, envelope.digest))}\n`);
 
   // Read the file back off the disk rather than trusting what was just in memory.
-  const roundTrip = parseBackupEnvelope(decrypt(readStored(path), key));
+  const storedFile = readStored(path);
+  const restored = readArchive(storedFile, decrypt(storedFile, key));
+  const roundTrip = parseBackupEnvelope(restored.envelope);
   if (roundTrip.digest !== envelope.digest) fail('The stored copy did not decrypt to the downloaded backup.');
+  for (const listed of envelope.payload.visionImages) {
+    const image = restored.images[listed.id];
+    if (!image) fail(`The stored copy is missing image ${listed.id}.`);
+    if (image.contentDigest !== listed.contentDigest || image.thumbDigest !== listed.thumbDigest) {
+      fail(`The stored copy holds the wrong bytes for image ${listed.id}.`);
+    }
+  }
 
   const counts = envelope.payload.counts;
   console.log(`Wrote ${name}`);
   console.log(
     `  household ${envelope.payload.householdId}, schema ${envelope.payload.schemaVersion}, ` +
-      `board revision ${envelope.payload.boardState.revision}`
+      `board revision ${envelope.payload.boardState.revision}, vision revision ${envelope.payload.visionState.revision}`
   );
   console.log(
     `  ${counts.users} users (${counts.activeUsers} active), ${counts.allowedEmails} allowed addresses, ` +
       `${counts.columns} columns, ${counts.cards} cards`
+  );
+  console.log(
+    `  ${counts.goals} goals, ${counts.milestones} milestones, ` +
+      `${counts.visionImages} images holding ${envelope.payload.visionState.bytesUsed} bytes`
   );
   console.log(`  verified by decrypting the stored file: digest ${envelope.digest.slice(0, 16)}…`);
 
@@ -351,12 +481,25 @@ function verify(options: Options): void {
 
   let failed = 0;
   for (const copy of copies) {
-    const envelope = parseBackupEnvelope(decrypt(readStored(join(outDir, copy.name)), key));
-    const state = envelope.payload.integrity.ok ? 'ok' : `INTEGRITY FAILED (${envelope.payload.integrity.issues.length})`;
-    if (!envelope.payload.integrity.ok) failed += 1;
+    const stored = readStored(join(outDir, copy.name));
+    const archive = readArchive(stored, decrypt(stored, key));
+    const envelope = parseBackupEnvelope(archive.envelope);
+    const problems: string[] = [];
+    if (!envelope.payload.integrity.ok) problems.push(`INTEGRITY FAILED (${envelope.payload.integrity.issues.length})`);
+    // An archive missing a byte of what its own envelope lists is not a restorable copy, and
+    // saying "ok" about it would be the one thing this command must never do.
+    for (const listed of envelope.payload.visionImages) {
+      const image = archive.images[listed.id];
+      if (!image) problems.push(`image ${listed.id} is missing`);
+      else if (image.contentDigest !== listed.contentDigest || image.thumbDigest !== listed.thumbDigest) {
+        problems.push(`image ${listed.id} has the wrong digest`);
+      }
+    }
+    if (problems.length > 0) failed += 1;
     console.log(
-      `${copy.name}: ${state}, taken ${envelope.payload.createdAt}, schema ${envelope.payload.schemaVersion}, ` +
-        `${envelope.payload.counts.users} users, ${envelope.payload.counts.cards} cards`
+      `${copy.name}: ${problems.length === 0 ? 'ok' : problems.join('; ')}, taken ${envelope.payload.createdAt}, ` +
+        `schema ${envelope.payload.schemaVersion}, ${envelope.payload.counts.users} users, ` +
+        `${envelope.payload.counts.cards} cards, ${envelope.payload.counts.visionImages} images`
     );
   }
   if (failed > 0) process.exit(1);
@@ -386,26 +529,102 @@ async function restore(options: Options): Promise<void> {
   }
   const key = readKey(options.keyFile!, options.outDir);
   const secret = readOperatorSecret();
-  const plaintext = decrypt(readStored(join(options.outDir, basename(options.file!))), key);
-  const envelope = parseBackupEnvelope(plaintext);
+  const stored = readStored(join(options.outDir, basename(options.file!)));
+  const archive = readArchive(stored, decrypt(stored, key));
+  const envelope = parseBackupEnvelope(archive.envelope);
 
   console.log(`Importing household ${envelope.payload.householdId} into ${target.host}`);
-  console.log(`  taken ${envelope.payload.createdAt}, schema ${envelope.payload.schemaVersion}`);
+  console.log(
+    `  taken ${envelope.payload.createdAt}, schema ${envelope.payload.schemaVersion}, ` +
+      `format ${envelope.sourceFormatVersion}, ${envelope.payload.counts.visionImages} images`
+  );
 
-  const response = await fetch(`${options.baseUrl}/api/v1/operator/import`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${secret}`, 'Content-Type': 'application/json' },
-    body: plaintext
+  /**
+   * A half-finished restore is resumable, and this is what makes the claim true rather than
+   * merely reassuring: the marker says how far the last run got, and a second run of the same
+   * copy carries on from there instead of being refused for a non-pristine target.
+   */
+  const statusResponse = await fetch(`${options.baseUrl}/api/v1/operator/import/status`, {
+    headers: { Authorization: `Bearer ${secret}`, Accept: 'application/json' }
   });
-  const body = await response.text();
-  if (response.status === 404) {
+  if (statusResponse.status === 404) {
     fail(
-      'The import route answered 404. Either this Worker is not the restore build, or the operator ' +
+      'The import routes answered 404. Either this Worker is not the restore build, or the operator ' +
         'secret, BACKUP_HOUSEHOLD_ID, or rate limit refused the call. Check `npx wrangler tail --env restore`.'
     );
   }
-  if (!response.ok) fail(`The import failed with HTTP ${response.status}: ${body}`);
-  console.log(`Imported. ${body}`);
+  if (!statusResponse.ok) fail(`Reading the restore status failed with HTTP ${statusResponse.status}.`);
+  const marker = ((await statusResponse.json()) as {
+    data?: { state?: string | null; digest?: string; imagesImported?: number; imagesExpected?: number };
+  }).data;
+
+  if (marker?.state === 'complete') {
+    fail('This object already holds a completed restore. Provision a fresh restore namespace for another drill.');
+  }
+  if (marker?.state === 'in_progress') {
+    if (marker.digest !== envelope.digest) {
+      fail('This object is part-way through restoring a *different* backup. Provision a fresh restore namespace.');
+    }
+    console.log(`  resuming: ${marker.imagesImported ?? 0}/${marker.imagesExpected ?? 0} images already stored.`);
+  } else {
+    const response = await fetch(`${options.baseUrl}/api/v1/operator/import`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${secret}`, 'Content-Type': 'application/json' },
+      body: archive.envelope
+    });
+    const body = await response.text();
+    if (response.status === 404) {
+      fail(
+        'The import route answered 404. Either this Worker is not the restore build, or the operator ' +
+          'secret, BACKUP_HOUSEHOLD_ID, or rate limit refused the call. Check `npx wrangler tail --env restore`.'
+      );
+    }
+    if (!response.ok) fail(`The import failed with HTTP ${response.status}: ${body}`);
+    console.log(`  envelope imported. ${body}`);
+  }
+
+  // Phase two. Each image is its own request and its own transaction, so a failure here costs one
+  // image and a retry rather than a whole 64 MiB restore on a freshly provisioned namespace.
+  let sent = 0;
+  let skipped = 0;
+  for (const listed of envelope.payload.visionImages) {
+    const image = archive.images[listed.id];
+    if (!image) fail(`This copy is missing image ${listed.id}. It cannot complete a restore.`);
+    const imageResponse = await fetch(
+      `${options.baseUrl}/api/v1/operator/import/images/${encodeURIComponent(listed.id)}`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${secret}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(image)
+      }
+    );
+    const imageBody = await imageResponse.text();
+    // An image the previous run already stored is no longer pending, and answers 404. On a
+    // resume that is the expected answer, not a fault.
+    if (imageResponse.status === 404 && marker?.state === 'in_progress') {
+      skipped += 1;
+      continue;
+    }
+    if (!imageResponse.ok) {
+      fail(
+        `Image ${listed.id} failed with HTTP ${imageResponse.status}: ${imageBody}\n` +
+          'The restore marker is still in_progress, so re-running this command resends only what is missing.'
+      );
+    }
+    sent += 1;
+    if (sent % 10 === 0 || sent + skipped === envelope.payload.visionImages.length) {
+      console.log(`  ${sent + skipped}/${envelope.payload.visionImages.length} images (${skipped} already stored)`);
+    }
+  }
+
+  const completion = await fetch(`${options.baseUrl}/api/v1/operator/import/complete`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${secret}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ bytesUsed: envelope.payload.visionState.bytesUsed })
+  });
+  const completionBody = await completion.text();
+  if (!completion.ok) fail(`Completing the restore failed with HTTP ${completion.status}: ${completionBody}`);
+  console.log(`Imported. ${completionBody}`);
 }
 
 const options = parseArgs(process.argv.slice(2));

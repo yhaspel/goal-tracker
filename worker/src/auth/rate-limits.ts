@@ -24,7 +24,25 @@ export const RATE_RULES = {
   // the limit exists so an unauthenticated prober cannot grind the bearer secret or make the
   // Durable Object serialise large exports.
   operatorExportPerIp: { limit: 12, windowMs: FIFTEEN_MINUTES },
-  operatorImportPerIp: { limit: 6, windowMs: FIFTEEN_MINUTES }
+  operatorImportPerIp: { limit: 6, windowMs: FIFTEEN_MINUTES },
+  /**
+   * Stage 8's paged image routes get their own budget rather than sharing the envelope routes'.
+   *
+   * The two limits above are tight because each of those requests serialises or parses a whole
+   * household; keeping them tight is the protection, and it must not be given up. An image
+   * request is one row. But a backup at the caps fetches sixty images, and a restore posts sixty
+   * more — so under the envelope budget a drill at the caps would be refused at the sixth image,
+   * which is how this number was found. Sized for three backup attempts or a resumed restore at
+   * the caps, with margin.
+   */
+  operatorImagePerIp: { limit: 400, windowMs: FIFTEEN_MINUTES },
+  // Stage 8 vision uploads. Board routes carry no rate limit because a card is cheap; an upload
+  // is up to 1.5 MB written into an object that serialises the whole household's work. Thirty
+  // per fifteen minutes is a generous batch for a household and a hard stop for a loop. It is
+  // deliberately *below* the count needed to reach the image caps, so the cap tests seed rows
+  // through SQL rather than through sixty-one uploads.
+  visionUploadPerAccount: { limit: 30, windowMs: FIFTEEN_MINUTES },
+  visionUploadPerIp: { limit: 60, windowMs: FIFTEEN_MINUTES }
 } as const satisfies Record<string, RateRule>;
 
 export type RateDecision = { allowed: boolean; retryAfterSeconds: number };

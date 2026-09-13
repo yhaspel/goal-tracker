@@ -1,5 +1,5 @@
 import type { BoardCard, BoardColumn, BoardSnapshot } from '../../../shared/api';
-import { conflict, invalidRequest, isSafeIndex } from '../http';
+import { invalidRequest, isSafeIndex } from '../http';
 import {
   type CardRow,
   cardsInColumn,
@@ -65,16 +65,6 @@ export function validateIndex(raw: unknown, upperBound: number, field: string): 
   return raw;
 }
 
-/** Refuses a mutation whose client revision is not the committed one, without writing. */
-export function assertCurrentRevision(sql: SqlStorage, claimed: unknown): number {
-  if (!isSafeIndex(claimed)) throw invalidRequest('That request was missing a board revision.', { boardRevision: 'invalid' });
-  const current = readBoardRevision(sql);
-  if (claimed !== current) {
-    throw conflict('revision_conflict', 'The board changed; reload and retry.', { boardRevision: current });
-  }
-  return current;
-}
-
 function toCard(row: CardRow): BoardCard {
   return {
     id: row.id,
@@ -84,6 +74,8 @@ function toCard(row: CardRow): BoardCard {
     assigneeUserId: row.assignee_user_id,
     creatorUserId: row.creator_user_id,
     position: row.position,
+    dueDate: row.due_date,
+    milestoneId: row.milestone_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };

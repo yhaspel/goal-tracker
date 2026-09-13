@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 /**
  * The three columns migration 4 seeds into a fresh object, in position order.
@@ -16,6 +16,10 @@ export const SEED_COLUMNS: ReadonlyArray<{ id: string; nameKey: string; position
 
 /** A fresh object's board revision, before anything has changed the board. */
 export const SEED_BOARD_REVISION = 1;
+
+/** The same, for the two revisions migration 5 seeds. A pristine restore target holds these. */
+export const SEED_GOAL_REVISION = 1;
+export const SEED_VISION_REVISION = 1;
 
 /**
  * UTC ISO-8601 with milliseconds, identical in shape to `new Date().toISOString()`.
@@ -220,6 +224,91 @@ const migrations = [
       )`,
       `CREATE INDEX IF NOT EXISTS cards_order ON cards (column_id, position, id)`,
       `CREATE INDEX IF NOT EXISTS cards_assignee ON cards (assignee_user_id)`
+    ]
+  },
+  {
+    version: 5,
+    statements: [
+      // Two more singleton revisions, in the shape `board_state` already uses. They are separate
+      // from the board's so that a member adding a vision image cannot invalidate another
+      // member's open card editor with a 409, and vice versa.
+      `CREATE TABLE IF NOT EXISTS goal_state (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        revision INTEGER NOT NULL DEFAULT 1
+      )`,
+      `INSERT OR IGNORE INTO goal_state (id, revision) VALUES (1, 1)`,
+
+      // `bytes_used` is the member-facing image budget: a counter maintained in the same
+      // transaction as every insert and delete, because `sql.databaseSize` is a high-water mark
+      // that very likely does not fall when an image is deleted.
+      `CREATE TABLE IF NOT EXISTS vision_state (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        revision INTEGER NOT NULL DEFAULT 1,
+        bytes_used INTEGER NOT NULL DEFAULT 0
+      )`,
+      `INSERT OR IGNORE INTO vision_state (id, revision, bytes_used) VALUES (1, 1, 0)`,
+
+      // `goals` and `milestones` are created before `cards` is altered, because the new
+      // `cards.milestone_id` carries a `REFERENCES milestones (id)` clause and foreign keys are
+      // enforced in this runtime with no explicit pragma.
+      `CREATE TABLE IF NOT EXISTS goals (
+        id TEXT PRIMARY KEY,
+        year INTEGER NOT NULL CHECK (year >= 2000 AND year <= 2999),
+        title TEXT NOT NULL,
+        notes TEXT,
+        position INTEGER NOT NULL,
+        creator_user_id TEXT NOT NULL REFERENCES users (id),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS goals_order ON goals (year, position, id)`,
+
+      `CREATE TABLE IF NOT EXISTS milestones (
+        id TEXT PRIMARY KEY,
+        goal_id TEXT NOT NULL REFERENCES goals (id),
+        month INTEGER NOT NULL CHECK (month >= 1 AND month <= 12),
+        title TEXT NOT NULL,
+        notes TEXT,
+        status TEXT NOT NULL CHECK (status IN ('open', 'done')),
+        position INTEGER NOT NULL,
+        creator_user_id TEXT NOT NULL REFERENCES users (id),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS milestones_order ON milestones (goal_id, month, position, id)`,
+
+      // Nineteen columns, well inside the hundred-column ceiling. The thumbnail's own intrinsic
+      // size is stored separately because the gallery renders the thumbnail, not the full image.
+      `CREATE TABLE IF NOT EXISTS vision_images (
+        id TEXT PRIMARY KEY,
+        caption TEXT,
+        goal_id TEXT REFERENCES goals (id),
+        media_type TEXT NOT NULL CHECK (media_type IN ('image/jpeg', 'image/png', 'image/webp')),
+        byte_size INTEGER NOT NULL,
+        width INTEGER NOT NULL,
+        height INTEGER NOT NULL,
+        content BLOB NOT NULL,
+        content_digest TEXT NOT NULL,
+        thumb_media_type TEXT NOT NULL CHECK (thumb_media_type IN ('image/jpeg', 'image/png', 'image/webp')),
+        thumb_byte_size INTEGER NOT NULL,
+        thumb_width INTEGER NOT NULL,
+        thumb_height INTEGER NOT NULL,
+        thumb BLOB NOT NULL,
+        thumb_digest TEXT NOT NULL,
+        position INTEGER NOT NULL,
+        creator_user_id TEXT NOT NULL REFERENCES users (id),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS vision_images_order ON vision_images (position, id)`,
+      `CREATE INDEX IF NOT EXISTS vision_images_goal ON vision_images (goal_id)`,
+
+      // SQLite allows `ADD COLUMN` with a `REFERENCES` clause only when the new column's default
+      // is NULL. Both of these are nullable with no default, which satisfies that rule. Neither
+      // statement is idempotent on its own; what makes them safe is that `migrate()` writes the
+      // `schema_migrations` row in the same `transactionSync` as the statements themselves.
+      `ALTER TABLE cards ADD COLUMN due_date TEXT`,
+      `ALTER TABLE cards ADD COLUMN milestone_id TEXT REFERENCES milestones (id)`
     ]
   }
 ] as const;

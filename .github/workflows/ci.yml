@@ -58,6 +58,12 @@ jobs:
             echo '::error::The production bundle contains the restore import marker table.'
             exit 1
           fi
+          # Stage 8's image phase is an import route too, and is gated the same way. The grep for
+          # `operator/import` above already covers its path; this covers its staging table.
+          if grep -qF 'restore_pending_images' "$bundle"; then
+            echo '::error::The production bundle contains the restore image staging table.'
+            exit 1
+          fi
           grep -qF 'operator/export' "$bundle"
 
       - name: Check restore Worker bundle
@@ -70,6 +76,7 @@ jobs:
           test -f "$bundle"
           grep -qF 'operator/import' "$bundle"
           grep -qF 'restore_import_marker' "$bundle"
+          grep -qF 'restore_pending_images' "$bundle"
 
   deploy-test:
     needs: checks

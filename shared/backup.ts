@@ -13,14 +13,27 @@ import { createHash } from 'node:crypto';
  * the Worker (`nodejs_compat`).
  */
 
-/** Bump only for a change that an older reader cannot understand. */
-export const BACKUP_FORMAT_VERSION = 1;
+/**
+ * Bump only for a change that an older reader cannot understand.
+ *
+ * Version 2 is Stage 8: two more singleton revisions, goals, milestones, one metadata record per
+ * vision image, and two more columns on every card. **No image bytes travel inside this
+ * envelope** — sixty images cannot fit a 16 MiB bound and should not try. They come through the
+ * paged image routes instead, and the CLI is what keeps the two phases coherent.
+ */
+export const BACKUP_FORMAT_VERSION = 2;
 
-/** Every format version this build can still import. */
-export const SUPPORTED_BACKUP_FORMAT_VERSIONS: readonly number[] = [1];
+/**
+ * Every format version this build can still import. A version 1 envelope is accepted and
+ * transformed: it restores into the version 5 schema with no goals, no milestones, no images,
+ * and every `due_date` and `milestone_id` null.
+ */
+export const SUPPORTED_BACKUP_FORMAT_VERSIONS: readonly number[] = [1, 2];
 
 export type BackupAppState = { bootstrapConsumed: number; allowlistRevision: number };
 export type BackupBoardState = { revision: number };
+export type BackupGoalState = { revision: number };
+export type BackupVisionState = { revision: number; bytesUsed: number };
 export type BackupAllowedEmail = { emailNorm: string; createdAt: string };
 
 export type BackupUser = {
@@ -70,8 +83,70 @@ export type BackupCard = {
   assigneeUserId: string | null;
   creatorUserId: string;
   position: number;
+  dueDate: string | null;
+  milestoneId: string | null;
   createdAt: string;
   updatedAt: string;
+};
+
+export type BackupGoal = {
+  id: string;
+  year: number;
+  title: string;
+  notes: string | null;
+  position: number;
+  creatorUserId: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type BackupMilestone = {
+  id: string;
+  goalId: string;
+  month: number;
+  title: string;
+  notes: string | null;
+  status: string;
+  position: number;
+  creatorUserId: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/**
+ * One vision image's metadata — everything except its bytes, which travel through the paged
+ * image routes. **Both digests** are recorded here, which is what lets the image phase verify
+ * each payload against the envelope it belongs to rather than trusting the transfer.
+ */
+export type BackupVisionImage = {
+  id: string;
+  caption: string | null;
+  goalId: string | null;
+  mediaType: string;
+  byteSize: number;
+  width: number;
+  height: number;
+  contentDigest: string;
+  thumbMediaType: string;
+  thumbByteSize: number;
+  thumbWidth: number;
+  thumbHeight: number;
+  thumbDigest: string;
+  position: number;
+  creatorUserId: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/** One image's bytes, as the paged export returns them and the paged import accepts them. */
+export type BackupImageBytes = {
+  id: string;
+  mediaType: string;
+  data: string;
+  thumbMediaType: string;
+  thumbData: string;
+  contentDigest: string;
+  thumbDigest: string;
 };
 
 export type BackupCounts = {
@@ -82,6 +157,9 @@ export type BackupCounts = {
   invitations: number;
   columns: number;
   cards: number;
+  goals: number;
+  milestones: number;
+  visionImages: number;
 };
 
 /**
@@ -100,22 +178,35 @@ export type BackupPayload = {
   integrity: BackupIntegrity;
   appState: BackupAppState;
   boardState: BackupBoardState;
+  goalState: BackupGoalState;
+  visionState: BackupVisionState;
   allowedEmails: BackupAllowedEmail[];
   users: BackupUser[];
   recoveryCredentials: BackupRecoveryCredential[];
   invitations: BackupInvitation[];
   columns: BackupColumn[];
   cards: BackupCard[];
+  goals: BackupGoal[];
+  milestones: BackupMilestone[];
+  visionImages: BackupVisionImage[];
 };
 
-/** `digest` covers the canonical serialization of `payload` and of nothing else. */
-export type BackupEnvelope = { digest: string; payload: BackupPayload };
+/**
+ * `digest` covers the canonical serialization of `payload` **as it was written**, which for a
+ * version 1 copy is the version 1 shape. `sourceFormatVersion` records which that was, because
+ * the payload handed back has already been transformed into the current shape.
+ */
+export type BackupEnvelope = { digest: string; payload: BackupPayload; sourceFormatVersion: number };
 
 export type BackupLimits = {
   maxActiveUsers: number;
   maxAllowedEmails: number;
   maxColumns: number;
   maxCards: number;
+  maxGoals: number;
+  maxMilestones: number;
+  maxVisionImages: number;
+  maxVisionTotalBytes: number;
 };
 
 /**
@@ -209,11 +300,18 @@ function asCount(value: unknown, where: string): number {
 }
 
 /**
- * Rebuilds the payload field by field. An unexpected property is dropped by construction and
- * would therefore change the recomputed digest, so a tampered copy fails verification rather
- * than being silently accepted with extra data attached.
+ * Rebuilds the payload field by field, **in the shape the declared format version was written
+ * in**. An unexpected property is dropped by construction and would therefore change the
+ * recomputed digest, so a tampered copy fails verification rather than being silently accepted
+ * with extra data attached — and a version 1 copy has to be rebuilt without the version 2 fields
+ * for exactly the same reason, or its own digest would no longer match.
+ *
+ * The transformation into the current shape happens afterwards, in `upgradePayload`, once the
+ * digest has already been checked against what was actually stored.
  */
-function readPayload(raw: Record<string, unknown>): BackupPayload {
+function readExactPayload(raw: Record<string, unknown>): Record<string, unknown> {
+  const formatVersion = asInteger(raw.formatVersion, 'formatVersion');
+  const version2 = formatVersion >= 2;
   const counts = asObject(raw.counts, 'counts');
   const integrity = asObject(raw.integrity, 'integrity');
   const appState = asObject(raw.appState, 'appState');
@@ -223,8 +321,77 @@ function readPayload(raw: Record<string, unknown>): BackupPayload {
   );
   if (typeof integrity.ok !== 'boolean') fail('integrity.ok must be a boolean');
 
+  // Every version-2 key is *absent* from a version-1 rebuild rather than defaulted, because
+  // `canonicalJson` serializes whatever keys are present: adding one would change the digest and
+  // a perfectly good version-1 copy would fail verification.
+  const version2Fields = !version2
+    ? {}
+    : {
+        goalState: (() => {
+          const goalState = asObject(raw.goalState, 'goalState');
+          return { revision: asCount(goalState.revision, 'goalState.revision') };
+        })(),
+        visionState: (() => {
+          const visionState = asObject(raw.visionState, 'visionState');
+          return {
+            revision: asCount(visionState.revision, 'visionState.revision'),
+            bytesUsed: asCount(visionState.bytesUsed, 'visionState.bytesUsed')
+          };
+        })(),
+        goals: asArray(raw.goals, 'goals').map((entry, index) => {
+          const row = asObject(entry, `goals[${index}]`);
+          return {
+            id: asString(row.id, `goals[${index}].id`),
+            year: asInteger(row.year, `goals[${index}].year`),
+            title: asString(row.title, `goals[${index}].title`),
+            notes: asNullableString(row.notes, `goals[${index}].notes`),
+            position: asCount(row.position, `goals[${index}].position`),
+            creatorUserId: asString(row.creatorUserId, `goals[${index}].creatorUserId`),
+            createdAt: asString(row.createdAt, `goals[${index}].createdAt`),
+            updatedAt: asString(row.updatedAt, `goals[${index}].updatedAt`)
+          };
+        }),
+        milestones: asArray(raw.milestones, 'milestones').map((entry, index) => {
+          const row = asObject(entry, `milestones[${index}]`);
+          return {
+            id: asString(row.id, `milestones[${index}].id`),
+            goalId: asString(row.goalId, `milestones[${index}].goalId`),
+            month: asInteger(row.month, `milestones[${index}].month`),
+            title: asString(row.title, `milestones[${index}].title`),
+            notes: asNullableString(row.notes, `milestones[${index}].notes`),
+            status: asString(row.status, `milestones[${index}].status`),
+            position: asCount(row.position, `milestones[${index}].position`),
+            creatorUserId: asString(row.creatorUserId, `milestones[${index}].creatorUserId`),
+            createdAt: asString(row.createdAt, `milestones[${index}].createdAt`),
+            updatedAt: asString(row.updatedAt, `milestones[${index}].updatedAt`)
+          };
+        }),
+        visionImages: asArray(raw.visionImages, 'visionImages').map((entry, index) => {
+          const row = asObject(entry, `visionImages[${index}]`);
+          return {
+            id: asString(row.id, `visionImages[${index}].id`),
+            caption: asNullableString(row.caption, `visionImages[${index}].caption`),
+            goalId: asNullableString(row.goalId, `visionImages[${index}].goalId`),
+            mediaType: asString(row.mediaType, `visionImages[${index}].mediaType`),
+            byteSize: asCount(row.byteSize, `visionImages[${index}].byteSize`),
+            width: asCount(row.width, `visionImages[${index}].width`),
+            height: asCount(row.height, `visionImages[${index}].height`),
+            contentDigest: asString(row.contentDigest, `visionImages[${index}].contentDigest`),
+            thumbMediaType: asString(row.thumbMediaType, `visionImages[${index}].thumbMediaType`),
+            thumbByteSize: asCount(row.thumbByteSize, `visionImages[${index}].thumbByteSize`),
+            thumbWidth: asCount(row.thumbWidth, `visionImages[${index}].thumbWidth`),
+            thumbHeight: asCount(row.thumbHeight, `visionImages[${index}].thumbHeight`),
+            thumbDigest: asString(row.thumbDigest, `visionImages[${index}].thumbDigest`),
+            position: asCount(row.position, `visionImages[${index}].position`),
+            creatorUserId: asString(row.creatorUserId, `visionImages[${index}].creatorUserId`),
+            createdAt: asString(row.createdAt, `visionImages[${index}].createdAt`),
+            updatedAt: asString(row.updatedAt, `visionImages[${index}].updatedAt`)
+          };
+        })
+      };
+
   return {
-    formatVersion: asInteger(raw.formatVersion, 'formatVersion'),
+    formatVersion,
     schemaVersion: asInteger(raw.schemaVersion, 'schemaVersion'),
     householdId: asString(raw.householdId, 'householdId'),
     createdAt: asString(raw.createdAt, 'createdAt'),
@@ -235,8 +402,16 @@ function readPayload(raw: Record<string, unknown>): BackupPayload {
       recoveryCredentials: asCount(counts.recoveryCredentials, 'counts.recoveryCredentials'),
       invitations: asCount(counts.invitations, 'counts.invitations'),
       columns: asCount(counts.columns, 'counts.columns'),
-      cards: asCount(counts.cards, 'counts.cards')
+      cards: asCount(counts.cards, 'counts.cards'),
+      ...(version2
+        ? {
+            goals: asCount(counts.goals, 'counts.goals'),
+            milestones: asCount(counts.milestones, 'counts.milestones'),
+            visionImages: asCount(counts.visionImages, 'counts.visionImages')
+          }
+        : {})
     },
+    ...version2Fields,
     integrity: { ok: integrity.ok, issues },
     appState: {
       bootstrapConsumed: asInteger(appState.bootstrapConsumed, 'appState.bootstrapConsumed'),
@@ -307,6 +482,12 @@ function readPayload(raw: Record<string, unknown>): BackupPayload {
         assigneeUserId: asNullableString(row.assigneeUserId, `cards[${index}].assigneeUserId`),
         creatorUserId: asString(row.creatorUserId, `cards[${index}].creatorUserId`),
         position: asCount(row.position, `cards[${index}].position`),
+        ...(version2
+          ? {
+              dueDate: asNullableString(row.dueDate, `cards[${index}].dueDate`),
+              milestoneId: asNullableString(row.milestoneId, `cards[${index}].milestoneId`)
+            }
+          : {}),
         createdAt: asString(row.createdAt, `cards[${index}].createdAt`),
         updatedAt: asString(row.updatedAt, `cards[${index}].updatedAt`)
       };
@@ -315,8 +496,33 @@ function readPayload(raw: Record<string, unknown>): BackupPayload {
 }
 
 /**
+ * Transforms a verified version-1 payload into the current shape: no goals, no milestones, no
+ * images, both new revisions at their seed value, and every `dueDate` and `milestoneId` null.
+ *
+ * This runs **after** the digest has been checked against the exact bytes that were stored, so
+ * adding fields here can never make an older copy fail verification.
+ */
+function upgradePayload(exact: Record<string, unknown>): BackupPayload {
+  const payload = exact as unknown as BackupPayload;
+  if (asInteger(exact.formatVersion, 'formatVersion') >= 2) return payload;
+  return {
+    ...payload,
+    counts: { ...payload.counts, goals: 0, milestones: 0, visionImages: 0 },
+    goalState: { revision: 1 },
+    visionState: { revision: 1, bytesUsed: 0 },
+    goals: [],
+    milestones: [],
+    visionImages: [],
+    cards: payload.cards.map(card => ({ ...card, dueDate: null, milestoneId: null }))
+  };
+}
+
+/**
  * Parses and verifies one envelope. Throws `BackupFormatError` for anything malformed,
  * truncated, tampered with, or written by a newer format than this build understands.
+ *
+ * The digest is verified against the payload rebuilt in **its own** format version's shape; only
+ * then is an older payload transformed into the current one.
  */
 export function parseBackupEnvelope(text: string): BackupEnvelope {
   let parsed: unknown;
@@ -328,13 +534,30 @@ export function parseBackupEnvelope(text: string): BackupEnvelope {
   const envelope = asObject(parsed, 'the backup');
   const digest = asString(envelope.digest, 'digest');
   if (!/^[0-9a-f]{64}$/.test(digest)) fail('digest must be 64 lower-case hex characters');
-  const payload = readPayload(asObject(envelope.payload, 'payload'));
+  const exact = readExactPayload(asObject(envelope.payload, 'payload'));
+  const sourceFormatVersion = exact.formatVersion as number;
 
-  if (!SUPPORTED_BACKUP_FORMAT_VERSIONS.includes(payload.formatVersion)) {
-    fail(`unsupported backup format version ${payload.formatVersion}`);
+  if (!SUPPORTED_BACKUP_FORMAT_VERSIONS.includes(sourceFormatVersion)) {
+    fail(`unsupported backup format version ${sourceFormatVersion}`);
   }
-  if (backupDigest(payload) !== digest) fail('the backup digest does not match its contents');
-  return { digest, payload };
+  if (createHash('sha256').update(canonicalJson(exact), 'utf8').digest('hex') !== digest) {
+    fail('the backup digest does not match its contents');
+  }
+  return { digest, payload: upgradePayload(exact), sourceFormatVersion };
+}
+
+/** One image's bytes, parsed and checked against the metadata the envelope recorded. */
+export function parseImageBytes(raw: unknown): BackupImageBytes {
+  const row = asObject(raw, 'the image');
+  return {
+    id: asString(row.id, 'id'),
+    mediaType: asString(row.mediaType, 'mediaType'),
+    data: asString(row.data, 'data'),
+    thumbMediaType: asString(row.thumbMediaType, 'thumbMediaType'),
+    thumbData: asString(row.thumbData, 'thumbData'),
+    contentDigest: asString(row.contentDigest, 'contentDigest'),
+    thumbDigest: asString(row.thumbDigest, 'thumbDigest')
+  };
 }
 
 /** Counts are redundant on purpose: a silently truncated array is caught here. */
@@ -347,7 +570,10 @@ export function checkBackupCounts(payload: BackupPayload): string[] {
     ['recoveryCredentials', payload.recoveryCredentials.length],
     ['invitations', payload.invitations.length],
     ['columns', payload.columns.length],
-    ['cards', payload.cards.length]
+    ['cards', payload.cards.length],
+    ['goals', payload.goals.length],
+    ['milestones', payload.milestones.length],
+    ['visionImages', payload.visionImages.length]
   ];
   for (const [name, actual] of expected) {
     if (payload.counts[name] !== actual) {
@@ -430,6 +656,105 @@ export function validateBackupIntegrity(payload: BackupPayload, limits: BackupLi
     }
   });
 
+  // --- goals, milestones and images, restated over the exported rows -----------------------
+
+  if (payload.goals.length > limits.maxGoals) {
+    issues.push(`${payload.goals.length} goals exceeds the limit of ${limits.maxGoals}`);
+  }
+  if (payload.milestones.length > limits.maxMilestones) {
+    issues.push(`${payload.milestones.length} milestones exceeds the limit of ${limits.maxMilestones}`);
+  }
+  if (payload.visionImages.length > limits.maxVisionImages) {
+    issues.push(`${payload.visionImages.length} vision images exceeds the limit of ${limits.maxVisionImages}`);
+  }
+
+  const goalIds = new Set<string>();
+  const nextGoalPosition = new Map<number, number>();
+  for (const goal of payload.goals) {
+    if (goalIds.has(goal.id)) issues.push(`goal ${goal.id} appears more than once`);
+    goalIds.add(goal.id);
+    if (goal.year < 2000 || goal.year > 2999) issues.push(`goal ${goal.id} has year ${goal.year}, outside 2000..2999`);
+    if (!userIds.has(goal.creatorUserId)) {
+      issues.push(`goal ${goal.id} was created by unknown user ${goal.creatorUserId}`);
+    }
+    const expected = nextGoalPosition.get(goal.year) ?? 0;
+    if (goal.position !== expected) {
+      issues.push(`goal ${goal.id} is at position ${goal.position} where its year expects ${expected}`);
+    }
+    nextGoalPosition.set(goal.year, expected + 1);
+  }
+
+  const milestoneIds = new Set<string>();
+  const nextMilestonePosition = new Map<string, number>();
+  const milestonesPerGoal = new Map<string, number>();
+  for (const milestone of payload.milestones) {
+    if (milestoneIds.has(milestone.id)) issues.push(`milestone ${milestone.id} appears more than once`);
+    milestoneIds.add(milestone.id);
+    if (!goalIds.has(milestone.goalId)) {
+      issues.push(`milestone ${milestone.id} belongs to unknown goal ${milestone.goalId}`);
+    }
+    if (milestone.month < 1 || milestone.month > 12) {
+      issues.push(`milestone ${milestone.id} has month ${milestone.month}, outside 1..12`);
+    }
+    if (milestone.status !== 'open' && milestone.status !== 'done') {
+      issues.push(`milestone ${milestone.id} has status ${milestone.status}`);
+    }
+    if (!userIds.has(milestone.creatorUserId)) {
+      issues.push(`milestone ${milestone.id} was created by unknown user ${milestone.creatorUserId}`);
+    }
+    const group = `${milestone.goalId}|${milestone.month}`;
+    const expected = nextMilestonePosition.get(group) ?? 0;
+    if (milestone.position !== expected) {
+      issues.push(`milestone ${milestone.id} is at position ${milestone.position} where its month expects ${expected}`);
+    }
+    nextMilestonePosition.set(group, expected + 1);
+    milestonesPerGoal.set(milestone.goalId, (milestonesPerGoal.get(milestone.goalId) ?? 0) + 1);
+  }
+
+  const HEX_64 = /^[0-9a-f]{64}$/;
+  const MEDIA_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+  const imageIds = new Set<string>();
+  let storedBytes = 0;
+  payload.visionImages.forEach((image, index) => {
+    if (imageIds.has(image.id)) issues.push(`vision image ${image.id} appears more than once`);
+    imageIds.add(image.id);
+    if (image.goalId !== null && !goalIds.has(image.goalId)) {
+      issues.push(`vision image ${image.id} points at unknown goal ${image.goalId}`);
+    }
+    if (!userIds.has(image.creatorUserId)) {
+      issues.push(`vision image ${image.id} was created by unknown user ${image.creatorUserId}`);
+    }
+    for (const [name, value] of [
+      ['mediaType', image.mediaType],
+      ['thumbMediaType', image.thumbMediaType]
+    ] as const) {
+      if (!MEDIA_TYPES.includes(value)) issues.push(`vision image ${image.id} has ${name} ${value}`);
+    }
+    // The digests are what the image phase verifies each payload against, so a malformed one
+    // would make the restore unverifiable rather than merely untidy.
+    for (const [name, value] of [
+      ['contentDigest', image.contentDigest],
+      ['thumbDigest', image.thumbDigest]
+    ] as const) {
+      if (!HEX_64.test(value)) issues.push(`vision image ${image.id} has a malformed ${name}`);
+    }
+    if (image.position !== index) {
+      issues.push(`vision image ${image.id} is at position ${image.position} but is listed ${index}th`);
+    }
+    storedBytes += image.byteSize + image.thumbByteSize;
+  });
+
+  if (storedBytes > limits.maxVisionTotalBytes) {
+    issues.push(`the gallery holds ${storedBytes} bytes, over the limit of ${limits.maxVisionTotalBytes}`);
+  }
+  // `bytesUsed` is the member-facing budget, and a restore that disagreed with it would hand the
+  // household a budget that does not match what it is actually storing.
+  if (payload.visionState.bytesUsed !== storedBytes) {
+    issues.push(`visionState.bytesUsed says ${payload.visionState.bytesUsed} but the images hold ${storedBytes}`);
+  }
+  if (payload.goalState.revision < 1) issues.push('the goals revision must be at least 1');
+  if (payload.visionState.revision < 1) issues.push('the vision revision must be at least 1');
+
   const assignable = new Set(active.filter(user => allowed.has(user.emailNorm)).map(user => user.id));
   const cardIds = new Set<string>();
   const nextPosition = new Map<string, number>();
@@ -442,6 +767,13 @@ export function validateBackupIntegrity(payload: BackupPayload, limits: BackupLi
     }
     if (card.assigneeUserId !== null && !assignable.has(card.assigneeUserId)) {
       issues.push(`card ${card.id} is assigned to ${card.assigneeUserId}, who is not an active allowlisted user`);
+    }
+    if (card.milestoneId !== null && !milestoneIds.has(card.milestoneId)) {
+      issues.push(`card ${card.id} is linked to unknown milestone ${card.milestoneId}`);
+    }
+    // A calendar day, checked for shape only: whether it has passed is never a server's business.
+    if (card.dueDate !== null && !/^\d{4}-\d{2}-\d{2}$/.test(card.dueDate)) {
+      issues.push(`card ${card.id} has a malformed due date`);
     }
     const expected = nextPosition.get(card.columnId) ?? 0;
     if (card.position !== expected) {

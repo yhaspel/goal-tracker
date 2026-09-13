@@ -8,16 +8,18 @@ import { SignInPage } from './auth/SignInPage';
 import { BoardPage } from './board/BoardPage';
 import { BrandMark, CloseIcon, MenuIcon } from './components/icons';
 import { useMediaQuery, WithValue } from './components/ui';
+import { GoalsPage } from './goals/GoalsPage';
 import { useTranslation } from './i18n';
 import { LanguageSelector } from './i18n/LanguageSelector';
 import { SettingsPage } from './members/SettingsPage';
 import { Link, type RoutePath, useRouter } from './router';
+import { VisionPage } from './vision/VisionPage';
 import { WelcomePage } from './WelcomePage';
 
 /** Guest-only screens. A live session is sent to the board instead. */
 const GUEST_ONLY: ReadonlySet<RoutePath> = new Set(['/login', '/register', '/recover', '/bootstrap']);
 /** Screens that need a live session. */
-const MEMBER_ONLY: ReadonlySet<RoutePath> = new Set(['/board', '/account', '/members']);
+const MEMBER_ONLY: ReadonlySet<RoutePath> = new Set(['/board', '/goals', '/vision', '/account', '/members']);
 
 /** Below this the header collapses to the brand plus one menu button. */
 const PHONE = '(max-width: 833px)';
@@ -97,6 +99,8 @@ export default function App() {
   const links = signedIn ? (
     <>
       <Link to="/board">{t('nav.board')}</Link>
+      <Link to="/goals">{t('nav.goals')}</Link>
+      <Link to="/vision">{t('nav.vision')}</Link>
       {isOwner ? <Link to="/members">{t('nav.settings')}</Link> : null}
       <Link to="/account">{t('nav.account')}</Link>
     </>
@@ -190,7 +194,13 @@ export default function App() {
               }
             }}
           >
-            {/* Never more than four links, so the whole sheet fits without scrolling. */}
+            {/*
+             * The sheet scrolls when it must — `max-block-size: 90vh; overflow: auto` — and five
+             * stacked 56px links still fit without it: an owner's sheet comes to roughly
+             * 510–555px at 390px wide, against 600px of allowance on the shortest common phone.
+             * Navigation capacity here is a height question, and the sheet already answers it.
+             * The real pressure is the 834–1199 header, which wraps to two rows.
+             */}
             <nav aria-label={t('app.name')}>{links}</nav>
             <LanguageSelector />
             {signedInAs}
@@ -222,6 +232,10 @@ function Screen({ path }: { path: RoutePath }) {
       return <BootstrapPage />;
     case '/board':
       return <BoardPage />;
+    case '/goals':
+      return <GoalsPage />;
+    case '/vision':
+      return <VisionPage />;
     case '/account':
       return <AccountPage />;
     case '/members':

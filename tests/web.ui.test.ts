@@ -23,6 +23,8 @@ function snapshot(): BoardSnapshot {
     assigneeUserId: null,
     creatorUserId: 'owner',
     position,
+    dueDate: null,
+    milestoneId: null,
     createdAt: '2026-09-13T00:00:00.000Z',
     updatedAt: '2026-09-13T00:00:00.000Z'
   });
@@ -93,7 +95,14 @@ describe('translation', () => {
       'board_full',
       'column_limit',
       'payload_too_large',
-      'unsupported_media_type'
+      'unsupported_media_type',
+      'goal_limit',
+      'milestone_limit',
+      'image_limit',
+      'storage_full',
+      'image_too_large',
+      'unsupported_image_type',
+      'image_rejected'
     ];
     for (const code of codes) {
       expect(Object.prototype.hasOwnProperty.call(en, `error.${code}`), code).toBe(true);
@@ -131,6 +140,17 @@ describe('translation', () => {
     }
   });
 
+  /**
+   * Keys whose value is deliberately identical in all three locales.
+   *
+   * `app.name` is the product name, asserted identical in its own test above. The two composite
+   * labels are pure structure: an `<optgroup label>` and an `<option>` are plain text, so each is
+   * a separator plus two U+2068/U+2069-isolated placeholders and contains no translatable word.
+   * Every part a member reads — the goal title, the milestone title, the Intl-supplied month
+   * name, the year — is interpolated and is already localised or already member-written.
+   */
+  const SAME_IN_EVERY_LOCALE = new Set(['app.name', 'goals.optgroupLabel', 'milestone.optionLabel']);
+
   it('translates every screen into Hebrew and Russian, never falling back to English', () => {
     // A key that silently renders English is the exact failure the release check exists to
     // prevent; this asserts the same property from the application's own lookup path.
@@ -143,9 +163,20 @@ describe('translation', () => {
         if (key.startsWith('board.cardCount.')) continue;
         const translated = translate.t(key);
         expect(translated, `${locale}:${key}`).toBe((dictionary as Record<string, string>)[key]);
-        // `app.name` is the one deliberate exception, asserted identical in its own test above.
-        if (key === 'app.name') continue;
+        if (SAME_IN_EVERY_LOCALE.has(key)) continue;
         expect(translated, `${locale}:${key}`).not.toBe(en[key]);
+      }
+    }
+  });
+
+  it('keeps the two composite labels bidi-isolated, because a select option is plain text', () => {
+    // An element cannot be placed inside an `<optgroup label>`, so the isolates have to be part
+    // of the template. Losing them reorders a Hebrew goal title against a Latin year on screen.
+    for (const locale of LOCALES) {
+      for (const key of ['goals.optgroupLabel', 'milestone.optionLabel'] as const) {
+        const template = DICTIONARIES[locale][key]!;
+        expect((template.match(/⁨/g) ?? []).length, `${locale}:${key}`).toBe(2);
+        expect((template.match(/⁩/g) ?? []).length, `${locale}:${key}`).toBe(2);
       }
     }
   });

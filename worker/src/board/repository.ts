@@ -1,4 +1,5 @@
 import type { BoardColumnKey } from '../../../shared/api';
+import { BOARD_REVISION, bumpRevision, readRevision } from '../revisions';
 
 /**
  * Caps for the first release, chosen to bound one board response and the SQL work behind it
@@ -24,6 +25,9 @@ export type CardRow = {
   assignee_user_id: string | null;
   creator_user_id: string;
   position: number;
+  /** `YYYY-MM-DD` or null. Stored verbatim: no timezone, no time of day, no `Date` in SQL. */
+  due_date: string | null;
+  milestone_id: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -33,15 +37,12 @@ function one<T>(cursor: Iterable<T>): T | undefined {
 }
 
 export function readBoardRevision(sql: SqlStorage): number {
-  const row = one(sql.exec<{ revision: number }>('SELECT revision FROM board_state WHERE id = 1'));
-  if (!row) throw new Error('board_state singleton row is missing');
-  return row.revision;
+  return readRevision(sql, BOARD_REVISION);
 }
 
 /** Advances the revision exactly once and returns the new value. */
 export function bumpBoardRevision(sql: SqlStorage): number {
-  sql.exec('UPDATE board_state SET revision = revision + 1 WHERE id = 1');
-  return readBoardRevision(sql);
+  return bumpRevision(sql, BOARD_REVISION);
 }
 
 /** `(position, id)` throughout, so reads stay deterministic even if an invariant breaks. */
@@ -105,8 +106,9 @@ export function deleteColumn(sql: SqlStorage, id: string): void {
 export function insertCard(sql: SqlStorage, card: CardRow): void {
   sql.exec(
     `INSERT INTO cards
-       (id, column_id, title, description, assignee_user_id, creator_user_id, position, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (id, column_id, title, description, assignee_user_id, creator_user_id, position,
+        due_date, milestone_id, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     card.id,
     card.column_id,
     card.title,
@@ -114,6 +116,8 @@ export function insertCard(sql: SqlStorage, card: CardRow): void {
     card.assignee_user_id,
     card.creator_user_id,
     card.position,
+    card.due_date,
+    card.milestone_id,
     card.created_at,
     card.updated_at
   );
@@ -122,14 +126,24 @@ export function insertCard(sql: SqlStorage, card: CardRow): void {
 export function updateCardFields(
   sql: SqlStorage,
   id: string,
-  fields: { title: string; description: string | null; assignee_user_id: string | null },
+  fields: {
+    title: string;
+    description: string | null;
+    assignee_user_id: string | null;
+    due_date: string | null;
+    milestone_id: string | null;
+  },
   at: string
 ): void {
   sql.exec(
-    'UPDATE cards SET title = ?, description = ?, assignee_user_id = ?, updated_at = ? WHERE id = ?',
+    `UPDATE cards
+        SET title = ?, description = ?, assignee_user_id = ?, due_date = ?, milestone_id = ?, updated_at = ?
+      WHERE id = ?`,
     fields.title,
     fields.description,
     fields.assignee_user_id,
+    fields.due_date,
+    fields.milestone_id,
     at,
     id
   );

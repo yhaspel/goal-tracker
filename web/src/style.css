@@ -332,6 +332,16 @@ p {
   margin-block: 0 var(--gt-space-3);
 }
 
+/*
+ * There was no `img` rule at all until the vision board arrived, and a bare `<img width="1600">`
+ * would scroll the page sideways at every breakpoint. The page never scrolls sideways: the board
+ * track and the phone pager's chip row are the only regions allowed to.
+ */
+img {
+  max-inline-size: 100%;
+  block-size: auto;
+}
+
 a {
   color: var(--gt-accent-ink);
   text-underline-offset: 2px;
@@ -758,6 +768,29 @@ select {
     left var(--gt-space-4) center;
 }
 
+/*
+ * A date input is the second control the global `appearance: none` costs something. It removes
+ * the calendar picker indicator, which is the only affordance saying the field opens a picker,
+ * so it is drawn back on; and WebKit collapses a date input's intrinsic width under
+ * `appearance: none`, so a minimum is stated rather than left to the browser. `color-scheme` is
+ * already `light dark` on `html`, so the picker's own dark rendering needs nothing new here.
+ */
+input[type='date'] {
+  min-inline-size: 11rem;
+}
+
+input[type='date']::-webkit-calendar-picker-indicator {
+  opacity: 0.75;
+  cursor: pointer;
+  /* A 24px absolute minimum, the same floor every other target keeps. */
+  padding: var(--gt-space-2);
+  margin-inline-start: var(--gt-space-2);
+}
+
+input[type='date']::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+
 input[aria-invalid='true'],
 textarea[aria-invalid='true'] {
   border-color: var(--gt-danger);
@@ -1178,6 +1211,15 @@ button.icon {
   display: flex;
   flex-direction: column;
   animation: gt-dialog-in var(--gt-dur-slow) var(--gt-ease-out);
+}
+
+/*
+ * The carousel. The default dialog is `min(34rem, 100%)`, which would show a "full-size" image
+ * at 544px; this is the same component with its own width, so the focus contract, the Escape
+ * handling and the phone sheet treatment are all unchanged.
+ */
+.dialog-wide {
+  inline-size: min(60rem, 100%);
 }
 
 .dialog-header {
@@ -1914,6 +1956,323 @@ button.icon {
   background: var(--gt-line-soft);
 }
 
+.skeleton-goals {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gt-space-4);
+}
+
+.skeleton-plate {
+  border: 1px solid var(--gt-line);
+  background: var(--gt-raised);
+  padding: var(--gt-space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gt-space-3);
+}
+
+.skeleton-gallery {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--gt-space-4);
+}
+
+.skeleton-tile {
+  aspect-ratio: 4 / 3;
+  background: var(--gt-line-soft);
+  background-image: linear-gradient(90deg, transparent, rgb(255 255 255 / 35%), transparent);
+  background-repeat: no-repeat;
+  background-size: 340px 100%;
+  animation: gt-shimmer 1400ms linear infinite;
+}
+
+/* --- goals ------------------------------------------------------------------------------- */
+
+.goals-page,
+.vision-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gt-space-4);
+}
+
+/*
+ * The year strip **wraps**; it does not scroll. The board track and the phone pager's chip row
+ * are the only two horizontally scrolling regions in the product, and keeping that sentence true
+ * is why these are their own classes rather than `.pager-*` — which is `display: none` above
+ * 834px in any case.
+ */
+.year-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gt-space-2);
+}
+
+.year-chip {
+  min-block-size: 44px;
+  padding-inline: var(--gt-space-4);
+  font-variant-numeric: tabular-nums;
+}
+
+.year-chip[aria-pressed='true'] {
+  background: var(--gt-accent-ink);
+  border-color: var(--gt-accent-ink);
+  color: var(--gt-raised);
+  font-weight: 600;
+}
+
+.goal-list,
+.milestone-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gt-space-4);
+}
+
+.goal-plate {
+  border: 1px solid var(--gt-line);
+  border-block-start: 3px solid var(--gt-accent);
+  background: var(--gt-raised);
+  box-shadow: var(--gt-elev-sm);
+  padding: var(--gt-space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gt-space-3);
+}
+
+.goal-head,
+.milestone-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--gt-space-2);
+}
+
+.goal-title,
+.milestone-title {
+  margin: 0;
+  margin-inline-end: auto;
+  min-inline-size: 0;
+}
+
+.milestone-title {
+  font-family: var(--gt-font-body);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.goal-progress {
+  margin: 0;
+  font-size: 13px;
+  color: var(--gt-ink-soft);
+}
+
+/*
+ * A token-drawn bar after a real sentence, never instead of one. Not a native `<progress>` or
+ * `<meter>`: their UA chrome ignores every `--gt-*` token, which rule 1 does not allow.
+ */
+.meter {
+  block-size: 6px;
+  background: var(--gt-plate);
+  border: 1px solid var(--gt-line-soft);
+}
+
+.meter-fill {
+  display: block;
+  block-size: 100%;
+  background: var(--gt-accent-ink);
+  transition: inline-size var(--gt-dur-base) var(--gt-ease-out);
+}
+
+.milestone-group {
+  border-block-start: 1px solid var(--gt-line-soft);
+  padding-block-start: var(--gt-space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gt-space-2);
+}
+
+.milestone-month {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--gt-ink-soft);
+}
+
+.milestone-row {
+  border: 1px solid var(--gt-line-soft);
+  background: var(--gt-surface);
+  padding: var(--gt-space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gt-space-2);
+}
+
+/*
+ * The second choice control in the product, after the `/recover` radio pair — and it is a button
+ * rather than a checkbox. Its visible text and accessible name both name the action and never
+ * change; `aria-pressed` is what carries the state, so it is announced exactly once.
+ */
+.milestone-toggle {
+  flex: none;
+  min-block-size: 44px;
+  padding-inline: var(--gt-space-3);
+  font-size: 13px;
+}
+
+.milestone-toggle[aria-pressed='true'] {
+  background: var(--gt-success);
+  border-color: var(--gt-success);
+  color: var(--gt-raised);
+}
+
+/* A mark as well as a colour, the same rule every status in the product follows. */
+.milestone-toggle[aria-pressed='true']::before {
+  content: '✓';
+  margin-inline-end: var(--gt-space-1);
+}
+
+.milestone-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gt-space-2);
+  margin: 0;
+}
+
+/* --- vision board ------------------------------------------------------------------------ */
+
+.gallery {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--gt-space-4);
+}
+
+.tile {
+  border: 1px solid var(--gt-line);
+  background: var(--gt-raised);
+  box-shadow: var(--gt-elev-sm);
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+.tile-button {
+  padding: 0;
+  border: 0;
+  border-block-end: 1px solid var(--gt-line-soft);
+  background: var(--gt-plate);
+  min-block-size: 44px;
+  display: block;
+  inline-size: 100%;
+}
+
+.tile-button img {
+  display: block;
+  inline-size: 100%;
+  object-fit: cover;
+}
+
+.tile-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--gt-space-2);
+  padding: var(--gt-space-2) var(--gt-space-3);
+}
+
+.tile-caption {
+  margin-inline-end: auto;
+  min-inline-size: 0;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tile-foot .help {
+  margin: 0;
+  margin-inline-end: auto;
+}
+
+.carousel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gt-space-3);
+}
+
+.carousel-image {
+  inline-size: 100%;
+  max-block-size: 60vh;
+  object-fit: contain;
+  background: var(--gt-plate);
+  animation: gt-fade-in var(--gt-dur-base) var(--gt-ease-out);
+}
+
+.carousel-caption {
+  margin: 0;
+  font-weight: 600;
+}
+
+.carousel-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--gt-space-3);
+}
+
+.carousel-position {
+  margin: 0;
+  margin-inline: auto;
+  font-size: 13px;
+  color: var(--gt-ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.upload-list {
+  border: 1px solid var(--gt-line-soft);
+  background: var(--gt-raised);
+  padding: var(--gt-space-4);
+}
+
+.upload-list h2 {
+  font-size: 15px;
+  margin-block-end: var(--gt-space-2);
+}
+
+.upload-list ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gt-space-2);
+}
+
+.upload-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--gt-space-3);
+  font-size: 13px;
+}
+
+.upload-list li > span:first-child {
+  margin-inline-end: auto;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gt-space-2);
+  margin-block: var(--gt-space-2) 0;
+}
+
 /* --- animations -------------------------------------------------------------------------- */
 
 @keyframes gt-fade-in {
@@ -1966,9 +2325,11 @@ button.icon {
 /* --- preferences ------------------------------------------------------------------------- */
 
 /*
- * Every animation has a reduced-motion fallback. Four of them substitute a static marker —
- * the HELD chip, the drop-target position label, the busy squares and the flat skeleton — and
- * those markers belong to the component, so they render in both modes.
+ * Every animation has a reduced-motion fallback. **Five** of them substitute a static marker —
+ * the HELD chip, the drop-target position label, the busy squares, the flat skeleton and the
+ * carousel's position counter — and those markers belong to the component, so they render in
+ * both modes. With the image transition gone, the counter is the only thing saying which image
+ * is current, which is exactly why it is not decoration.
  */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -1984,12 +2345,17 @@ button.icon {
     opacity: 1;
   }
 
-  .skeleton-block {
+  .skeleton-block,
+  .skeleton-tile {
     background-image: none;
   }
 
   .card-list .card.dragging {
     transform: none;
+  }
+
+  .carousel-image {
+    animation: none;
   }
 }
 
@@ -2031,12 +2397,25 @@ button.icon {
   .pager {
     display: none;
   }
+
+  /* Two columns at 390, three from 834, four from 1200. */
+  .gallery,
+  .skeleton-gallery {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 @media (min-width: 834px) and (max-width: 1199px) {
   .column,
   .add-column {
     flex-basis: 296px;
+  }
+}
+
+@media (min-width: 1200px) {
+  .gallery,
+  .skeleton-gallery {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 

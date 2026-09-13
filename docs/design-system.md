@@ -36,9 +36,10 @@ anything about the interface that must outlive a plan belongs.
    theme toggle**: `PreferencesResponse` stores only `language`, so a saved theme would have
    nowhere to live, and a toggle would need a new server field.
 6. **Zero controls that do nothing.** If it is not wired to code, it is not in the interface.
-   In particular there is no checkbox anywhere (the only choice control in the product is the
-   `/recover` radio pair) and no per-row allowed-address editor (the API replaces the whole set
-   against a revision).
+   In particular there is still no checkbox anywhere. The product has exactly two choice
+   controls: the `/recover` radio pair, and the milestone Open/Done toggle — which is a
+   **button** with `aria-pressed`, not a checkbox, and no per-row allowed-address editor (the API
+   replaces the whole set against a revision).
 7. **Copy comes from the dictionaries.** Every visible string is a key in
    `web/src/i18n/en.ts`, `he.ts` and `ru.ts`. A new string needs all three before it builds;
    `npm run check:i18n` enforces it.
@@ -92,10 +93,16 @@ labels 12 uppercase. Inputs are **16px** so iOS never zooms a field into focus.
 
 | Width | What changes |
 | --- | --- |
-| ≤ 833 | The board is a column pager, one column at a time. No drag handle exists on a card. The header is the brand plus one menu button, and the nav links, language selector, signed-in address and Sign out move into the sheet it opens. Dialogs render bottom-anchored with a pinned footer. Fields grow to 52px |
-| 834–1199 | The board is one contained horizontal track at 296px columns, with an edge fade and a scroll-end button. The header is one row. Dialogs are centred modals again |
-| 1200–1439 | 272px columns, forms cap at 34rem |
+| ≤ 833 | The board is a column pager, one column at a time. No drag handle exists on a card. The header is the brand plus one menu button, and the nav links, language selector, signed-in address and Sign out move into the sheet it opens. Dialogs render bottom-anchored with a pinned footer. Fields grow to 52px. The gallery is **two columns** |
+| 834–1199 | The board is one contained horizontal track at 296px columns, with an edge fade and a scroll-end button. Dialogs are centred modals again. The gallery is **three columns**. **The header is up to two rows** — `.app-header .who` already carries `flex-basis: 100%`, and five nav links plus the language selector and the signed-in address make the second row the normal case, hardest in Russian |
+| 1200–1439 | 272px columns, forms cap at 34rem. The gallery is **four columns** |
 | ≥ 1440 | 320px columns, the track caps at 1360px and centres |
+
+**Navigation capacity is a height question, not a width one.** `.nav-sheet` carries
+`max-block-size: 90vh; overflow: auto` and stacks full-width 56px rows, so a fifth link cannot
+overflow it: at 390px an owner's sheet comes to roughly 510–555px against 600px of allowance on
+the shortest common phone. Keep `nav.goals` and `nav.vision` to one short word in every locale —
+that is the constraint the 834–1199 header actually imposes.
 
 **The page never scrolls sideways.** The board track and the phone pager's chip row are the only
 regions in the product allowed to scroll horizontally, and both are contained. That is achieved
@@ -124,9 +131,17 @@ Classes, and what owns them:
 | `.card-title-button` | `BoardPage` | The title **is** the edit affordance. Never clamped |
 | `.card-description` | `BoardPage` | Clamped to two lines. The full 4,000 characters live in the dialog, one step away — there is no expand toggle |
 | `.avatar` | `BoardPage` | Derived purely from the address: first character of the local part, uppercased, on a fill hashed from the whole address. The letter carries the meaning; the colour is decoration |
-| `.card-menu`, `.menu`, `.menu-item` | `BoardPage` | The actions menu. Anchored to the **viewport**, because the board track is a scroll container on both axes and an absolutely positioned menu is clipped at the column's foot |
+| `.card-menu`, `.menu`, `.menu-item` | `ActionsMenu` | The actions menu, now shared by the board, the goals screen and the vision board. Anchored to the **viewport**, because the board track is a scroll container on both axes and an absolutely positioned menu is clipped at the column's foot |
 | `.pager*` | `BoardPage` | The phone column pager |
-| `.skeleton-*` | `BoardPage` | First load only. A background refetch never blanks the board |
+| `.card-badges`, `.badge.warning` | `BoardPage` | The due and "part of" badges. Neither is a control, so the card still carries exactly two |
+| `.skeleton-*` | `BoardPage`, `GoalsPage`, `VisionPage` | First load only. A background refetch never blanks the screen |
+| `.year-strip`, `.year-chip` | `GoalsPage` | The year switcher. It **wraps**; it does not scroll. Its own classes rather than `.pager-*`, which is `display: none` above 834px |
+| `.goal-plate`, `.goal-head`, `.goal-title`, `.goal-progress` | `GoalsPage` | One goal. The title is the edit affordance, the same rule the card follows |
+| `.meter`, `.meter-fill` | `GoalsPage` | A token-drawn bar **after** a real sentence, `aria-hidden`. Never a native `<progress>` or `<meter>`: their UA chrome ignores every `--gt-*` token |
+| `.milestone-group`, `.milestone-row`, `.milestone-toggle`, `.milestone-cards` | `GoalsPage` | Milestones grouped by month. The toggle's visible text and accessible name both name the action and never change; `aria-pressed` carries the state |
+| `.gallery`, `.tile`, `.tile-button`, `.tile-foot` | `VisionPage` | Two / three / four columns. Each tile is a `<button>` wrapping an `<img alt="">`, because an image with a click handler is not focusable |
+| `.carousel*`, `.dialog-wide` | `VisionPage` | The carousel is a `Dialog` with its own width, so the focus contract is the one already shipped. No autoplay; only the two neighbours are preloaded |
+| `.upload-list` | `VisionPage` | Per-file status through `aria-busy` and `.busy-dots`. Not a progress bar: `fetch` cannot report upload progress, and a second HTTP path would bypass the one API client |
 
 Icons live in `web/src/components/icons.tsx`: inline SVG on a 20×20 box at 1.5px stroke. No icon
 package, and no glyph that depends on a font. **No icon carries meaning alone** — each sits
@@ -162,16 +177,17 @@ This is a floor, not a target. A change may raise it and must not lower it.
 
 ## Motion
 
-Ten motions, no more: card pick-up, drag-over, drop and settle, the rejected-move return, a
+Eleven motions, no more: card pick-up, drag-over, drop and settle, the rejected-move return, a
 column change, dialog open and close, sheet present and dismiss, announcement stamping,
-save-busy, skeleton shimmer, and one quiet Done moment where the cap's check draws itself once.
-No confetti, no counter, no sound. **Never a shake.**
+save-busy, skeleton shimmer, one quiet Done moment where the cap's check draws itself once, and
+the carousel's image change. No confetti, no counter, no sound. **Never a shake.**
 
-Every one needs a `prefers-reduced-motion` fallback, and four of them substitute a static
-marker — the picked-up chip, the drop target, the busy squares and the flat skeleton. Those
-markers belong to the component, not to the animation, so they render in both modes. The blanket
-reduced-motion rule that collapses durations is not on its own a fallback: check that the state
-is still visible with animation off.
+Every one needs a `prefers-reduced-motion` fallback, and **five** of them substitute a static
+marker — the picked-up chip, the drop target, the busy squares, the flat skeleton, and the
+carousel's position counter. Those markers belong to the component, not to the animation, so they
+render in both modes. The counter matters most of the five: with the image transition removed it
+is the only thing saying which image is current. The blanket reduced-motion rule that collapses
+durations is not on its own a fallback: check that the state is still visible with animation off.
 
 ## Deliberate deviations
 
@@ -197,6 +213,25 @@ Do not "fix" these; each is a decision with a reason.
 7. Move up and move down use the real `disabled` attribute — as those controls always did —
    rather than `aria-disabled` plus a reason sentence, because no dictionary string states the
    reason.
+8. **The due-date field is a native `<input type="date">`**, which is the one place the interface
+   shows browser chrome it does not control: the picker panel is the platform's. The alternative
+   is three custom spin fields and a calendar widget, with their own keyboard model and their own
+   locale handling, to replace something every platform already does well and accessibly. The
+   global `appearance: none` costs it the picker indicator, which the stylesheet draws back on,
+   and WebKit's intrinsic-size collapse is answered with an explicit `min-inline-size`.
+9. **The file input is visually hidden and labelled by a real `<button>`.** A bare file input
+   renders browser-supplied text — "Choose File", "No file chosen" — in the *browser's* language
+   rather than the app's, which breaks rule 7 outright, and it cannot be styled to the 44px
+   target.
+10. **Month and date names come from `Intl`, not from the dictionaries.** Twelve month names in
+    three languages is 36 strings that every platform already has, correctly, including their
+    grammatical form in a date. `useMonthNames` and `useCalendarDay` in `components/ui.tsx` are
+    the only two places that construct a formatter.
+11. **`goals.optgroupLabel` and `milestone.optionLabel` are byte-identical in all three locales.**
+    An `<optgroup label>` and an `<option>` are plain text, so an element cannot carry the bidi
+    isolation and the template has to: each is a separator plus two U+2068/U+2069-isolated
+    placeholders, and contains no translatable word. `tests/web.ui.test.ts` names them, with
+    `app.name`, as the asserted exceptions to the never-identical rule.
 
 ## Verifying a UI change
 
@@ -204,10 +239,11 @@ Run the usual local checks first: `npm run lint`, `npm run typecheck`, `npm run 
 `npm test`, `npm run build`. They catch a missing translation and a type error, and nothing
 about how the change looks.
 
-Then look at it. The matrix that matters is eight routes × 390 / 834 / 1440 × `en` / `he` / `ru`
-× light and dark, keyboard only. For anything beyond a one-line tweak, walk at least the routes
-the change touches at all three widths, in Hebrew as well as English, and in both themes, and
-confirm:
+Then look at it. The matrix that matters is **ten** routes — `/`, `/login`, `/register`,
+`/recover`, `/bootstrap`, `/board`, `/goals`, `/vision`, `/account`, `/members` — × 390 / 834 /
+1440 × `en` / `he` / `ru` × light and dark, keyboard only. For anything beyond a one-line tweak,
+walk at least the routes the change touches at all three widths, in Hebrew as well as English, and
+in both themes, and confirm:
 
 - no horizontal page scroll anywhere;
 - no target under 24px;

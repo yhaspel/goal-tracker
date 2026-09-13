@@ -29,6 +29,10 @@ export const en = {
   'flow.step': 'Step {n} of {total}',
 
   'nav.board': 'Board',
+  /* Kept to one short word in every locale: five links plus the language selector and the
+     signed-in address already push the 834–1199 header onto a second row. */
+  'nav.goals': 'Goals',
+  'nav.vision': 'Vision',
   'nav.settings': 'Settings',
   'nav.account': 'Account',
   'nav.signIn': 'Sign in',
@@ -192,8 +196,111 @@ export const en = {
   'card.descriptionCount': '{count} / {max}',
   'card.discardDraft': 'Discard',
 
+  /* A due date is a calendar day. Which of these three a card shows is decided here, in the
+     browser, against the viewer's own local date — never by the server in UTC. */
+  'card.dueDate': 'Due date',
+  'card.dueDateHelp': 'A calendar day. Leave it empty for no date.',
+  'card.due': 'Due {date}',
+  'card.dueSoon': 'Due {date}',
+  'card.overdue': 'Overdue {date}',
+  'card.partOf': 'Part of',
+  'card.partOfNone': 'Nothing',
+  'card.partOfBadge': 'Part of {milestone}',
+  /* Shown when the goals index could not be fetched: the card is linked to something, and this
+     says so rather than implying it is linked to nothing. */
+  'card.partOfUnknown': 'Part of a goal',
+
+  'goals.heading': 'Goals',
+  'goals.reload': 'Reload the goals',
+  'goals.empty': 'No goals yet. Add the first one.',
+  'goals.emptyYear': 'No goals for this year yet.',
+  'goals.yearStrip': 'Year',
+  'goals.year': 'Year',
+  'goals.addGoal': 'Add a goal',
+  'goals.createHeading': 'New goal',
+  'goals.editHeading': 'Edit goal',
+  'goals.title': 'Title',
+  'goals.notes': 'Notes',
+  'goals.actions': 'Actions for {title}',
+  'goals.moveUp': 'Move up',
+  'goals.moveDown': 'Move down',
+  'goals.deleteConfirm':
+    'Delete the goal {title}? Its milestones go with it, any card linked to them is unlinked, and any image pointing at it stops pointing at it. This cannot be undone.',
+  'goals.saved': '{title} saved.',
+  'goals.deleted': '{title} deleted.',
+  'goals.moved': '{title} moved to position {position}.',
+  /* Both placeholders live in the English form of every category, because `plural()` passes the
+     total as `count` and `{ done }` as an extra parameter. */
+  'goals.progress.one': '{done} of {count} milestone done',
+  'goals.progress.other': '{done} of {count} milestones done',
+  'goals.milestoneCount.one': '{count} milestone',
+  'goals.milestoneCount.other': '{count} milestones',
+  'goals.noMilestones': 'No milestones yet.',
+  /* An `<optgroup label>` is plain text, so the isolates are part of the template rather than
+     elements around the parts. U+2068 opens, U+2069 closes. */
+  'goals.optgroupLabel': '⁨{title}⁩ · ⁨{year}⁩',
+
+  'milestone.add': 'Add a milestone',
+  'milestone.addTo': 'Add a milestone to {title}',
+  'milestone.createHeading': 'New milestone',
+  'milestone.editHeading': 'Edit milestone',
+  'milestone.title': 'Title',
+  'milestone.notes': 'Notes',
+  'milestone.month': 'Month',
+  /* The visible text and the accessible name both name the action and never change with the
+     state; `aria-pressed` is what carries the state, so it is announced exactly once. */
+  'milestone.done': 'Done',
+  'milestone.toggle': 'Done: {title}',
+  'milestone.markedDone': '{title} marked done.',
+  'milestone.markedOpen': '{title} marked not done.',
+  'milestone.actions': 'Actions for {title}',
+  'milestone.deleteConfirm': 'Delete the milestone {title}? Any card linked to it is unlinked. This cannot be undone.',
+  'milestone.saved': '{title} saved.',
+  'milestone.deleted': '{title} deleted.',
+  'milestone.moved': '{title} moved to position {position}.',
+  'milestone.noCards': 'No cards linked yet.',
+  'milestone.cardChip': 'Card · {title}',
+  'milestone.optionLabel': '⁨{month}⁩ · ⁨{title}⁩',
+
+  'vision.heading': 'Vision board',
+  'vision.reload': 'Reload the vision board',
+  'vision.empty': 'No images yet. Add the first one.',
+  'vision.imageCount.one': '{count} image',
+  'vision.imageCount.other': '{count} images',
+  'vision.addImages': 'Add images',
+  'vision.addHelp':
+    'JPEG, PNG or WebP. Each image is resized in your browser before it is sent, which also removes the location a phone photograph records. Apple HEIC photographs cannot be read here — export them as JPEG first.',
+  'vision.tile': 'Open {caption}',
+  'vision.tileAt': 'Open image {n}',
+  'vision.caption': 'Caption',
+  'vision.goalLink': 'Part of',
+  'vision.goalNone': 'Nothing',
+  'vision.editHeading': 'Edit image',
+  'vision.actions': 'Actions for image {n}',
+  'vision.moveEarlier': 'Move earlier',
+  'vision.moveLater': 'Move later',
+  'vision.deleteConfirm': 'Delete this image? This cannot be undone.',
+  'vision.added': 'Image added.',
+  'vision.saved': 'Image saved.',
+  'vision.deleted': 'Image deleted.',
+  'vision.moved': 'Image moved to position {position}.',
+  'vision.carousel': 'Images',
+  'vision.previous': 'Previous image',
+  'vision.next': 'Next image',
+  /* Also the static marker under `prefers-reduced-motion`, where the transition is removed. */
+  'vision.position': 'Image {n} of {total}',
+  'vision.uploadHeading': 'Adding images',
+  'vision.fileQueued': 'Waiting',
+  'vision.filePreparing': 'Preparing',
+  'vision.fileUploading': 'Sending',
+  'vision.fileDone': 'Added',
+  'vision.fileFailed': 'Could not be added',
+  'vision.fileUnreadable': 'That file could not be read as an image. Export an Apple HEIC photograph as JPEG first.',
+
   'error.generic': 'Something went wrong. Try again.',
-  'error.network': 'The board could not be reached. Check your connection.',
+  /* Reworded for Stage 8: this sentence is now reachable from the goals and vision screens too,
+     so it can no longer name the board. */
+  'error.network': 'The app could not be reached. Check your connection.',
   'error.invalid_request': 'Check the highlighted fields and try again.',
   'error.unauthenticated': 'Your session ended. Sign in again.',
   'error.invalid_credentials': 'That email address and password combination did not work.',
@@ -216,13 +323,24 @@ export const en = {
   'error.allowlist_conflict': 'The allowed list changed somewhere else.',
   'error.invitation_consumed': 'That invitation was already used.',
   'error.cannot_deactivate_owner': 'The owner account cannot be deactivated.',
-  'error.revision_conflict': 'The board changed. It has been reloaded.',
+  /* One code serves all three domains, because `errorText` looks up `error.${code}` with no
+     domain context. That only holds while the sentence does not name the board. */
+  'error.revision_conflict': 'It changed somewhere else. It has been reloaded.',
   'error.column_not_empty': 'Move or delete the cards in that column first.',
   'error.last_column': 'A board must keep at least one column.',
   'error.board_full': 'This board is full. Delete a card to add another.',
   'error.column_limit': 'This board already has the maximum number of columns.',
-  'error.payload_too_large': 'That is too long to save.',
+  /* Has to cover an over-long description and an over-large image alike. */
+  'error.payload_too_large': 'That is too large to save. Try shorter text, or a smaller image.',
   'error.unsupported_media_type': 'That request could not be sent.',
+  'error.goal_limit': 'There is no room for another goal. Delete one first.',
+  'error.milestone_limit': 'There is no room for another milestone. Delete one first.',
+  'error.image_limit': 'The vision board is full. Delete an image to add another.',
+  /* One code for both the image budget and the database backstop; the sentence names neither. */
+  'error.storage_full': 'The vision board has no room left. Delete an image first.',
+  'error.image_too_large': 'That image is too large.',
+  'error.unsupported_image_type': 'That kind of image cannot be used. Try a JPEG, a PNG or a WebP.',
+  'error.image_rejected': 'That image could not be read.',
 
   'field.email.invalid_email': 'Enter a valid email address.',
   'field.password.too_short': 'Use at least 12 characters.',
@@ -245,7 +363,28 @@ export const en = {
   'field.assigneeUserId.invalid': 'That assignee is not valid.',
   'field.targetIndex.out_of_range': 'That position is no longer available.',
   'field.targetIndex.invalid': 'That position is not valid.',
-  'field.boardRevision.invalid': 'Reload the board and try again.',
+  /* Reworded with its two Stage 8 siblings: all three name a field the member cannot see, so
+     the sentence has to be an instruction rather than a description. */
+  'field.boardRevision.invalid': 'Reload and try again.',
+  'field.goalsRevision.invalid': 'Reload and try again.',
+  'field.visionRevision.invalid': 'Reload and try again.',
+  'field.year.invalid': 'Enter a year as four digits.',
+  'field.year.out_of_range': 'Choose a year between 2000 and 2999.',
+  'field.month.invalid': 'Choose a month.',
+  'field.dueDate.invalid': 'Enter a real date, as year, month and day.',
+  'field.dueDate.out_of_range': 'Choose a date between 2000 and 2999.',
+  'field.notes.too_long': 'Those notes are too long.',
+  'field.notes.invalid': 'Those notes contain characters that cannot be saved.',
+  'field.caption.too_long': 'That caption is too long.',
+  'field.caption.invalid': 'A caption is one line, without characters that cannot be saved.',
+  'field.status.invalid': 'That is not a status a milestone can have.',
+  'field.goalId.invalid': 'That goal is no longer available.',
+  'field.milestoneId.invalid': 'That milestone is no longer available.',
+  /* A thumbnail fault is reported under `data` and `mediaType`, and any dimension fault under
+     `width`, rather than inventing three more families that would say the same sentence. */
+  'field.data.invalid': 'That image could not be read.',
+  'field.mediaType.invalid': 'That kind of image cannot be used here.',
+  'field.width.invalid': 'That image size is not valid.',
   'field.fallback': 'Check this field and try again.'
 } as const;
 

@@ -110,11 +110,34 @@ node scripts/backup.ts create https://family-board-production.yuval3000.workers.
 ```
 
 What it does, in order: downloads the export over HTTPS; re-canonicalises the payload and
-recomputes its SHA-256 to check the digest the Worker sent; encrypts with AES-256-GCM under a
+recomputes its SHA-256 to check the digest the Worker sent; **fetches every vision image the
+envelope lists, one request each, checking each payload against the digest the envelope
+recorded**; re-reads the envelope and refuses the whole attempt if the vision revision moved while
+the images were being fetched; encrypts envelope and images together with AES-256-GCM under a
 random 96-bit nonce, with the copy's metadata authenticated as additional data; writes a mode-0600
-temporary file, `fsync`s it and renames it into place; **re-reads the file from disk, decrypts it
-and re-verifies the digest**; and only then prunes. There is never an unencrypted temporary file
-and never a moment when pruning has happened but the new copy has not been verified.
+temporary file, `fsync`s it and renames it into place; **re-reads the file from disk, decrypts it,
+re-verifies the digest and checks every image byte against its recorded digest**; and only then
+prunes. There is never an unencrypted temporary file and never a moment when pruning has happened
+but the new copy has not been verified.
+
+### Why a backup can restart itself
+
+Since Stage 8 a backup is two phases — one envelope, then one request per image — and those are no
+longer a single SQLite snapshot. If a member deletes an image while the backup is running, or adds
+one, the tool says so and starts again from a fresh envelope, up to three times. A backup is
+declared successful only when the envelope and every byte come from the same vision revision.
+
+That is the point: without it, one member deleting one image during the backup window would fail
+every subsequent backup, and the household would quietly age on an old copy. If all three attempts
+lose the race, nothing is written, **nothing is pruned**, and the command exits non-zero. Run it
+again when the vision board is quiet.
+
+### What a copy now holds
+
+The stored archive format moved from `goal-tracker-backup-v1` to `v2`, because image bytes do not
+fit inside the envelope. **Copies taken before Stage 8 are still readable** — `verify` and
+`restore` accept both, and a `v1` copy simply has no images, which is correct, because it predates
+them. Do not delete the older copies on the strength of the new format.
 
 **A household that fails its own integrity checks prunes nothing at all.** The copy is still
 written and still verified — a data anomaly must not cost you a backup — but retention pins the
@@ -160,9 +183,16 @@ node scripts/backup.ts list   --out-dir ~/goal-tracker-backups
 node scripts/backup.ts verify --out-dir ~/goal-tracker-backups --key-file ~/.goal-tracker/backup.key
 ```
 
-`verify` decrypts every stored copy with the escrowed key and re-checks its digest and integrity
-block. Run it monthly, and run it any time the key or the machine changes. **An empty backup
+`verify` decrypts every stored copy with the escrowed key and re-checks its digest, its integrity
+block, and that every image its own envelope lists is present in the archive with the right
+digest. Run it monthly, and run it any time the key or the machine changes. **An empty backup
 directory is reported as a failure, not as a quiet success.**
+
+**Disk.** Seven retained copies each carry up to the 64 MiB image budget, and base64 inflates that
+by a third, so the worst case is roughly **7 × 86 MB ≈ 600 MB** in the backup directory, plus the
+household's text. Check there is a gigabyte free before the first backup after a large upload
+session; a `create` that cannot write leaves every existing copy untouched, but a directory that
+fills up silently is how a household ends up with one copy again.
 
 ## Monthly restore drill
 
@@ -268,6 +298,23 @@ already been imported into.
    Before importing, confirm the target is pristine: `GET /api/v1/auth/bootstrap/status` on a
    fresh object answers `{"bootstrapAvailable":true}`, because no owner exists yet.
 
+   **Since Stage 8 this is two phases, and the second one is resumable.** The envelope goes first
+   and leaves the restore marker `in_progress`; then one request per vision image; then
+   `/api/v1/operator/import/complete`, which checks that every listed image landed, recomputes the
+   image budget from the rows that are actually stored, refuses to finish if that disagrees with
+   what the backup recorded, and only then marks the restore complete. The tool drives all three.
+
+   If the image phase fails part-way — a dropped connection, a laptop closing — **run exactly the
+   same command again.** It reads `/api/v1/operator/import/status` first, sees a marker for this
+   same copy, skips the envelope, and resends only the images that are missing. That is why a
+   failed image no longer costs a fresh namespace and a 64 MiB restore from the start. Two things
+   it will refuse rather than guess at: a marker for a *different* backup, and a marker that is
+   already `complete`. Both need a fresh drill Worker.
+
+   A partly-restored gallery is never mistaken for a whole one: an image appears in
+   `vision_images` only once its real bytes have arrived and matched the digest the envelope
+   recorded, and `vision_state.bytes_used` stays at zero until `complete` recomputes it.
+
 4. **Validate the restored household.** Counts and board revision come back in the import response.
    Then, against the drill Worker:
 
@@ -275,8 +322,14 @@ already been imported into.
    `GET /api/v1/operator/export` on the drill Worker with its bearer, and compare the payload
    field by field against the backup's decrypted payload. Everything except `createdAt` — which is
    the new export's own timestamp — must be **identical**, including password hashes, recovery
-   digests, card ids, positions and `boardState.revision`. If `export(import(backup))` reproduces
-   `backup` byte for byte, the restore is faithful and nothing was silently dropped or coerced.
+   digests, card ids, positions, due dates, milestone links, goal and milestone rows, every vision
+   image's two digests, `visionState.bytesUsed`, and all three revisions. If
+   `export(import(backup))` reproduces `backup` byte for byte, the restore is faithful and nothing
+   was silently dropped or coerced.
+
+   For the image bytes themselves, `GET /api/v1/operator/export/images/:id` on the drill Worker
+   returns the same base64 the archive holds; spot-check a few, or all of them if the gallery is
+   small. The re-export above compares digests, so a mismatch would already have shown up there.
 
    Then confirm the refusals: a second import answers `409 restore_target_not_pristine`;
    `bootstrap/status` now answers `false`, because `bootstrap_consumed` came back with the

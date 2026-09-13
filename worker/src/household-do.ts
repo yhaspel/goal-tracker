@@ -7,11 +7,13 @@ import { handleAllowedEmailsRoute } from './routes/allowed-emails';
 import { handleAuthRoute } from './routes/auth';
 import { handleBoardRoute } from './routes/board';
 import type { RouteContext } from './routes/context';
+import { handleGoalsRoute } from './routes/goals';
 import { handleInvitationRoute } from './routes/invitations';
 import { handleMemberRoute } from './routes/members';
 import { handleOperatorRoute } from './routes/operator';
 import { handlePreferencesRoute } from './routes/preferences';
 import { handleRecoveryRoute } from './routes/recovery';
+import { handleVisionRoute } from './routes/vision';
 import type { Env } from './index';
 
 declare const __ENABLE_DIAGNOSTICS__: boolean;
@@ -147,6 +149,8 @@ export class HouseholdImplementation extends DurableObject<Env> {
         handleRecoveryRoute(ctx, request, path) ??
         handlePreferencesRoute(ctx, request, path) ??
         handleBoardRoute(ctx, request, path) ??
+        handleGoalsRoute(ctx, request, path) ??
+        handleVisionRoute(ctx, request, path) ??
         handleOperatorRoute(ctx, request, path);
       if (handled) return await handled;
 

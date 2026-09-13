@@ -7,6 +7,8 @@ export type UserStatus = 'active' | 'inactive';
 export type ApiErrorDetails = {
   boardRevision?: number;
   allowlistRevision?: number;
+  goalsRevision?: number;
+  visionRevision?: number;
   fieldErrors?: Record<string, string>;
 };
 
@@ -64,6 +66,13 @@ export type BoardCard = {
   assigneeUserId: string | null;
   creatorUserId: string;
   position: number;
+  /**
+   * A calendar day, `YYYY-MM-DD`, or null. Deliberately not an instant: whether a card is
+   * overdue is decided in the browser against the viewer's own local date, because a server
+   * comparing against UTC would be wrong for several hours a day in Asia/Jerusalem.
+   */
+  dueDate: string | null;
+  milestoneId: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -90,6 +99,85 @@ export type BoardSnapshot = {
  * validated request that turned out to be a no-op and therefore wrote nothing.
  */
 export type BoardMutationResponse = { boardRevision: number; id?: string; unchanged?: true };
+
+// --- goals and milestones -------------------------------------------------------------------
+
+export type MilestoneStatus = 'open' | 'done';
+
+/** Only what a milestone row needs to show the cards serving it. No description, no assignee. */
+export type MilestoneCardLink = { id: string; title: string; columnId: string };
+
+export type Milestone = {
+  id: string;
+  goalId: string;
+  month: number;
+  title: string;
+  notes: string | null;
+  status: MilestoneStatus;
+  position: number;
+  creatorUserId: string;
+  createdAt: string;
+  updatedAt: string;
+  cards: MilestoneCardLink[];
+};
+
+export type Goal = {
+  id: string;
+  year: number;
+  title: string;
+  notes: string | null;
+  position: number;
+  creatorUserId: string;
+  createdAt: string;
+  updatedAt: string;
+  milestones: Milestone[];
+};
+
+/**
+ * The full snapshot. `boardRevision` travels with it because the card links come from the board,
+ * and both are read inside one transaction so they can never disagree.
+ */
+export type GoalsSnapshot = { goalsRevision: number; boardRevision: number; goals: Goal[] };
+
+/** The compact form the card editor's "Part of" selector reads. No notes, no card links. */
+export type GoalsIndex = {
+  goalsRevision: number;
+  goals: Array<{ id: string; year: number; title: string }>;
+  milestones: Array<{ id: string; goalId: string; month: number; title: string; status: MilestoneStatus }>;
+};
+
+export type GoalSummary = { id: string; year: number; title: string };
+
+export type GoalsMutationResponse = { goalsRevision: number; id?: string; unchanged?: true };
+
+// --- vision board ---------------------------------------------------------------------------
+
+export type VisionMediaType = 'image/jpeg' | 'image/png' | 'image/webp';
+
+/** Metadata, digests and both sets of dimensions. Never bytes: those have their own route. */
+export type VisionImage = {
+  id: string;
+  caption: string | null;
+  goalId: string | null;
+  mediaType: VisionMediaType;
+  byteSize: number;
+  width: number;
+  height: number;
+  contentDigest: string;
+  thumbMediaType: VisionMediaType;
+  thumbByteSize: number;
+  thumbWidth: number;
+  thumbHeight: number;
+  thumbDigest: string;
+  position: number;
+  creatorUserId: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type VisionSnapshot = { visionRevision: number; images: VisionImage[] };
+
+export type VisionMutationResponse = { visionRevision: number; id?: string; unchanged?: true };
 
 export type MemberSummary = { id: string; email: string; role: UserRole; status: UserStatus; language: Locale };
 export type MemberListResponse = { members: MemberSummary[] };

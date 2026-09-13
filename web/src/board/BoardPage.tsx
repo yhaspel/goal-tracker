@@ -2,8 +2,6 @@ import { Accessibility, defaultPreset } from '@dnd-kit/dom';
 import { DragDropProvider, useDroppable } from '@dnd-kit/react';
 import { useSortable } from '@dnd-kit/react/sortable';
 import {
-  Fragment,
-  type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
   type TouchEvent as ReactTouchEvent,
   useCallback,
@@ -12,7 +10,14 @@ import {
   useRef,
   useState
 } from 'react';
-import type { BoardCard, BoardColumn, BoardMember, BoardMutationResponse, BoardSnapshot } from '../../../shared/api';
+import type {
+  BoardCard,
+  BoardColumn,
+  BoardMember,
+  BoardMutationResponse,
+  BoardSnapshot,
+  GoalsIndex
+} from '../../../shared/api';
 import { ApiError } from '../api/client';
 import {
   createCard,
@@ -22,24 +27,35 @@ import {
   moveCard,
   moveColumn,
   patchCard,
+  readGoalsIndex,
   renameColumn
 } from '../api/endpoints';
 import { useSession } from '../auth/session';
+import { ActionsMenu, type MenuEntry } from '../components/ActionsMenu';
 import { errorText } from '../components/errors';
 import {
   CheckIcon,
   ChevronEndIcon,
   ChevronStartIcon,
   GripIcon,
-  MoreIcon,
   PencilIcon,
   PersonIcon,
   PlusIcon,
   TrashIcon
 } from '../components/icons';
-import { Alert, Dialog, Field, Submit, useAnnounce, useMediaQuery, WithValue } from '../components/ui';
+import {
+  Alert,
+  Dialog,
+  Field,
+  Submit,
+  useAnnounce,
+  useCalendarDay,
+  useMediaQuery,
+  WithValue
+} from '../components/ui';
 import { useTranslation } from '../i18n';
 import { CardDialog, type CardDraft, draftFromCard } from './CardDialog';
+import { dueState } from './due';
 import { type DropTarget, placeOfCard, projectedDrop, withMovedCard } from './reorder';
 import { useBoard } from './useBoard';
 
@@ -103,6 +119,30 @@ export function BoardPage() {
   const members: readonly BoardMember[] = board?.activeMembers ?? [];
 
   /**
+   * The "Part of" choices, fetched once on mount and again after a card mutation that touched
+   * `milestoneId` — **never polled**. A second 30 s poll would double the board's Durable Object
+   * cost for a list that changes rarely. Its failure is isolated: `null` hides the selector and
+   * renders a linked card's badge without a name, and never blocks a working board.
+   */
+  const [goalsIndex, setGoalsIndex] = useState<GoalsIndex | null>(null);
+  const refreshGoalsIndex = useCallback(() => {
+    void readGoalsIndex()
+      .then(setGoalsIndex)
+      .catch(() => setGoalsIndex(null));
+  }, []);
+
+  useEffect(() => {
+    if (state.status !== 'active') return;
+    refreshGoalsIndex();
+  }, [state.status, refreshGoalsIndex]);
+
+  const milestoneTitles = useMemo(() => {
+    const titles = new Map<string, string>();
+    for (const milestone of goalsIndex?.milestones ?? []) titles.set(milestone.id, milestone.title);
+    return titles;
+  }, [goalsIndex]);
+
+  /**
    * Runs one board mutation against the last confirmed revision.
    *
    * A `409 revision_conflict` never applies the change: the board reloads, the outcome is
@@ -144,13 +184,18 @@ export function BoardPage() {
     if (!editing) return;
     const assignee = draft.assigneeUserId.length > 0 ? draft.assigneeUserId : null;
     const description = draft.description.length > 0 ? draft.description : null;
+    const dueDate = draft.dueDate.length > 0 ? draft.dueDate : null;
+    const milestoneId = draft.milestoneId.length > 0 ? draft.milestoneId : null;
+    const linkChanged = (editing.card?.milestoneId ?? null) !== milestoneId;
     const saved = editing.card
       ? await runMutation(revision =>
           patchCard(editing.card!.id, {
             boardRevision: revision,
             title: draft.title,
             description,
-            assigneeUserId: assignee
+            assigneeUserId: assignee,
+            dueDate,
+            milestoneId
           })
         )
       : await runMutation(revision =>
@@ -159,15 +204,19 @@ export function BoardPage() {
             columnId: editing.columnId,
             title: draft.title,
             description,
-            assigneeUserId: assignee
+            assigneeUserId: assignee,
+            dueDate,
+            milestoneId
           })
         );
     if (saved) {
       announce(t('card.saved', { title: draft.title }));
       setEditing(null);
       setChangedElsewhere(false);
+      // Only when the link actually moved: the list changes rarely, and this is its only refresh.
+      if (linkChanged) refreshGoalsIndex();
     }
-  }, [editing, draft, runMutation, announce, t]);
+  }, [editing, draft, runMutation, announce, t, refreshGoalsIndex]);
 
   const requestMove = useCallback(
     async (card: BoardCard, targetColumnId: string, targetIndex: number, restoreTo?: BoardSnapshot) => {
@@ -390,6 +439,7 @@ export function BoardPage() {
     columnIndex,
     columns,
     members,
+    milestoneTitles,
     isOwner,
     pending,
     phone,
@@ -535,6 +585,7 @@ export function BoardPage() {
           draft={draft}
           onDraftChange={setDraft}
           members={members}
+          goalsIndex={goalsIndex}
           onSubmit={() => void submitCard()}
           onClose={() => {
             setEditing(null);
@@ -727,6 +778,7 @@ function ColumnView({
   columnIndex,
   columns,
   members,
+  milestoneTitles,
   isOwner,
   pending,
   phone,
@@ -742,6 +794,7 @@ function ColumnView({
   columnIndex: number;
   columns: readonly BoardColumn[];
   members: readonly BoardMember[];
+  milestoneTitles: ReadonlyMap<string, string>;
   isOwner: boolean;
   pending: boolean;
   phone: boolean;
@@ -830,6 +883,7 @@ function ColumnView({
                 ? null
                 : (members.find(member => member.id === card.assigneeUserId)?.email ?? card.assigneeUserId)
             }
+            milestoneTitle={card.milestoneId === null ? null : (milestoneTitles.get(card.milestoneId) ?? null)}
             pending={pending}
             onEdit={() => onEditCard(card)}
             onDelete={() => onDeleteCard(card)}
@@ -874,6 +928,20 @@ function ColumnView({
   );
 }
 
+/**
+ * Which of the three sentences a due date reads as, decided here against the viewer's own local
+ * date. Nothing server-side ever compares a due date to the current time.
+ */
+function DueBadge({ dueDate }: { dueDate: string }) {
+  const { t } = useTranslation();
+  const day = useCalendarDay();
+  const state = dueState(dueDate);
+  const text = t(state === 'overdue' ? 'card.overdue' : state === 'dueSoon' ? 'card.dueSoon' : 'card.due', {
+    date: day(dueDate)
+  });
+  return <span className={state === 'due' ? 'badge' : 'badge warning'}>{text}</span>;
+}
+
 function CardView({
   card,
   index,
@@ -881,6 +949,7 @@ function CardView({
   columns,
   phone,
   assigneeEmail,
+  milestoneTitle,
   pending,
   onEdit,
   onDelete,
@@ -892,6 +961,8 @@ function CardView({
   columns: readonly BoardColumn[];
   phone: boolean;
   assigneeEmail: string | null;
+  /** `null` when the goals index could not be read; the badge then names no milestone. */
+  milestoneTitle: string | null;
   pending: boolean;
   onEdit: () => void;
   onDelete: () => void;
@@ -943,14 +1014,9 @@ function CardView({
             </button>
           )}
           <ActionsMenu
-            card={card}
-            index={index}
-            column={column}
-            columns={columns}
-            pending={pending}
-            onEdit={onEdit}
-            onDelete={onDelete}
-            onMove={onMove}
+            entries={cardMenuEntries(card, index, column, columns, pending, t, onEdit, onDelete, onMove)}
+            triggerLabel={t('card.actions', { title: card.title })}
+            menuLabel={t('card.actions', { title: card.title })}
           />
         </div>
       </div>
@@ -960,6 +1026,28 @@ function CardView({
       {card.description !== null ? (
         <p className="card-description" dir="auto">
           {card.description}
+        </p>
+      ) : null}
+
+      {/*
+       * Neither badge is a control, so the card still carries exactly two. `.badge` already
+       * carries a mark as well as a colour, and each of the three due states is its own
+       * dictionary sentence, so the meaning never rests on the tint.
+       */}
+      {card.dueDate !== null || card.milestoneId !== null ? (
+        <p className="card-badges">
+          {card.dueDate !== null ? <DueBadge dueDate={card.dueDate} /> : null}
+          {card.milestoneId !== null ? (
+            <span className="badge">
+              {milestoneTitle === null ? (
+                t('card.partOfUnknown')
+              ) : (
+                <WithValue template={t('card.partOfBadge')} name="milestone">
+                  <span dir="auto">{milestoneTitle}</span>
+                </WithValue>
+              )}
+            </span>
+          ) : null}
         </p>
       ) : null}
 
@@ -984,59 +1072,27 @@ function CardView({
   );
 }
 
-type MenuEntry = {
-  key: string;
-  label: string;
-  disabled: boolean;
-  danger?: boolean;
-  columnChoice?: boolean;
-  run: () => void;
-};
-
 /**
  * Two controls per card instead of five.
  *
  * Edit, move up, move down, move to column and delete all call the same handlers they did when
- * each was its own control on the card; nothing became drag-only, and every one of them is
- * still one or two keystrokes away. The column choices are a flat labelled group rather than a
- * submenu, so there is no nested keyboard model to learn.
+ * each was its own control on the card; nothing became drag-only, and every one of them is still
+ * one or two keystrokes away. The menu itself now lives in `components/ActionsMenu.tsx`, because
+ * the goals screen and the vision board need the same keyboard contract and three copies of it
+ * would drift apart.
  */
-function ActionsMenu({
-  card,
-  index,
-  column,
-  columns,
-  pending,
-  onEdit,
-  onDelete,
-  onMove
-}: {
-  card: BoardCard;
-  index: number;
-  column: BoardColumn;
-  columns: readonly BoardColumn[];
-  pending: boolean;
-  onEdit: () => void;
-  onDelete: () => void;
-  onMove: (card: BoardCard, targetColumnId: string, targetIndex: number) => void;
-}) {
-  const { t, dir } = useTranslation();
-  const phone = useMediaQuery(PHONE);
-  const [open, setOpen] = useState(false);
-  const [activeItem, setActiveItem] = useState(0);
-  /**
-   * Where the trigger sat when the menu opened.
-   *
-   * The board track scrolls sideways, which makes it a scroll container on both axes, and a
-   * menu positioned inside it is clipped at the column's foot. Anchoring the menu to the
-   * viewport instead is what lets it stand clear of the track; a scroll or a resize closes it
-   * rather than letting it drift away from the card it belongs to.
-   */
-  const [anchor, setAnchor] = useState<DOMRect | null>(null);
-  const trigger = useRef<HTMLButtonElement>(null);
-  const items = useRef<Array<HTMLButtonElement | null>>([]);
-
-  const entries: MenuEntry[] = [
+function cardMenuEntries(
+  card: BoardCard,
+  index: number,
+  column: BoardColumn,
+  columns: readonly BoardColumn[],
+  pending: boolean,
+  t: ReturnType<typeof useTranslation>['t'],
+  onEdit: () => void,
+  onDelete: () => void,
+  onMove: (card: BoardCard, targetColumnId: string, targetIndex: number) => void
+): MenuEntry[] {
+  return [
     { key: 'edit', label: t('app.edit'), disabled: pending, run: onEdit },
     // Disabled at the ends of the list rather than hidden, so the menu keeps its shape.
     { key: 'up', label: t('card.moveUp'), disabled: pending || index === 0, run: () => onMove(card, column.id, index - 1) },
@@ -1053,179 +1109,10 @@ function ActionsMenu({
         key: `column-${entry.id}`,
         label: columnLabel(entry, t),
         disabled: pending,
-        columnChoice: true,
+        group: t('card.moveToColumn'),
+        autoDir: true,
         run: () => onMove(card, entry.id, entry.cards.length)
       })),
     { key: 'delete', label: t('app.delete'), disabled: pending, danger: true, run: onDelete }
   ];
-
-  const reachable = entries
-    .map((entry, position) => (entry.disabled ? -1 : position))
-    .filter(position => position >= 0);
-
-  const close = (returnFocus: boolean) => {
-    setOpen(false);
-    if (returnFocus) trigger.current?.focus();
-  };
-
-  const openAt = (end: 'first' | 'last') => {
-    const target = end === 'first' ? reachable[0] : reachable[reachable.length - 1];
-    if (target === undefined) return;
-    setAnchor(trigger.current?.getBoundingClientRect() ?? null);
-    setActiveItem(target);
-    setOpen(true);
-  };
-
-  // A resize invalidates the anchor outright. A scroll cannot: the backdrop is what the pointer
-  // meets while the menu is open, so the board underneath does not move.
-  useEffect(() => {
-    if (!open) return;
-    const dismiss = () => setOpen(false);
-    window.addEventListener('resize', dismiss);
-    return () => window.removeEventListener('resize', dismiss);
-  }, [open]);
-
-  /** The sheet below 834px is positioned entirely by the stylesheet. */
-  const placement =
-    phone || anchor === null
-      ? undefined
-      : (() => {
-          const viewportHeight = document.documentElement.clientHeight;
-          const viewportWidth = document.documentElement.clientWidth;
-          const room = 340;
-          const upward = viewportHeight - anchor.bottom < room && anchor.top > room;
-          return {
-            position: 'fixed' as const,
-            insetBlockStart: upward ? undefined : Math.round(anchor.bottom + 4),
-            insetBlockEnd: upward ? Math.round(viewportHeight - anchor.top + 4) : undefined,
-            insetInlineStart: dir === 'rtl' ? Math.round(anchor.left) : undefined,
-            insetInlineEnd: dir === 'rtl' ? undefined : Math.round(viewportWidth - anchor.right),
-            maxBlockSize: 'min(60vh, 340px)',
-            overflowY: 'auto' as const
-          };
-        })();
-
-  // Focus follows the roving index whenever the menu is open, which is what makes ↑ ↓ Home and
-  // End move the reading position rather than just a highlight.
-  useEffect(() => {
-    if (open) items.current[activeItem]?.focus();
-  }, [open, activeItem]);
-
-  const step = (direction: 1 | -1) => {
-    if (reachable.length === 0) return;
-    const here = reachable.indexOf(activeItem);
-    const next = here < 0 ? 0 : (here + direction + reachable.length) % reachable.length;
-    setActiveItem(reachable[next]!);
-  };
-
-  const onMenuKeyDown = (event: ReactKeyboardEvent) => {
-    switch (event.key) {
-      case 'ArrowDown':
-        event.preventDefault();
-        step(1);
-        return;
-      case 'ArrowUp':
-        event.preventDefault();
-        step(-1);
-        return;
-      case 'Home':
-        event.preventDefault();
-        if (reachable[0] !== undefined) setActiveItem(reachable[0]);
-        return;
-      case 'End':
-        event.preventDefault();
-        if (reachable.length > 0) setActiveItem(reachable[reachable.length - 1]!);
-        return;
-      case 'Escape':
-        // Stopped here so an open menu inside a dialog does not also close the dialog.
-        event.preventDefault();
-        event.stopPropagation();
-        close(true);
-        return;
-      case 'Tab':
-        // Tab closes the menu and moves on rather than trapping inside it.
-        close(false);
-        return;
-      default:
-        return;
-    }
-  };
-
-  let columnGroupOpened = false;
-
-  return (
-    <div className="card-menu">
-      <button
-        type="button"
-        className="icon"
-        ref={trigger}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-label={t('card.actions', { title: card.title })}
-        onKeyDown={event => {
-          if (event.key === 'ArrowDown') {
-            event.preventDefault();
-            openAt('first');
-          } else if (event.key === 'ArrowUp') {
-            event.preventDefault();
-            openAt('last');
-          }
-        }}
-        onClick={() => (open ? close(false) : openAt('first'))}
-      >
-        <MoreIcon />
-      </button>
-
-      {open ? (
-        <>
-          <div className="menu-backdrop" onMouseDown={() => close(false)} />
-          <div
-            className="menu"
-            role="menu"
-            aria-label={t('card.actions', { title: card.title })}
-            style={placement}
-            onKeyDown={onMenuKeyDown}
-          >
-            {entries.map((entry, position) => {
-              const heading = entry.columnChoice === true && !columnGroupOpened;
-              if (heading) columnGroupOpened = true;
-              return (
-                <Fragment key={entry.key}>
-                  {heading ? (
-                    <p className="menu-group-label" role="presentation">
-                      {t('card.moveToColumn')}
-                    </p>
-                  ) : null}
-                  <button
-                    type="button"
-                    role="menuitem"
-                    ref={element => {
-                      items.current[position] = element;
-                    }}
-                    tabIndex={position === activeItem ? 0 : -1}
-                    className={
-                      entry.danger === true
-                        ? 'menu-item danger'
-                        : entry.columnChoice === true
-                          ? 'menu-item menu-item-column'
-                          : 'menu-item'
-                    }
-                    disabled={entry.disabled}
-                    dir={entry.columnChoice === true ? 'auto' : undefined}
-                    onFocus={() => setActiveItem(position)}
-                    onClick={() => {
-                      close(true);
-                      entry.run();
-                    }}
-                  >
-                    {entry.label}
-                  </button>
-                </Fragment>
-              );
-            })}
-          </div>
-        </>
-      ) : null}
-    </div>
-  );
 }
