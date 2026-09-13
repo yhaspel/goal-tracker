@@ -164,11 +164,12 @@ These are Stage 7's job and none of them is done. They are the reason the gate e
   end to end against a local Durable Object using the real runbook SQL, but the deployed
   rehearsal is still outstanding. Until it is done, assume that a person who loses both their
   password and their recovery phrase cannot be recovered.
-- **No manual screen-reader review** has been performed in any locale.
+- **No manual screen-reader review** has been performed in any locale — Stage 6 was closed by
+  owner decision without it; see [`docs/stage-6-completion.md`](stage-6-completion.md).
 - No production security-header review, dependency review, restore drill, or usage review.
 
-See [`development-plans/handoff-remaining-checks.md`](../development-plans/handoff-remaining-checks.md)
-for the one outstanding check and
+See [`docs/stage-6-completion.md`](stage-6-completion.md) for how Stage 6's screen-reader check
+was closed and
 [`development-plans/stage-7-backup-hardening-release.md`](../development-plans/stage-7-backup-hardening-release.md)
 for the rest.
 

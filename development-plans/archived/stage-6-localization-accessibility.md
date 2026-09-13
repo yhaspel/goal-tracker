@@ -1,7 +1,8 @@
 # Stage 6 — Localization and Accessibility
 
 **Status:** Ready to implement after Stage 5; translation drafting can start after UI keys are defined  
-**Scope authority:** `personal-business-goals-dashboard-master-plan.md`  
+**Status:** Closed by owner decision on 2026-09-13, without the manual screen-reader review this plan's exit gate calls for. See the [Stage 6 completion report](../../docs/stage-6-completion.md).  
+**Scope authority:** [`personal-business-goals-dashboard-master-plan.md`](../personal-business-goals-dashboard-master-plan.md)  
 **Deliverable:** Complete English, Hebrew, and Russian workflows with correct direction, keyboard access, and assistive-technology feedback.
 
 ## Scope and prerequisites

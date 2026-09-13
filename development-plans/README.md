@@ -10,11 +10,18 @@ Stage 2 was completed on 2026-09-13. The [Stage 2 completion report](../docs/sta
 
 Stages 3, 4, and 5 were completed on 2026-09-13; see the [Stage 3](../docs/stage-3-completion.md), [Stage 4](../docs/stage-4-completion.md), and [Stage 5](../docs/stage-5-completion.md) completion reports.
 
-**Stage 6 is implemented and locally verified but not closed.** It is one step short, and that step needs a person: a manual screen-reader review in all three locales. The [Stages 2–6 execution log](../docs/stages-2-6-execution-log.md) records exactly what remains, and [`handoff-remaining-checks.md`](handoff-remaining-checks.md) is the brief for whoever picks it up.
+**Stage 6 was closed on 2026-09-13 by owner decision, not by a passed exit gate.** Its plan
+calls for a manual screen-reader review in all three locales; that review was never performed,
+and the owner chose to close Stage 6 without it and accept the documented residual risk. See
+the [Stage 6 completion report](../docs/stage-6-completion.md) for the full record, including
+what a best-effort structural walkthrough covered instead and what it cannot substitute for, and
+the [Stages 2–6 execution log](../docs/stages-2-6-execution-log.md) for the complete history.
 
 On 2026-09-13, the Stage 2 account plan was extended with an owner-managed allowed-email list. Its API and authorization rules are in Stage 2; recovery, board, UI, localization, and backup implications are reflected in Stages 3–7 and the master plan.
 
-The [autonomous execution prompt for Stages 2–6](execute-stages-2-through-6-autonomously.md) has been executed but **stays here**, because it may only move to `archived/` once all five deployed stage gates pass. Stages 2, 3, 4, and 5 passed; Stage 6 has one outstanding check that needs a person, described above.
+The [autonomous execution prompt for Stages 2–6](archived/execute-stages-2-through-6-autonomously.md)
+is archived. All five stages are now closed — Stages 2 through 5 by a passed deployed exit
+gate, Stage 6 by the owner decision described above rather than by its exit gate passing.
 
 | Stage | Plan |
 | --- | --- |
@@ -23,5 +30,5 @@ The [autonomous execution prompt for Stages 2–6](execute-stages-2-through-6-au
 | 3 (complete) | [Recovery and manual rescue](archived/stage-3-recovery-manual-rescue.md) |
 | 4 (complete) | [Board API](archived/stage-4-board-api.md) |
 | 5 (complete) | [Board and account UI](archived/stage-5-board-account-ui.md) |
-| 6 | [Localization and accessibility](stage-6-localization-accessibility.md) |
+| 6 (closed by decision) | [Localization and accessibility](archived/stage-6-localization-accessibility.md) |
 | 7 | [Backup, hardening, and release](stage-7-backup-hardening-release.md) |

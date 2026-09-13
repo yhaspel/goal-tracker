@@ -2,6 +2,15 @@
 
 You are the implementation agent for this repository, running from its root in Claude Code CLI. **Complete Stages 2, 3, 4, 5, and 6, in that order, end to end and autonomously.** Implement working code, migrations, UI, tests, deployed test verification, documentation, and stage closeout. Continue through a stage only after its own exit gate passes; then proceed to the next. This is an execution request, not a request for a proposal. Make routine technical decisions yourself and resolve failures rather than stopping at a partial implementation.
 
+**Closing note, added 2026-09-13, before this prompt was archived:** Stages 2, 3, 4, and 5 passed
+their deployed exit gates in full. Stage 6 did not — its exit gate calls for a manual
+screen-reader review in English, Hebrew, and Russian, on desktop and mobile, which no session
+performed. The owner, told exactly what that gate requires and what a best-effort structural
+walkthrough can and cannot substitute for it, chose to close Stage 6 without it and accept the
+documented residual risk. See [`docs/stage-6-completion.md`](../../docs/stage-6-completion.md) for
+the full record. This prompt is archived now because the run has concluded by that decision, not
+because every gate below passed as originally written.
+
 ## Authority and scope
 
 - Read `AGENTS.md`, `README.md`, `development-plans/README.md`, `development-plans/personal-business-goals-dashboard-master-plan.md`, `docs/stage-1-feasibility.md`, and the full Stage 2–7 plans before changing code. `CLAUDE.md` imports `AGENTS.md`, but explicitly read it again after a session restart. Locate plans through the index because completed plans move to `archived/`. The active stage plan controls its detailed contracts, tasks, acceptance tests, exit gate, and rollback; the master plan controls product scope. If they conflict, reconcile the documents and downstream contracts before implementing the disputed behavior. Read `docs/ci.md` and `docs/deployment.md` before remote operations. Re-read dependent plans whenever an API or schema contract changes.

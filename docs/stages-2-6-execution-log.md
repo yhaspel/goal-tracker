@@ -1,11 +1,11 @@
 # Stages 2–6 execution log
 
-Working record for the [autonomous Stages 2–6 execution prompt](../development-plans/execute-stages-2-through-6-autonomously.md).
-A resumed session should read this file, that prompt, `AGENTS.md`, the
-[plan index](../development-plans/README.md), and
-[`handoff-remaining-checks.md`](../development-plans/handoff-remaining-checks.md) before
-touching code, then continue from the verified evidence below rather than re-running finished
-work or assuming completion.
+Historical record of the now-concluded [autonomous Stages 2–6 execution prompt](../development-plans/archived/execute-stages-2-through-6-autonomously.md),
+archived along with every stage plan it covered — see
+[`docs/stage-6-completion.md`](stage-6-completion.md) for how Stage 6, the last of the five,
+closed. A resumed session should read this file, that prompt, `AGENTS.md`, and the
+[plan index](../development-plans/README.md) before touching code, then treat everything below
+as closed history rather than an in-progress run.
 
 Timestamps are Asia/Jerusalem. No secret, password, recovery phrase, invitation code, session
 token, or personal address appears in this file.
@@ -18,14 +18,14 @@ token, or personal address appears in this file.
 | 3 — recovery and manual rescue | **Complete.** [Report](stage-3-completion.md), plan archived |
 | 4 — board API | **Complete.** [Report](stage-4-completion.md), plan archived |
 | 5 — board and account UI | **Complete.** [Report](stage-5-completion.md), plan archived |
-| 6 — localisation and accessibility | Implemented and locally verified. **One check open:** the manual screen-reader review in three locales |
+| 6 — localisation and accessibility | **Closed by owner decision, 2026-09-13** — not by a passed gate. [Report](stage-6-completion.md), plan archived |
 
 | Field | Value |
 | --- | --- |
 | Head commit | `e90b65a`, CI [34751848731](https://github.com/yhaspel/goal-tracker/actions/runs/34751848731) — `checks: success`, `deploy-test: success`, deployed version `86d659ef` |
 | Commit acceptance ran against | `e90b65a` — the full local suite and `recovery-smoke.ts` (28/28, including the operator leg) both ran directly against this commit and its deployment on 2026-09-13 |
 | Test host | <https://family-board-test.yuval3000.workers.dev> |
-| Next action | The one remaining check in [`handoff-remaining-checks.md`](../development-plans/handoff-remaining-checks.md): Stage 6's screen-reader review. The execution prompt must not self-archive until it passes |
+| Next action | None for this run — closed 2026-09-13. A real screen-reader review is still recommended before Stage 7; see [the Stage 6 completion report](stage-6-completion.md) |
 
 ## Production was deployed on 2026-09-13, ahead of the Stage 7 gate
 
@@ -91,6 +91,18 @@ first two.
   id from the `deploy-test` job log, and confirm it against `npx wrangler deployments status
   --env test`. `check:links` and `check:i18n` run in CI, so a moved plan or an untranslated
   string fails the build.
+- **A Claude session bridged to the owner's Mac over `device_bash` cannot run `npm test` or
+  `npm run build`.** `node_modules/@rolldown` on that mount only carries a `darwin-arm64` native
+  binding; the bridge's own Linux VM needs a `linux-*` one that isn't there, so `vite build` and
+  `vitest` (which loads Vite internally) both fail at startup with "Cannot find native binding" —
+  before any test runs, regardless of what changed. The system Node on that VM (`v22.23.2`) also
+  does not match `.node-version` (`25.2.1`), with no `nvm`/`fnm`/`asdf` installed to select it.
+  `lint`, `typecheck`, `check:links`, and `check:i18n` are unaffected and ran clean. Do not run
+  `npm i` or reinstall dependencies from inside that bridge to chase this — the `node_modules`
+  there is the owner's real one on their own machine, shared with their native Claude Code CLI
+  and their own terminal; reinstalling it for the sandbox's Linux VM risks leaving it broken for
+  actual local development. Treat this as a bridge-environment limitation to note and move past,
+  not a check to force a pass on.
 
 ## Findings worth carrying into Stage 7
 
@@ -197,3 +209,39 @@ reproducible findings a real screen-reader pass should check first:
 
 Not performed, still: any screen-reader session, any locale review on mobile, and any physical
 touch device. Nothing about those is claimed anywhere in this repository.
+
+## Stage 6 / Task B closed, 2026-09-13
+
+The owner asked why Task B specifically requires a real screen reader rather than the
+structural checks already performed. The answer, recorded in full in
+[`docs/stage-6-completion.md`](stage-6-completion.md): a screen reader applies vendor-specific
+heuristics, announcement timing, and its own bugs that DOM/ARIA inspection cannot observe or
+substitute for; this session's own accessibility-tree tool was independently found not to honor
+`aria-hidden`, directly demonstrating that gap; and there is zero mobile/touch coverage from any
+tool used this run. After that answer, the owner instructed that Task B be marked done. Stage 6
+closes on that basis — an explicit, informed decision to accept the residual risk the completion
+report describes, not a claim that the review occurred or that it is unnecessary. The three
+concrete findings from the structural walkthrough (bidi title reordering, the language switcher's
+one-locale-lag confirmation, and no intermediate feedback during a keyboard drag) remain open and
+unfixed, recorded as the starting point for a real review before or alongside Stage 7.
+
+Both the Stage 6 plan and the Stages 2–6 execution prompt are now archived at
+[`development-plans/archived/`](../development-plans/archived/). The execution prompt's own rule
+against self-archiving before every gate passes is addressed directly in its closing note, since
+Stage 6's gate did not pass — the prompt was archived because the run concluded by owner
+decision, not because that gate passed.
+
+Closing this run also meant deciding what "run the full local suite and the three deployed
+smoke scripts against the final commit" could actually mean here. No application code changed in
+this closure or in the six commits before it — every one touched only `docs/*.md` and
+`development-plans/*.md` — so nothing about `worker/src`, `web/src`, `shared`, or `tests` needed
+re-proving. `lint`, `typecheck`, `check:links`, and `check:i18n` were re-run clean against the
+final tree. `npm test`/`npm run build` could not run in this session's sandbox for the unrelated
+environment reason noted above; the last full pass against unchanged code (116/116, commit
+`e90b65a`) still applies. The three deployed smoke scripts were deliberately not re-run:
+`auth-smoke.ts` would fail immediately against the already-consumed test bootstrap and full
+seven seats, `recovery-smoke.ts` was rate-limited from running as part of Task A earlier the same
+day, and `board-smoke.ts` would only repeat a result already current, since nothing it exercises
+changed. Re-running any of them would have produced noise, not signal. This sandbox still has no
+`git push` credentials, so pushing this closure, confirming its CI, and the final read-only
+production re-check are handed off the same way the previous push was.
