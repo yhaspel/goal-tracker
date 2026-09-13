@@ -106,6 +106,21 @@ state plainly which screen reader and version was used. Fix what you find, then 
 `development-plans/stage-6-localization-accessibility.md` into `archived/`, fix its relative
 links, mark it complete in the plan index, and repair every reference.
 
+### Attempted this session, 2026-09-13 — does not close Task B
+
+No real screen reader or touch device was available this session either. What was done instead,
+as a best-effort supplement and explicitly not a substitute: an interactive walkthrough of the
+deployed test Worker's desktop workflow (sign in, create a mixed-script card, assign a member,
+save, move it with the explicit controls, move it again with the keyboard drag, delete it) and
+structural checks in Hebrew and Russian, inspected through the accessibility tree and raw
+ARIA/DOM state rather than by listening to a screen reader. Full findings are in the
+[execution log](../docs/stages-2-6-execution-log.md#what-was-verified-where), including two
+reproducible defects worth fixing before the real review: a mixed-script title's visual order
+can diverge from its typed order in an English-locale field, and the language switcher's own
+confirmation announces in the previous locale rather than the new one. Neither finding changes
+the outcome here — **Task B is still open.** The next safe step is unchanged: run VoiceOver,
+NVDA, or TalkBack, desktop and mobile, in all three locales.
+
 ---
 
 ## Task C — optional, while you are in the dashboard

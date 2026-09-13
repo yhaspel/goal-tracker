@@ -154,5 +154,38 @@ complete lost-phrase runbook including generation, insertion, redemption, reuse 
 revocation, and the audit query, and a browser walkthrough covering pointer drag, keyboard
 drag, the explicit move controls, the owner settings screen, and a 320 CSS pixel viewport.
 
-Not performed: any screen-reader session and any physical touch device. Nothing about those
-is claimed anywhere in this repository.
+This session added one more layer, short of Task B's actual requirement: an interactive
+walkthrough of the deployed test Worker driven through a Chrome browser extension, reading the
+accessibility tree and raw ARIA/DOM state directly (structural queries and screenshots) rather
+than listening with a screen reader. Desktop-only, English, Hebrew, and Russian: sign in, create
+a mixed-script card, assign a member, save, move it with the explicit controls, move it again
+with the keyboard drag, delete it, then repeat card creation and a structural check in the other
+two locales. This is not a substitute for Task B and does not close it, but it surfaced concrete,
+reproducible findings a real screen-reader pass should check first:
+
+- **A mixed-script title's visual order can diverge from the typed order.** A card titled
+  `Buy milk לחלב 2%` (English UI, left-to-right base direction) renders visually as
+  "Buy milk 2% לחלב" — the Hebrew word and the trailing `2%` swap places under the plain Unicode
+  bidi algorithm, with no directional isolation applied to the field. The same kind of content
+  typed the other way round, `קנייה: 2% חלב Milk` (Hebrew UI, right-to-left base direction),
+  rendered in the exact typed order with no reordering. Directly relevant to the Stage 6 plan's
+  "read in the correct character order" question — the risk is specific to Latin/digit text
+  trailing Hebrew inside an English-locale (left-to-right) field.
+- **The language switcher's own confirmation lags one locale behind the selection.** Switching
+  English to Hebrew announced "Language saved." in English; switching Hebrew to Russian
+  announced "השפה נשמרה." in Hebrew. Every other action's live-region text (card saved, moved,
+  deleted) updates to the newly selected locale immediately on that same action — only this one
+  confirmation is stale by exactly one switch.
+- **Keyboard drag gives no feedback between pick-up and drop.** Space correctly picks up a card
+  (a properly `aria-hidden` drag-overlay clone appears; the original's Move-up/Move-down buttons
+  become genuinely `disabled`, not just styled that way) and the arrow keys do move it — the
+  card landed in the intended column on drop — but nothing announces the pick-up itself, and
+  nothing indicates which column or position is targeted while arrow keys are pressed. The only
+  confirmation is the final "moved to `<column>`, position `<n>`" announcement after dropping.
+- Minor: the drag-overlay clone shares its DOM `id` with the original element (duplicate `id` is
+  invalid HTML), though this has no accessibility-tree consequence since the clone carries
+  `aria-hidden="true"`; this tool's own accessibility-tree dump does not appear to honor that
+  attribute, which is why a direct DOM/ARIA query was needed to tell the two apart.
+
+Not performed, still: any screen-reader session, any locale review on mobile, and any physical
+touch device. Nothing about those is claimed anywhere in this repository.
