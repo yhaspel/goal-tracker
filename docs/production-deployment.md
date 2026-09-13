@@ -164,8 +164,11 @@ These are Stage 7's job and none of them is done. They are the reason the gate e
   end to end against a local Durable Object using the real runbook SQL, but the deployed
   rehearsal is still outstanding. Until it is done, assume that a person who loses both their
   password and their recovery phrase cannot be recovered.
-- **No manual screen-reader review** has been performed in any locale — Stage 6 was closed by
-  owner decision without it; see [`docs/stage-6-completion.md`](stage-6-completion.md).
+- **No manual screen-reader review** has been performed by this project's tooling in any locale
+  — Stage 6 was closed by owner decision without it; see
+  [`docs/stage-6-completion.md`](stage-6-completion.md). The owner reported on 2026-09-13 that
+  the screen reader works, and the four defects the structural walkthrough had recorded are now
+  fixed and deployed, but no review run by this project has ever produced that finding.
 - No production security-header review, dependency review, restore drill, or usage review.
 
 See [`docs/stage-6-completion.md`](stage-6-completion.md) for how Stage 6's screen-reader check
@@ -201,3 +204,71 @@ Redeploying an earlier Worker version restores earlier behaviour but **does not*
 schema migration, and must not be taken below Stage 2, which would remove allowed-list
 enforcement. Do not reset or delete the production Durable Object namespace: after an owner
 exists it holds the only copy of the household's data, and there is no backup to restore from.
+
+## Second production deployment, 2026-09-13 — the accessibility fixes
+
+**Version:** `ff9c08c2-8b7e-4b89-8b16-3781e5ba0743`, deployed at 100%
+**Commit:** `cec6c80`, CI [34758786464](https://github.com/yhaspel/goal-tracker/actions/runs/34758786464) — `checks: success`, `deploy-test: success`
+**Deployed by:** `npm run deploy:prod`, manually, on the owner's explicit instruction
+
+An intermediate deployment of `54e23a7` (version `865df723-d3f4-44c8-9c4e-ea7a93c2bd3c`, CI
+[34758484173](https://github.com/yhaspel/goal-tracker/actions/runs/34758484173)) was superseded
+about seven minutes later by `cec6c80`, which adds the target-size fix for the guest screens.
+
+This deployment is **interface-only**. No route, no API contract, no migration: the production
+Durable Object still reports `schemaVersion: 4`, unchanged from the first deployment, and no
+production data was read, created, or modified. The bundle production serves is byte-identical
+to the local build and to what CI deployed to test — `sha256 a60fcf87d76a3ef4` for
+`index-B_sTXiOj.js` and `ca2965fe67383856` for `index-DBIBJqBn.css`, compared directly rather
+than inferred from the filename hash.
+
+What changed: the keyboard-drag announcements, the language-switcher confirmation locale,
+`dir="auto"` on the card and column-name inputs, the drag overlay's duplicate DOM `id`, and two
+minimum-target-size fixes. See the [Stage 6 completion report](stage-6-completion.md).
+
+### Verified on the deployed Worker, read-only
+
+Nothing below signs in. Production holds a real owner account whose credentials this session
+does not have and did not seek.
+
+| Check | Result |
+| --- | --- |
+| `GET /api/v1/health` | `200`, `schemaVersion: 4`, `Cache-Control: no-store` — unchanged by the deployment |
+| `GET /api/v1/board`, `/api/v1/members`, `/api/v1/settings/allowed-emails` (no session) | All `401 unauthenticated`, generic body, no address named |
+| `GET /api/v1/auth/bootstrap/status` | `{"bootstrapAvailable":false}` — the owner still exists and bootstrap stays closed |
+| `GET /api/v1/diagnostics/probe` | `404`; diagnostics remain absent from the production bundle |
+| `family-board-restore` | `404`, still unexposed |
+| SPA routes `/board /login /register /recover /account /members /bootstrap` | Each `200 text/html`; an unknown path is `404` |
+| Served assets | Byte-identical to the local build, both hashes confirmed |
+| New announcement strings present in the shipped bundle | All three locales — `Picked up` / `הורם` / `поднята`, and the cancel strings — found in the minified production JS |
+| Old duplicated-`id` markup | Absent from the shipped bundle |
+
+### The two rows that could never be verified before
+
+Both earlier attempts recorded these as unverified because the only browser tab open to
+production already held a live session. A browser context holding no production session at all
+closes them:
+
+| Check | Result |
+| --- | --- |
+| `/board` as a guest redirects to `/login` | **Verified.** Navigating to `/board` with no session lands on `/login` |
+| Browser storage contents | **Verified.** `localStorage` and `sessionStorage` are both empty, and the only script-visible cookie is `kanban_locale`, the non-sensitive preference. The session cookie is `__Host-` and `HttpOnly`, so it is correctly invisible to script |
+
+### Guest interface, all three locales, mobile
+
+390 × 844 with touch emulation, across `/`, `/login`, `/register`, `/recover`, and `/bootstrap`
+in English, Hebrew, and Russian: correct `lang` and `dir` in every case, no horizontal overflow,
+and no interactive target under 24 × 24 CSS pixels apart from one link that is deliberately
+inline in a sentence. The only console error is the `401` a guest's own session probe returns,
+which is the expected behaviour.
+
+The signed-in screens were exercised against a **local** Durable Object with a disposable owner
+account, not against production — that is where the drag announcements, the locale-switch
+confirmation, and the editor's text direction were checked. See the
+[execution log](stages-2-6-execution-log.md).
+
+### Rollback
+
+Redeploying version `596488a7-b2d5-4415-801c-ecc6d3c49087` restores the interface as it was
+before these fixes. It touches no schema and no data, so it is safe in a way the first
+deployment's rollback was not — but it reintroduces the four accessibility defects.
