@@ -7,6 +7,7 @@ nothing else — no chat history, no memory of how it was built.
 Companion documents: [deployment](deployment.md) for publishing a Worker,
 [the lost-phrase rescue](operator-lost-phrase-reset.md) for a locked-out account,
 [the production deployment record](production-deployment.md) for what production actually holds,
+[the Stage 7 status record](stage-7-status.md) for what is still outstanding and in what order,
 and [CI](ci.md) for what the pipeline does and does not deploy.
 
 **Read this first.** Production has held real data since 2026-09-13. The first encrypted backup was
@@ -475,4 +476,7 @@ Outstanding, and each needs the deployed Free runtime:
 - [ ] Record the release version, schema version, measurements and terms checked in
       `docs/stage-7-completion.md`, and only then archive the stage plan
 
-Until every box above is ticked, Stage 7 is not closed and production is not backed up.
+Until every box above is ticked, Stage 7 is not closed. Production **is** backed up as of
+2026-09-13, and that copy has been restored into a deployed Worker — but the boxes that remain are
+what stand between "a backup exists" and "recovery is proven and survives this laptop".
+[The Stage 7 status record](stage-7-status.md) explains each one and suggests an order.
