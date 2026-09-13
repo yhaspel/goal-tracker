@@ -30,7 +30,7 @@ Stage 1 is complete. The repository currently contains only the React shell, API
 
 Use Node 25.2.1 and npm 11.12.1 (`.node-version` and `packageManager`). Dependencies and Wrangler are exact-pinned in `package-lock.json`. From the repository root, run `npm ci`, `npm run lint`, `npm run typecheck`, `npm test` (which builds the web shell), and `npm run build` for changes that affect the app. Add focused Workers-runtime tests for changed routing, SQL, authentication, or KDF behavior; run the relevant deployed-test smoke checks required by the active stage plan.
 
-The GitHub Actions workflow runs checks on pushes and pull requests. Its test deployment is disabled until GitHub Actions secrets and the enable variable are configured after the first push; see [`docs/ci.md`](docs/ci.md). Do not assume a push has deployed anything unless the deploy job succeeded. Production deployment remains outside this automatic pipeline until Stage 7.
+The GitHub Actions workflow runs checks on pushes and pull requests. After a passing default-branch push, it deploys the test Worker and runs a live smoke check; see [`docs/ci.md`](docs/ci.md) for its configuration and token rotation date. Do not assume a push has deployed anything unless the deploy job succeeded. Production deployment remains outside this automatic pipeline until Stage 7.
 
 ## Cloudflare and security boundaries
 
