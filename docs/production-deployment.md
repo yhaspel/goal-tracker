@@ -541,3 +541,110 @@ restore drill, the maximum-size measurement, the deployed lost-phrase rehearsal 
 those two. Stage 7 is **not closed** by this push, and its plan does not move to `archived/`.
 
 Production still holds the only copy of its data.
+
+> **Superseded the same day.** The owner then authorised both checkpoints. Everything above
+> remains an accurate record of the push itself, but production is no longer on
+> `7a9a4d2a-c1a3-455d-b722-fde38e7b6c84` and the secret is no longer unprovisioned. See the next
+> section.
+
+## Fifth production deployment, 2026-09-13 — Stage 7 backup and hardening
+
+**Version:** `37752249-68a9-48d3-bc3d-2895bc0f8bc2`, deployed at 100%
+**Commit:** `5179a8e` (Stage 7 code landed in `9c10e19`), CI
+[34775917662](https://github.com/yhaspel/goal-tracker/actions/runs/34775917662) —
+`checks: success`, `deploy-test: success`
+**Deployed by:** `npm run deploy:prod`, manually, on the owner's explicit instruction
+
+The owner was asked about the two checkpoints the handoff reserved for them, and authorised both:
+deploy Stage 7 to production, and generate and set `BACKUP_OPERATOR_SECRET` there. Both were then
+done, in that order.
+
+No migration. `SCHEMA_VERSION` stays 4, the production Durable Object grew no table, and no
+production data was created, modified, or deleted. `wrangler` reported "No updated asset files to
+upload" — Stage 7 touches nothing under `web/src`, so the served assets are the same
+`index-FbeFDlm9.js` and `index-BPFtyiPT.css` the fourth deployment verified byte for byte.
+
+What changed in production: the security headers, `no-store` on the SPA shell, and a
+bearer-authenticated `GET /api/v1/operator/export`. `POST /api/v1/operator/import` is **not** in
+this build and cannot be — CI fails the `checks` job if the route or `restore_import_marker`
+appears in the production bundle.
+
+### Verified on the deployed Worker, read-only
+
+Same `curl` pass as before the deploy, so the two runs are directly comparable. No sign-in, no
+cookie, no write.
+
+| Check | Result |
+| --- | --- |
+| `GET /api/v1/health` | `200`, `schemaVersion: 4`, `Cache-Control: no-store` |
+| `GET /api/v1/board`, `/api/v1/members`, `/api/v1/settings/allowed-emails` | All `401 unauthenticated`, generic body, no address named |
+| `GET /api/v1/auth/bootstrap/status` | `{"bootstrapAvailable":false}` |
+| `GET /api/v1/operator/export`, no `Authorization` | `404`, body exactly `{"error":{"code":"not_found","message":"Not found"}}` |
+| `GET /api/v1/operator/export`, wrong bearer | The same `404`, byte for byte |
+| `POST /api/v1/operator/import` | `404` — the route is absent from this build |
+| `GET /api/v1/diagnostics/probe?nonce=<32 hex>` | `404` |
+| All eight SPA routes | `200 text/html`, and `Cache-Control: no-store` on **all eight** |
+| The same routes | `default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; object-src 'none'`, plus `X-Frame-Options: DENY`, COOP and CORP `same-origin` |
+| `/assets/index-FbeFDlm9.js` | `200`, CSP and `nosniff` present, and correctly **not** `no-store` (`public, max-age=0, must-revalidate`) |
+| `/nope` | `404`, empty body, no content type |
+| Every response above | `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `Strict-Transport-Security: max-age=31536000` |
+| `family-board-restore` | `404`, still no public route |
+
+Every row that was marked "not yet deployed" before the deploy now passes. `script-src` carries no
+`'unsafe-inline'`; `style-src` does, because React and the drag projection set `style=` attributes.
+
+### `BACKUP_OPERATOR_SECRET` in production
+
+Generated with `openssl rand -hex 32` into a `0600`, Git-ignored `.secrets.backup-operator.production`
+and piped to `wrangler secret put` on stdin. The value was never an argument to any process, never
+echoed, and never written anywhere else. `wrangler secret list --env production` now shows four
+secrets — `BACKUP_OPERATOR_SECRET`, `CSRF_SECRET`, `RATE_LIMIT_KEY`, `RECOVERY_DIGEST_KEY` — and
+correctly still no `BOOTSTRAP_SECRET`.
+
+The secret was written **without a trailing newline**, deliberately. `worker/src/routes/operator.ts`
+compares `ctx.env.BACKUP_OPERATOR_SECRET` verbatim and the bearer pattern is `Bearer\s+(\S+)`, so a
+stored newline would have been part of the secret and no caller could ever have matched it. The
+runbook's provisioning snippet used a plain `>` redirect, which leaves one; it has been corrected in
+the same change as this record.
+
+`BACKUP_HOUSEHOLD_ID` was confirmed from the deploy output rather than assumed: the production
+Worker's bindings list `env.BACKUP_HOUSEHOLD_ID ("goal-tracker-production")`.
+
+The route was then proven to authenticate, once: `GET /api/v1/operator/export` with the correct
+bearer returned `200 application/json`, 2,318 bytes. **The body was discarded to `/dev/null` and
+never read** — the point was to prove the credential works, not to look at the household's data.
+That single request is also why the failure mode described above matters: had the newline been
+stored, this would have returned the same `404` as a wrong secret, and the cause would not have
+been visible from outside.
+
+### What this deployment still does not give you
+
+A working export route is not a backup. **No production backup has been taken.** Production
+continues to hold the only copy of its data, and the owner account remains unrecoverable if its
+password and recovery phrase are both lost.
+
+Still outstanding on the Stage 7 release checklist, now that the deploy and the secret are done:
+
+- The first encrypted production backup, taken and verified
+- The full drill that restores that copy into a fresh isolated namespace, then destroys it
+- The maximum-size export measurement against the Free limits
+- The deployed lost-phrase rescue rehearsal
+- `BACKUP_OPERATOR_SECRET` in `test`, and the round trip against the deployed test Worker
+- Moving the escrowed secrets off the single laptop
+- Confirming whether point-in-time recovery is available on this Free account
+- `docs/stage-7-completion.md`, and only then archiving the stage plan
+
+Stage 7 is **not closed**, and its plan does not move to `archived/`.
+
+### Rollback
+
+Redeploying `7a9a4d2a-c1a3-455d-b722-fde38e7b6c84` returns to the fourth deployment. There is no
+migration and no data implication — the rollback is a plain version redeploy:
+
+```sh
+npx wrangler rollback --env production
+```
+
+It removes the security headers and the export route. `BACKUP_OPERATOR_SECRET` would survive the
+rollback as a configured but unused secret, which is harmless; the route that reads it would no
+longer exist.

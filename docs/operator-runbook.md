@@ -48,9 +48,24 @@ Provision a secret without letting it reach a shell history entry:
 
 ```sh
 umask 077
-openssl rand -hex 32 > .secrets.backup-operator.production
+openssl rand -hex 32 | tr -d '\n' > .secrets.backup-operator.production
 npx wrangler secret put BACKUP_OPERATOR_SECRET --env production < .secrets.backup-operator.production
 ```
+
+The `tr -d '\n'` is not cosmetic. `authorize()` compares `ctx.env.BACKUP_OPERATOR_SECRET` verbatim
+and the bearer pattern is `Bearer\s+(\S+)`, so a trailing newline becomes part of the stored secret
+and **no caller can ever match it**. The failure is silent and indistinguishable from a wrong
+secret: the route answers the same `404` it gives everyone, and `wrangler tail` reports
+`bad_operator_secret`. After provisioning, prove the credential once without reading the data:
+
+```sh
+{ printf 'header = "Authorization: Bearer '; cat .secrets.backup-operator.production; printf '"\n'; } \
+  | curl --config - -sS -o /dev/null -w '%{http_code} %{size_download}\n' \
+      https://family-board-production.yuval3000.workers.dev/api/v1/operator/export
+```
+
+`200` and a non-zero byte count is the proof. Piping the secret through `--config` keeps it out of
+`curl`'s argument list, where `ps` would show it.
 
 ## Secret and key escrow
 
@@ -322,6 +337,16 @@ Done in this change, and verifiable without Cloudflare:
 - [x] CI proves the import route is absent from the production bundle and present in the restore one
 - [x] Full local round trip against `wrangler dev`: export → encrypt → decrypt → import → sign in
 
+Done on the deployed production Worker, 2026-09-13, on the owner's explicit instruction — see
+[the production deployment record](production-deployment.md):
+
+- [x] Deploy Stage 7 to production (version `37752249-68a9-48d3-bc3d-2895bc0f8bc2`; no migration,
+      so the rollback is a version redeploy), provision `BACKUP_OPERATOR_SECRET` there, and
+      confirm `BACKUP_HOUSEHOLD_ID` (`goal-tracker-production`, read from the deploy output)
+
+The export route was proven to authenticate once, with the response body discarded unread. That is
+proof of a working credential, not a backup.
+
 Outstanding, and each needs the deployed Free runtime:
 
 - [ ] Provision `BACKUP_OPERATOR_SECRET` in `test`, then run the whole round trip against the
@@ -330,9 +355,6 @@ Outstanding, and each needs the deployed Free runtime:
       descriptions — and record response bytes, export time, import time, SQL rows and DO duration
       against the Free limits above
 - [ ] Rehearse the lost-phrase rescue against a deployed Worker
-- [ ] Deploy Stage 7 to production (`npm run deploy:prod`; no migration, so the rollback is a
-      version redeploy), provision `BACKUP_OPERATOR_SECRET` there, and confirm
-      `BACKUP_HOUSEHOLD_ID`
 - [ ] Take and verify the **first encrypted production backup**
 - [ ] Run one full drill that restores that production copy into a fresh isolated namespace, then
       destroy it
