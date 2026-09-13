@@ -124,6 +124,11 @@ first two.
   verifier now retries the index page and every asset it names as a pair. Treat a first-attempt
   asset or schema mismatch as propagation, not as a defect — but confirm it settles rather than
   assuming it will.
+- **Task C, checked 2026-09-13: neither Worker has a second deploy pipeline.** Both
+  `family-board-test`'s and `family-board-production`'s dashboard Settings → Builds show no Git
+  repository connected — just the unused GitHub/GitLab connect buttons, no repo, branch, or
+  connected badge. Workers Builds is not silently double-deploying either Worker; the
+  propagation-delay explanation above stands as the best one.
 
 ## Deviations from the plans, with reasons
 
