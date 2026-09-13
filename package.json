@@ -11,7 +11,7 @@
   "scripts": {
     "dev": "npm run build && wrangler dev --env test",
     "build": "vite build --config web/vite.config.ts",
-    "lint": "eslint worker web/src shared tests",
+    "lint": "eslint worker web/src shared tests scripts",
     "typecheck": "tsc --noEmit",
     "test": "npm run build && vitest run",
     "deploy:test": "npm run build && wrangler deploy --env test",

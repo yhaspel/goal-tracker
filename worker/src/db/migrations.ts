@@ -1,4 +1,10 @@
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
+
+/**
+ * UTC ISO-8601 with milliseconds, identical in shape to `new Date().toISOString()`.
+ * Used where a migration needs a timestamp without bound parameters.
+ */
+const SQL_NOW = `strftime('%Y-%m-%dT%H:%M:%fZ','now')`;
 
 const migrations = [
   {
@@ -8,6 +14,99 @@ const migrations = [
         nonce TEXT PRIMARY KEY,
         created_at TEXT NOT NULL
       )`
+    ]
+  },
+  {
+    version: 2,
+    statements: [
+      // Singleton household state. `bootstrap_consumed` closes owner bootstrap permanently;
+      // `allowlist_revision` guards concurrent allowed-email replacements.
+      `CREATE TABLE IF NOT EXISTS app_state (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        bootstrap_consumed INTEGER NOT NULL DEFAULT 0 CHECK (bootstrap_consumed IN (0, 1)),
+        allowlist_revision INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL
+      )`,
+      `INSERT OR IGNORE INTO app_state (id, bootstrap_consumed, allowlist_revision, created_at)
+        VALUES (1, 0, 0, ${SQL_NOW})`,
+
+      `CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        email_norm TEXT NOT NULL UNIQUE,
+        password_hash TEXT NOT NULL,
+        role TEXT NOT NULL CHECK (role IN ('owner', 'member')),
+        status TEXT NOT NULL CHECK (status IN ('active', 'inactive')),
+        language TEXT NOT NULL DEFAULT 'en' CHECK (language IN ('en', 'he', 'ru')),
+        credential_epoch INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`,
+      // Belt and braces with the bootstrap transaction: at most one owner row can ever exist.
+      `CREATE UNIQUE INDEX IF NOT EXISTS users_single_owner ON users (role) WHERE role = 'owner'`,
+      `CREATE INDEX IF NOT EXISTS users_status ON users (status)`,
+
+      `CREATE TABLE IF NOT EXISTS allowed_emails (
+        email_norm TEXT PRIMARY KEY,
+        created_at TEXT NOT NULL
+      )`,
+
+      `CREATE TABLE IF NOT EXISTS invitations (
+        id TEXT PRIMARY KEY,
+        email_norm TEXT NOT NULL,
+        code_digest TEXT NOT NULL UNIQUE,
+        created_by TEXT NOT NULL REFERENCES users (id),
+        created_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        consumed_at TEXT,
+        revoked_at TEXT
+      )`,
+      `CREATE INDEX IF NOT EXISTS invitations_email ON invitations (email_norm)`,
+
+      // `language` carries the locale chosen at prepare time through to user creation at
+      // confirm time. No plaintext password, invite code, pending token, or phrase is stored.
+      `CREATE TABLE IF NOT EXISTS pending_registrations (
+        id TEXT PRIMARY KEY,
+        kind TEXT NOT NULL CHECK (kind IN ('bootstrap', 'invite')),
+        email_norm TEXT NOT NULL,
+        invitation_id TEXT REFERENCES invitations (id),
+        password_hash TEXT NOT NULL,
+        phrase_digest TEXT NOT NULL,
+        pending_token_digest TEXT NOT NULL UNIQUE,
+        language TEXT NOT NULL DEFAULT 'en' CHECK (language IN ('en', 'he', 'ru')),
+        expires_at TEXT NOT NULL,
+        failed_confirmations INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS pending_registrations_email ON pending_registrations (email_norm)`,
+      `CREATE INDEX IF NOT EXISTS pending_registrations_invitation ON pending_registrations (invitation_id)`,
+
+      `CREATE TABLE IF NOT EXISTS recovery_credentials (
+        user_id TEXT PRIMARY KEY REFERENCES users (id),
+        phrase_digest TEXT NOT NULL,
+        version INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL
+      )`,
+
+      `CREATE TABLE IF NOT EXISTS sessions (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users (id),
+        token_digest TEXT NOT NULL UNIQUE,
+        created_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        revoked_at TEXT
+      )`,
+      `CREATE INDEX IF NOT EXISTS sessions_user ON sessions (user_id)`,
+      `CREATE INDEX IF NOT EXISTS sessions_live ON sessions (token_digest, revoked_at, expires_at)`,
+
+      // `bucket_key` is an HMAC of the scope plus the pseudonymised subject, never the raw
+      // email or IP address.
+      `CREATE TABLE IF NOT EXISTS rate_limits (
+        bucket_key TEXT PRIMARY KEY,
+        window_start TEXT NOT NULL,
+        count INTEGER NOT NULL,
+        expires_at TEXT NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS rate_limits_expiry ON rate_limits (expires_at)`
     ]
   }
 ] as const;

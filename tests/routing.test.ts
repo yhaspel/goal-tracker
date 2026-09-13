@@ -1,5 +1,6 @@
 import { SELF } from 'cloudflare:test';
 import { describe, expect, it } from 'vitest';
+import { SCHEMA_VERSION } from '../worker/src/db/migrations';
 
 const fetchRoute = (path: string, init?: RequestInit) => SELF.fetch(new Request(`https://example.com${path}`, init));
 
@@ -33,18 +34,27 @@ describe('front Worker routing', () => {
     const health = await fetchRoute('/api/v1/health');
     expect(health.status).toBe(200);
     expect(health.headers.get('cache-control')).toBe('no-store');
-    expect(await health.json()).toEqual({ data: { status: 'ok', schemaVersion: 1 } });
+    expect(await health.json()).toEqual({ data: { status: 'ok', schemaVersion: SCHEMA_VERSION } });
     const wrongMethod = await fetchRoute('/api/v1/health', { method: 'POST' });
     expect(wrongMethod.status).toBe(405);
     expect(wrongMethod.headers.get('allow')).toBe('GET');
   });
 
   it('rejects oversized API bodies without touching the DO', async () => {
-    const response = await fetchRoute('/api/v1/diagnostics/probe', {
+    const response = await fetchRoute('/api/v1/auth/login', {
       method: 'POST',
-      body: 'x'.repeat(3000)
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ padding: 'x'.repeat(17 * 1024) })
     });
     expect(response.status).toBe(413);
     expect(await response.json()).toEqual({ error: { code: 'payload_too_large', message: 'Payload too large' } });
+  });
+
+  it('rejects unsupported content types on API routes before the DO runs', async () => {
+    const response = await fetchRoute('/api/v1/auth/login', { method: 'POST', body: 'email=x' });
+    expect(response.status).toBe(415);
+    expect(await response.json()).toEqual({
+      error: { code: 'unsupported_media_type', message: 'Send application/json.' }
+    });
   });
 });

@@ -14,22 +14,56 @@ node --version
 npm --version
 ```
 
-Clone and run from the repository root:
+Clone and install from the repository root:
 
 ```sh
 git clone https://github.com/yhaspel/goal-tracker.git
 cd goal-tracker
 npm ci
+```
+
+The account API needs four local secrets. Create a throwaway `.dev.vars` file, which Git
+ignores and Wrangler loads automatically for `npm run dev`:
+
+```sh
+umask 077
+{
+  echo "BOOTSTRAP_SECRET=$(openssl rand -hex 32)"
+  echo "RECOVERY_DIGEST_KEY=$(openssl rand -hex 32)"
+  echo "CSRF_SECRET=$(openssl rand -hex 32)"
+  echo "RATE_LIMIT_KEY=$(openssl rand -hex 32)"
+} > .dev.vars
+```
+
+`BOOTSTRAP_SECRET` opens one-time owner creation. `RECOVERY_DIGEST_KEY` keys recovery-phrase
+digests, `CSRF_SECRET` signs the session-bound CSRF value, and `RATE_LIMIT_KEY` pseudonymises
+rate-limit buckets. Without them the account routes answer `503 unavailable` rather than
+falling back to a weaker derivation. Use values like these only locally; deployed
+environments get their own separate Cloudflare secrets. `npm test` generates its own
+disposable values and needs no `.dev.vars`.
+
+```sh
 npm run dev
 ```
 
-Wrangler prints the local address, normally [http://localhost:8787](http://localhost:8787). The app currently displays a placeholder page. To check that the API and local Durable Object are working, open [http://localhost:8787/api/v1/health](http://localhost:8787/api/v1/health) or run:
+Wrangler prints the local address, normally [http://localhost:8787](http://localhost:8787). The app currently displays a placeholder page while the Stage 5 interface is built; the account API is live. To check that the API and local Durable Object are working, open [http://localhost:8787/api/v1/health](http://localhost:8787/api/v1/health) or run:
 
 ```sh
 curl --fail http://localhost:8787/api/v1/health
 ```
 
 The response should contain `"status":"ok"`. `npm run dev` builds the web assets and starts Wrangler in the isolated `test` environment with local Durable Object storage. Local development and tests do not require a Cloudflare login or deployment credentials. Stop the server with Ctrl-C.
+
+To exercise the whole account flow against that local server, pipe the same bootstrap secret
+into the smoke script. It creates a disposable owner and six members, so run it against a
+fresh local Durable Object (`rm -rf .wrangler/state`) and never against production:
+
+```sh
+grep '^BOOTSTRAP_SECRET=' .dev.vars | cut -d= -f2 | node scripts/auth-smoke.ts http://127.0.0.1:8787
+```
+
+The script writes the disposable identities it created to `.secrets.smoke.json` (mode 0600,
+ignored by Git) so a later run can sign in again once bootstrap has been consumed.
 
 ## Commands
 

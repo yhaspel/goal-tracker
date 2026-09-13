@@ -12,5 +12,5 @@
     "skipLibCheck": true,
     "types": ["@cloudflare/workers-types", "@cloudflare/vitest-plugin/types", "node", "vitest/globals"]
   },
-  "include": ["worker/**/*.ts", "web/**/*.ts", "web/**/*.tsx", "shared/**/*.ts", "tests/**/*.ts", "vitest.config.ts", "worker-env.d.ts"]
+  "include": ["worker/**/*.ts", "web/**/*.ts", "web/**/*.tsx", "shared/**/*.ts", "tests/**/*.ts", "scripts/**/*.ts", "vitest.config.ts", "worker-env.d.ts"]
 }

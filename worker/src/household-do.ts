@@ -2,6 +2,12 @@ import { DurableObject } from 'cloudflare:workers';
 import { jsonData, jsonError } from '../../shared/api';
 import { hashPassword, KdfQueue, QueueFullError, verifyPassword } from './auth/kdf-queue';
 import { migrate } from './db/migrations';
+import { toResponse } from './http';
+import { handleAllowedEmailsRoute } from './routes/allowed-emails';
+import { handleAuthRoute } from './routes/auth';
+import type { RouteContext } from './routes/context';
+import { handleInvitationRoute } from './routes/invitations';
+import { handleMemberRoute } from './routes/members';
 import type { Env } from './index';
 
 declare const __ENABLE_DIAGNOSTICS__: boolean;
@@ -90,6 +96,24 @@ export class HouseholdImplementation extends DurableObject<Env> {
     });
   }
 
+  /**
+   * The Durable Object owns every identity, seat, role, session, allowed-email, and CSRF
+   * decision. The front Worker only routes and bounds request shape, so any check repeated
+   * here is the authoritative one.
+   */
+  private routeContext(): RouteContext {
+    const now = new Date();
+    this.kdf ??= new KdfQueue();
+    return {
+      sql: this.ctx.storage.sql,
+      storage: this.ctx.storage,
+      env: this.env,
+      kdf: this.kdf,
+      now,
+      nowIso: now.toISOString()
+    };
+  }
+
   async fetch(request: Request): Promise<Response> {
     try {
       const path = new URL(request.url).pathname;
@@ -108,9 +132,18 @@ export class HouseholdImplementation extends DurableObject<Env> {
           return response;
         }
       }
+
+      const ctx = this.routeContext();
+      const handled =
+        handleAuthRoute(ctx, request, path) ??
+        handleAllowedEmailsRoute(ctx, request, path) ??
+        handleInvitationRoute(ctx, request, path) ??
+        handleMemberRoute(ctx, request, path);
+      if (handled) return await handled;
+
       return jsonError('not_found', 'Not found', 404);
-    } catch {
-      return jsonError('internal_error', 'Internal error', 500);
+    } catch (error) {
+      return toResponse(error);
     }
   }
 

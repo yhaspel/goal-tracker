@@ -28,6 +28,14 @@ export class KdfQueue {
   }
 }
 
+/**
+ * Raw key derivation at the Stage 1 benchmarked work factor. Callers must run this through
+ * a `KdfQueue` so at most one memory-heavy derivation is in flight per Durable Object.
+ */
+export function scryptDerive(password: string, salt: Uint8Array): Promise<Buffer> {
+  return scrypt(password, salt);
+}
+
 function scrypt(password: string, salt: Uint8Array): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     nodeScrypt(password, salt, SCRYPT_PARAMETERS.keyLength, {
