@@ -33,13 +33,16 @@ The owner asked for the application to be published to production, was told why 
 sequence that behind Stage 7's backup and restore work and that the lost-phrase rescue has
 never been proven on a deployed Worker, and confirmed the request. It was deployed manually
 from commit `6d1538b` as version `e1b889bd-e89e-45ec-98ce-fe19af832844`, with its own four
-secrets escrowed at creation. No owner account was created, so production holds no user data.
+secrets escrowed at creation. At that moment no owner account existed. **The owner has since
+bootstrapped a real owner account there directly, confirmed on 2026-09-13** — production now
+holds real data, not none.
 
 This departs from the execution prompt's instruction not to deploy new application behaviour to
 production. It was a deliberate owner decision, not an oversight, and it does not change what
 Stage 6 still owes. Task A has since proven the rescue mechanism correct against the deployed
 **test** Worker ([report](stage-3-completion.md)), but that evidence does not carry over to
-production's own Durable Object and secrets, so the caution below still holds there.
+production's own Durable Object and secrets, so the caution below still holds there — now for a
+real account rather than a hypothetical one.
 [The production deployment record](production-deployment.md) is the authoritative description
 of what is and is not in place there.
 
