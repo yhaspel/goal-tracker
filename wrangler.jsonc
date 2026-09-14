@@ -42,6 +42,21 @@
       // `wrangler secret put BACKUP_HOUSEHOLD_ID --env restore`, and both operator routes fail
       // closed until they do. See docs/operator-runbook.md.
       "vars": { "DEPLOYMENT_ENV": "restore" }
+    },
+    // A dated drill environment, added for the Stage 8 pre-flight and **deleted again with the
+    // Worker** — see docs/operator-runbook.md, "Monthly restore drill". It needs `workers_dev`
+    // because a restore is an HTTPS POST and the standing `restore` entry has no hostname; that
+    // also means it is publicly reachable for as long as it exists, so the window stays short.
+    // The class name is reused deliberately: a Durable Object namespace is (script name, class
+    // name), so `RestoreHouseholdDO` here is a different and empty namespace.
+    "restore-drill-2026-09-stage8": {
+      "name": "family-board-restore-2026-09-stage8",
+      "workers_dev": true,
+      "minify": true,
+      "define": { "__ENABLE_DIAGNOSTICS__": "false", "__ENABLE_RESTORE_IMPORT__": "true" },
+      "durable_objects": { "bindings": [{ "name": "HOUSEHOLD", "class_name": "RestoreHouseholdDO" }] },
+      "exports": { "RestoreHouseholdDO": { "type": "durable-object", "storage": "sqlite" } },
+      "vars": { "DEPLOYMENT_ENV": "restore" }
     }
   }
 }

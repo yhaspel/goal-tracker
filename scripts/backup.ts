@@ -358,8 +358,28 @@ async function collect(baseUrl: string, secret: string): Promise<Attempt | null>
   } catch (error) {
     return fail(`The export did not verify: ${error instanceof Error ? error.message : 'unreadable'}.`);
   }
-  if (envelope.payload.formatVersion !== BACKUP_FORMAT_VERSION) {
-    fail(`The Worker produced format version ${envelope.payload.formatVersion}; this tool writes ${BACKUP_FORMAT_VERSION}.`);
+  /**
+   * The Worker may be **older** than this tool, and that must not stop a backup.
+   *
+   * This was an equality check against `BACKUP_FORMAT_VERSION`, which meant that the moment this
+   * tool moved to format 2, it refused to back up any deployment still running a format-1 build —
+   * including production. That is precisely backwards: the whole reason to take a backup before
+   * upgrading a deployment is that the deployment has not been upgraded yet.
+   *
+   * A **newer** format than this tool understands is still refused, by `parseBackupEnvelope`
+   * above, which checks `SUPPORTED_BACKUP_FORMAT_VERSIONS`.
+   */
+  if (envelope.sourceFormatVersion > BACKUP_FORMAT_VERSION) {
+    fail(
+      `The Worker produced format version ${envelope.sourceFormatVersion}; this tool understands up ` +
+        `to ${BACKUP_FORMAT_VERSION}. Update the tool before backing up this deployment.`
+    );
+  }
+  if (envelope.sourceFormatVersion < BACKUP_FORMAT_VERSION) {
+    console.log(
+      `Note: this Worker emits format version ${envelope.sourceFormatVersion}; the copy will be stored ` +
+        `as format ${envelope.sourceFormatVersion} and restores into a newer schema unchanged.`
+    );
   }
 
   const images: Record<string, BackupImageBytes> = {};

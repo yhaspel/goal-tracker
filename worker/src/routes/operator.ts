@@ -1,6 +1,7 @@
 import { jsonData, jsonError } from '../../../shared/api';
 import {
   BackupFormatError,
+  MIN_IMPORTABLE_SCHEMA_VERSION,
   parseBackupEnvelope,
   parseImageBytes,
   serializeEnvelope
@@ -179,12 +180,34 @@ async function importIntoRestore(ctx: RouteContext, request: Request): Promise<R
       'That backup belongs to a different household than this restore target is configured for.'
     );
   }
-  if (envelope.payload.schemaVersion !== ctx.schemaVersion) {
+  /**
+   * An **older** schema restores; a newer one does not.
+   *
+   * This was an equality check, and that was wrong in the one case that matters most: the only
+   * backup of a household is written by whatever build was live when it was taken, so the copy an
+   * operator reaches for in an emergency is by definition from an *older* schema than the build
+   * they are restoring into. An equality check refuses exactly that copy — a schema-4 production
+   * backup could not be restored into a schema-5 object, which is the recovery path a schema-5
+   * deployment most needs to have working.
+   *
+   * Accepting an older one is safe because every migration this project has added is additive:
+   * the target's tables already exist, the payload simply has nothing to put in the newer ones,
+   * and `parseBackupEnvelope` has already transformed the older format into the current shape.
+   * A **newer** schema is still refused, because it carries data this build has never seen.
+   *
+   * `MIN_IMPORTABLE_SCHEMA_VERSION` is 4 rather than 1: the backup format did not exist before
+   * schema 4, so there is no such thing as a schema-3 backup to be lenient about.
+   */
+  if (
+    envelope.payload.schemaVersion > ctx.schemaVersion ||
+    envelope.payload.schemaVersion < MIN_IMPORTABLE_SCHEMA_VERSION
+  ) {
     securityEvent('operator.backup.import', 'denied', { reason: 'schema_mismatch' });
     throw new HttpError(
       409,
       'schema_mismatch',
-      `That backup is schema version ${envelope.payload.schemaVersion}; this object is at ${ctx.schemaVersion}.`
+      `That backup is schema version ${envelope.payload.schemaVersion}; this object is at ` +
+        `${ctx.schemaVersion} and can restore ${MIN_IMPORTABLE_SCHEMA_VERSION} through ${ctx.schemaVersion}.`
     );
   }
 

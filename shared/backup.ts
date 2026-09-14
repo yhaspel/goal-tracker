@@ -30,6 +30,20 @@ export const BACKUP_FORMAT_VERSION = 2;
  */
 export const SUPPORTED_BACKUP_FORMAT_VERSIONS: readonly number[] = [1, 2];
 
+/**
+ * The oldest schema version a restore will accept.
+ *
+ * The backup format did not exist before schema 4, so there is no older copy to be lenient about.
+ * An import accepts anything from here up to the target's own schema version and refuses anything
+ * newer — a backup from a newer schema carries data the build has never seen, while one from an
+ * older schema is simply missing rows for tables the target's migrations have already created.
+ *
+ * This matters more than it looks: the copy an operator reaches for in an emergency was written
+ * by whatever build was live when it was taken, so it is *always* from an older or equal schema
+ * than the build being restored into.
+ */
+export const MIN_IMPORTABLE_SCHEMA_VERSION = 4;
+
 export type BackupAppState = { bootstrapConsumed: number; allowlistRevision: number };
 export type BackupBoardState = { revision: number };
 export type BackupGoalState = { revision: number };
