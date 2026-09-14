@@ -1,7 +1,7 @@
 # Stage 8 — due dates, goals, and the vision board
 
 **Date:** 2026-09-14
-**Deployed test Worker:** `https://family-board-test.yuval3000.workers.dev`, version `aa5f9bf2-e1e8-4a45-bcab-7021f71ff149`
+**Deployed test Worker:** `https://family-board-test.yuval3000.workers.dev`, version `06a0ba4d-02c9-4535-b1df-bf25e07d7b95` — deployed by CI from commit `d8f65db` on `main`, run [34809371375](https://github.com/yhaspel/goal-tracker/actions/runs/34809371375), both jobs green. It supersedes `aa5f9bf2`, the hand-deployed build the measurements below were taken against; the two are the same commit.
 **Schema version:** 5 (migration 5 applied to the existing test object, which held real disposable data)
 **Status:** implemented and proven on the deployed **test** Worker. **Not deployed to production, and it must not be** — Stage 7's exit gate has not passed. See [the Stage 7 status record](stage-7-status.md).
 
@@ -149,6 +149,11 @@ one-way ratchet, and `vision_state.bytes_used` is still the member-facing budget
 
 Run against `https://family-board-test.yuval3000.workers.dev`, schema 5, with the disposable
 household. Each script leaves the environment as it found it.
+
+They were run twice: once against the hand-deployed build while the work was in progress, and
+again against **`06a0ba4d`, the version CI deployed** — because the version that is live is the one
+the acceptance checks have to be true of, and a hand-deployed build is not that version even when
+it is the same commit. Identical results both times.
 
 | Script | Result |
 | --- | --- |
