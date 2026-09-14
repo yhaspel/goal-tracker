@@ -327,6 +327,34 @@ already been imported into.
    `export(import(backup))` reproduces `backup` byte for byte, the restore is faithful and nothing
    was silently dropped or coerced.
 
+   **That byte-for-byte rule holds only when the copy and the drill Worker are the same format.**
+   Restoring an **older** copy — a format-1 / schema-4 backup into a Stage 8 build, which is the
+   normal case right after an upgrade — produces a re-export that differs by construction, and
+   reading those differences as a failed drill is wrong. Exactly these may differ, in exactly this
+   direction, and **nothing else may**:
+
+   | Field | Expected difference |
+   | --- | --- |
+   | `createdAt` | The new export's own timestamp |
+   | `formatVersion` | 1 in the copy, 2 in the re-export |
+   | `schemaVersion` | 4 in the copy, 5 in the re-export |
+   | `counts.goals`, `counts.milestones`, `counts.visionImages` | Absent in the copy, `0` in the re-export |
+   | `goalState` | Absent in the copy, `{revision: 1}` in the re-export |
+   | `visionState` | Absent in the copy, `{revision: 1, bytesUsed: 0}` in the re-export |
+   | `goals`, `milestones`, `visionImages` | Absent in the copy, `[]` in the re-export |
+   | `dueDate`, `milestoneId` on every card | Absent in the copy, `null` on every card in the re-export |
+
+   Everything the older format *did* carry must still be byte-identical: `householdId`, `appState`,
+   `boardState.revision`, `allowedEmails`, `users` (password hashes included), `recoveryCredentials`,
+   `invitations`, `columns`, and every card's id, column, title, description, assignee, position and
+   timestamps. A difference anywhere in that list is a real failure.
+
+   **Do not do this comparison by eye.** A hand-check on the one drill meant to catch a silently
+   dropped field is how a dropped field gets waved through. The Stage 8 pre-flight on 2026-09-14
+   used a script that strips the expected additions and compares the rest; it reported 22/22 and is
+   worth rebuilding rather than repeating by hand. A **newer** copy restored into an **older**
+   build is not a supported direction at all — the import refuses it with `schema_mismatch`.
+
    For the image bytes themselves, `GET /api/v1/operator/export/images/:id` on the drill Worker
    returns the same base64 the archive holds; spot-check a few, or all of them if the gallery is
    small. The re-export above compares digests, so a mismatch would already have shown up there.

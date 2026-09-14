@@ -234,7 +234,11 @@ describe('a version 1 backup still restores', () => {
     // pre-Stage-8 Worker would have written it, digest and all.
     const v1Payload: Record<string, unknown> = {
       formatVersion: 1,
-      schemaVersion: envelope.payload.schemaVersion,
+      // Schema 4, not the current one. Format 1 was only ever written by a schema-4 build, so a
+      // format-1 envelope claiming schema 5 is not an old backup — it is one taken by a rolled-back
+      // deployment, silently missing every Stage 8 row, and `parseBackupEnvelope` now refuses it.
+      // This test used to carry the current schema version, which is a pair that cannot occur.
+      schemaVersion: 4,
       householdId: envelope.payload.householdId,
       createdAt: envelope.payload.createdAt,
       counts: {

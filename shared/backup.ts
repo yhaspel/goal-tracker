@@ -44,6 +44,28 @@ export const SUPPORTED_BACKUP_FORMAT_VERSIONS: readonly number[] = [1, 2];
  */
 export const MIN_IMPORTABLE_SCHEMA_VERSION = 4;
 
+/**
+ * The newest schema each envelope format can faithfully describe.
+ *
+ * This exists to catch one specific, silent way to lose everything.
+ *
+ * Rolling the Worker code back across a migration is allowed — Stage 8's plan says so in as many
+ * words — and `migrate()` reports `MAX(version)` from `schema_migrations`, which does **not** fall
+ * when the code does. So a rolled-back Worker runs old code against a newer database and reports
+ * the newer schema. Its export then writes the *old* `formatVersion` beside the *new*
+ * `schemaVersion`, and contains none of the rows the old code cannot see: every goal, milestone,
+ * vision image and due date is quietly absent.
+ *
+ * Without this check that envelope is coherent to every tool that handles it. `upgradePayload`
+ * would treat it as an honest older copy and fill in empty Stage 8 collections; the import would
+ * succeed and report a clean restore; and retention would then prune the good copies that still
+ * had the data. The loss is total and every step says it worked.
+ *
+ * A format that is older than its schema is therefore not an old backup — it is a **broken** one,
+ * and it is refused at parse time, which stops the CLI writing one as well as reading one.
+ */
+const MAX_SCHEMA_FOR_FORMAT: Readonly<Record<number, number>> = { 1: 4, 2: 5 };
+
 export type BackupAppState = { bootstrapConsumed: number; allowlistRevision: number };
 export type BackupBoardState = { revision: number };
 export type BackupGoalState = { revision: number };
@@ -553,6 +575,33 @@ export function parseBackupEnvelope(text: string): BackupEnvelope {
 
   if (!SUPPORTED_BACKUP_FORMAT_VERSIONS.includes(sourceFormatVersion)) {
     fail(`unsupported backup format version ${sourceFormatVersion}`);
+  }
+
+  /**
+   * A format older than the schema it claims means the Worker that wrote it was running code
+   * older than its own database — a rolled-back deployment — so the copy is silently missing
+   * every row that code could not see. See `MAX_SCHEMA_FOR_FORMAT`.
+   *
+   * Deliberately scoped to formats **older** than the one this build writes. A copy carrying the
+   * current format with a higher schema is not a rollback — a rolled-back writer emits an older
+   * format by definition — it is simply a backup from a newer build, which the import's own
+   * schema check refuses with `schema_mismatch`. Widening this to the current format would
+   * hijack that case and, worse, would reject a perfectly good future backup from a migration
+   * that did not need a format change.
+   */
+  const claimedSchema = exact.schemaVersion as number;
+  const highestDescribable = MAX_SCHEMA_FOR_FORMAT[sourceFormatVersion];
+  if (
+    sourceFormatVersion < BACKUP_FORMAT_VERSION &&
+    highestDescribable !== undefined &&
+    claimedSchema > highestDescribable
+  ) {
+    fail(
+      `this backup says format version ${sourceFormatVersion} but schema version ${claimedSchema}, and ` +
+        `format ${sourceFormatVersion} cannot describe a schema-${claimedSchema} household. It was taken by a ` +
+        `deployment whose code was older than its database, so it is missing every row that code could not ` +
+        `read. Do not restore it: redeploy the matching code and take a fresh backup first`
+    );
   }
   if (createHash('sha256').update(canonicalJson(exact), 'utf8').digest('hex') !== digest) {
     fail('the backup digest does not match its contents');

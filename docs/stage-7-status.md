@@ -126,16 +126,38 @@ only route back — for every account at once.
 Carrying the `.enc` file and the key to a second location and running
 `node scripts/backup.ts verify` there would settle the data half in a few minutes.
 
-## A trap with a long fuse
+## A trap with a long fuse — **defused on 2026-09-14**
 
-The import demands exact schema equality — `409 schema_mismatch` — and there is **no upgrade path
-for an old payload**. Every stored copy today is schema 4, restorable by any build from `9c10e19`
-onward while `SCHEMA_VERSION` is still 4.
+> The import demands exact schema equality — `409 schema_mismatch` — and there is **no upgrade path
+> for an old payload**. Every stored copy today is schema 4, restorable by any build from `9c10e19`
+> onward while `SCHEMA_VERSION` is still 4.
+>
+> The moment a migration 5 lands, those copies can only be restored by checking out a schema-4 commit
+> first, and nothing in the filename, the envelope or the backup directory records which commit that
+> is. Whoever lands migration 5 should either add a payload upgrade path or write the pin down beside
+> the copies.
 
-The moment a migration 5 lands, those copies can only be restored by checking out a schema-4 commit
-first, and nothing in the filename, the envelope or the backup directory records which commit that
-is. Whoever lands migration 5 should either add a payload upgrade path or write the pin down beside
-the copies.
+That warning was correct, and the fuse burned. Migration 5 landed with Stage 8 **without** the
+upgrade path, so for a short window the only backup of production genuinely could not be restored by
+the build that was about to be deployed. It was caught by the Stage 8 production pre-flight on
+2026-09-14, before any deploy, and fixed: the import now accepts schema
+`MIN_IMPORTABLE_SCHEMA_VERSION` (4) through the target's own, and refuses only newer. The schema-4
+copies restore into a schema-5 build directly, proven against a deployed drill Worker.
+
+The text above is left standing rather than rewritten, because it is the clearest evidence in this
+repository that writing a hazard down works: the note is what made the defect findable, and the
+failure was not the warning but landing the migration without reading it.
+
+Two things it did not anticipate, both now handled:
+
+- **The backup CLI had the mirror of the same bug.** It required the Worker to emit the tool's own
+  format version, so once the tool moved to format 2 it refused to back up any deployment still
+  running format 1 — production included. A tool that cannot back up the deployment you are about
+  to upgrade is worse than the import bug, because it fails *before* there is a copy.
+- **A rolled-back Worker writes a coherent-looking, silently empty backup.** `migrate()` reports
+  `MAX(version)` from `schema_migrations`, which does not fall when the code does, so old code on a
+  newer database emits the old format beside the new schema — a copy missing every row that code
+  cannot see, which would import as a clean success. That pairing is now refused at parse time.
 
 ## Follow-up
 

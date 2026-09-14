@@ -696,14 +696,28 @@ The tool verifies its own copy, so it was also checked from outside:
 That inspection printed shapes and lengths only. No address, password hash or recovery digest was
 written to a terminal, a log, or a file.
 
-### The schema pin, which matters later rather than now
+### The schema pin — **resolved on 2026-09-14; do not follow the old advice**
 
-The import refuses a payload whose `schemaVersion` is not equal to the restore object's own
-(`409 schema_mismatch`), and there is no upgrade path for an old payload. This copy is **schema 4**,
-so restoring it needs a build whose `SCHEMA_VERSION` is still 4. Every commit from `9c10e19` to
-`5a20694` qualifies. The moment a migration 5 lands, this file can only be restored by checking out
-a schema-4 commit first — and nothing in the filename or the envelope records that. Keep this note
-with the copy.
+This section used to say that the import demanded exact schema equality, that there was no upgrade
+path for an old payload, and that once migration 5 landed a schema-4 copy could only be restored by
+checking out a schema-4 commit first. **All three are now false, and acting on them would be a
+mistake during a recovery** — checking out an old commit to restore a copy that the current build
+reads perfectly well would cost time in the one situation where time matters.
+
+Stage 8 added the upgrade path this note asked for. The import now accepts any schema from
+`MIN_IMPORTABLE_SCHEMA_VERSION` (4) up to the restore object's own, and refuses only a **newer**
+one. A schema-4 copy therefore restores into a schema-5 build directly: the older payload is
+transformed, the Stage 8 tables come back empty, and every card's `dueDate` and `milestoneId` comes
+back null. Proven on 2026-09-14 by restoring a real production copy into a deployed Stage 8 drill
+Worker — 22 of 22 checks, including every password hash and recovery digest byte-identical. See
+[the Stage 8 completion report](stage-8-completion.md).
+
+One genuinely new rule replaces the old pin, and it is a refusal rather than a restriction. A copy
+whose `formatVersion` is **older** than the `schemaVersion` it claims is rejected outright, because
+that pairing can only be produced by a deployment running code older than its own database — a
+rolled-back Worker — and such a copy is silently missing every row that code could not read. If a
+backup is ever refused with *"older than its database"*, do not try to force it: redeploy the code
+that matches the database and take a fresh copy.
 
 ### Still not proven
 
