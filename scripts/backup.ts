@@ -209,10 +209,20 @@ function safeHouseholdId(raw: string): string {
   return slug.length > 0 ? slug.slice(0, 60) : 'household';
 }
 
+/**
+ * The name carries the time of day as well as the date, because retention orders copies by this
+ * name and a date alone cannot separate two backups taken on the same day. `T` and `Z` are the
+ * delimiters precisely because `safeHouseholdId` lowercases and the suffix is lowercase hex, so
+ * neither can appear anywhere else in the name. The stamp is UTC, like the date beside it.
+ */
 function encryptedName(payload: BackupPayload): string {
-  const date = payload.createdAt.slice(0, 10);
+  const stamp = `${payload.createdAt.slice(0, 10)}T${payload.createdAt.slice(11, 19).replace(/:/g, '')}Z`;
   const suffix = toHex(randomBytes(4));
-  return `${safeHouseholdId(payload.householdId)}-${date}-schema${payload.schemaVersion}-${suffix}${FILE_SUFFIX}`;
+  const name = `${safeHouseholdId(payload.householdId)}-${stamp}-schema${payload.schemaVersion}-${suffix}${FILE_SUFFIX}`;
+  // A name this tool writes but cannot parse would be invisible to retention and to `verify`'s
+  // directory sweep for ever, and a malformed `createdAt` is all it would take.
+  if (!parseCopyName(name)) fail(`Refusing to write a copy whose name the retention rule cannot parse: ${name}`);
+  return name;
 }
 
 /**

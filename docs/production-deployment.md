@@ -892,13 +892,26 @@ password hash and recovery digest byte-identical.
 | Headers | CSP `default-src 'none'` with `frame-ancestors 'none'`, `nosniff`, `no-referrer`, HSTS, `X-Frame-Options: DENY`, COOP `same-origin` |
 | CI | Run [34811586441](https://github.com/yhaspel/goal-tracker/actions/runs/34811586441), both jobs green |
 
-### An operational wrinkle worth fixing before the next migration
+### Retention pruned the pre-deploy copy, and *why* it chose that one was luck
 
-The pre-deploy schema-4 copy was **pruned by the post-deploy backup**, because both fall in the same
-ISO week and retention keeps the newest of each week. The 2026-09-13 copy survives and is still
-schema 4, so a rollback path exists — but the intended safety net was thinner than planned for about
-a minute. Before the next schema change, either take the pre-deploy copy into a different directory
-or teach retention to pin a copy across a schema boundary.
+The pre-deploy schema-4 copy `goal-tracker-production-2026-09-14-schema4-f18da17f.backup.enc` was
+**pruned by the post-deploy backup**. Both were written on 2026-09-14, so both fall in ISO week
+`2026-W38`, and weekly retention keeps one copy per week. Re-run against that exact directory state,
+`retainedCopies()` prints `PRUNE …f18da17f…`. The 2026-09-13 copy is in a *different* week
+(`2026-W37`), which is why it was never at risk; it survives, still schema 4, so a rollback path
+across migration 5 exists.
+
+**Which of the two it kept was not decided by recency.** `sortCopies()` compares the date string and
+then the whole filename, and the date was tied — so the choice fell to the next differing character,
+which happened to be the schema digit (`schema4` < `schema5`). Had the deploy not changed the schema,
+the tiebreak would have fallen to the random hex suffix, `f18da17f` would have sorted last and been
+kept as the week's "newest", and the post-deploy copy would have been the one at risk instead. That
+is a defect, not a quirk; it is described in full in [the operator runbook](operator-runbook.md) and
+fixed by putting the time of day into the filename.
+
+Before the next schema change, take the pre-deploy copy into a separate directory — as was later done
+for the pre-UI-test copy in `~/goal-tracker-backups-preuitest/` — rather than trusting retention to
+keep the right one.
 
 ### The guest interface, walked in production
 
@@ -935,12 +948,121 @@ SHA-256 `64599b5d690fd4da7c0523c82ff2a006f25d60d0a890953059f46edb3575d84f`. The 
 navigation strings are present in all three locales in that file (`Goals` / `מטרות` / `Цели`,
 `Vision` / `חזון` / `Мечты`), and `operator/import` does not appear in it.
 
-### What was not verified
+## The signed-in interface, walked in production — 2026-09-14
 
-**No signed-in UI test.** Everything above is the guest surface. The Goals and Vision screens
-themselves were not opened against real production data, because that needs the owner's password,
-and the alternatives — creating a second account, or issuing an operator reset token against the
-owner — would both write to production. The same screens were walked exhaustively against a seeded
-local household at all three widths, in all three locales, light and dark, keyboard only; see
-[the Stage 8 completion report](stage-8-completion.md). What remains unproven is specifically that
-they behave correctly against **this household's** existing rows.
+The owner signed in on the isolated browser profile, and the whole Stage 8 surface was then
+exercised against **real production data**. A verified backup was taken immediately beforehand into
+a separate directory (`~/goal-tracker-backups-preuitest/`) so the walk was reversible, and
+everything the walk created was deleted at the end.
+
+### What was created and then removed
+
+One card, one goal, three milestones across two months, and two images — all named `ZZ …` and
+described as test rows. Final state: 3 columns, 1 card, 0 goals, 0 milestones, 0 images, 0 stored
+bytes, byte-for-byte the content the pre-walk backup recorded. Only the revisions moved (board
+21 → 30, vision 1 → 6), which is what they are for.
+
+### Due dates
+
+Typed into the native date control — the control accepts `10092026` in the day/month/year order it
+advertises and stores `2026-09-10`. All four states render correctly against the viewer's own local
+date, which is the contract:
+
+| Date set | Rendered |
+| --- | --- |
+| 2026-09-10 (past) | `Overdue Sep 10, 2026`, `badge warning` |
+| 2026-09-14 (today) | `Due Sep 14, 2026`, `badge warning`, with a `⚠` marker — not colour alone |
+| 2026-09-15 (tomorrow) | same |
+| 2026-09-16 (later) | `Due Sep 16, 2026`, plain `badge` |
+| cleared | no badge at all |
+
+### Goals
+
+- Goal created with notes and a year; the year strip and the empty state behave.
+- Three milestones across September and October; **positions are dense within the month group**
+  (September 0 and 1, October 0), not across the goal.
+- Progress reads `1 of 3 milestones done` from the explicit per-milestone status — never from a
+  column — and is announced politely.
+- `Move up` reordered within the month group and announced `moved to position 1`.
+- A card linked through **Part of**, whose options are bidi-isolated per part
+  (`⁨September⁩ · ⁨ZZ milestone B⁩`). The link then shows on the card *and* on the milestone row.
+- **The delete cascade is real**: deleting the goal removed its milestones, set the linked card's
+  `milestoneId` to `null`, and advanced the **board** revision as well as the goals revision, so a
+  second viewer refetches. The confirmation names the goal and spells out all three consequences.
+
+### The vision board
+
+- A 3.65 MB 1600×1200 PNG became a **37,204-byte WebP** with a 10,958-byte 320×240 thumbnail; a
+  900×1600 portrait PNG became 30,208 bytes with a 180×320 thumbnail. Both are far inside the
+  400,000 / 100,000 caps, and re-encoding is what strips a photograph's location.
+- `GET /api/v1/vision/images/:id/content` returned **exactly** the 37,204 bytes whose SHA-256 equals
+  the stored `contentDigest`, under `Cache-Control: private, max-age=31536000, immutable` with a
+  strong `ETag` equal to that digest. `If-None-Match` answered `304`.
+- **The session is still checked before the `ETag` comparison**: the same request with credentials
+  omitted answered `401` and `no-store`, never `304`.
+- The carousel opens, `ArrowRight` / `ArrowLeft` page through it — the document-level rebind that
+  Stage 8 added works in production — and `Escape` closes it and returns focus to the tile.
+- Editing a caption changed the tile's accessible name to `Open <caption>`.
+
+### Deletes, and the shape of the confirmation
+
+Image, goal and card deletes each open a confirmation that names the thing and says it cannot be
+undone. **Cancel is genuinely non-destructive** — checked, not assumed. The danger button is
+outlined and never filled, and positions compact after a delete.
+
+### Layout, in nine combinations per width
+
+390 (touch emulation), 834 and 1440 × `en`, `he`, `ru`, light and dark, on `/board`, `/goals` and
+`/vision`, with the test rows present so the screens were not empty:
+
+- **Zero horizontal overflow** in every single combination.
+- **No text below 4.5:1**, or 3:1 for large text, measured against each element's effective
+  background in both themes.
+- Hebrew reports `dir="rtl"` and mirrors; Russian falls through to the platform face as expected.
+- The phone pager works: a Menu sheet listing Board, Goals, Vision, Settings, Account and Sign out
+  at 56px each, with the language selector at exactly **44px** — the Stage 8 fix holds in
+  production — plus column tabs with counts and `Column 1 of 3`.
+
+### One observation, not a defect
+
+Card, goal and milestone **titles** are ~24px-tall buttons on a phone (a two-line title grows to
+48). That clears the 24px absolute floor and clears WCAG 2.5.8's spacing exception — the nearest
+other target is 7px away and a 24px circle on the title reaches neither — but it is under the
+"44px wherever a finger reaches" line in the design system. It is consistent with the pre-existing
+card pattern rather than new in Stage 8, so it is recorded here as a judgement call to revisit, not
+as a regression.
+
+### What is still not verified in production
+
+Ordered by what it would cost to be wrong. None of these is a known fault; they are places where
+production has no evidence of its own.
+
+1. **No production backup has ever contained an image, a goal or a milestone**, and the two-phase
+   export/restore has never run against a deployed Worker. The walk created images and then removed
+   them, so nothing is at risk today — but the first image this household *keeps* has no proven
+   recovery path. Closing it means taking a backup while images exist and restoring it into a drill
+   Worker.
+2. **Chrome only, and 390px was emulated rather than touched.** Four Safari/iOS behaviours the code
+   handles blind: the native date control's presentation, `createImageBitmap` on a `.heic` file
+   straight off an iPhone, `canvas.toBlob('image/webp')` silently producing PNG on older Safari, and
+   the carousel's document-level key handling under VoiceOver.
+3. **No failure state of the upload pipeline has ever been rendered in a browser.** Both uploads
+   landed two orders of magnitude inside the caps, so the JPEG quality ladder never ran and neither
+   `TooLargeAfterEncodingError` nor `UnreadableImageError` ever threw. The server refusals are
+   covered by `tests/vision.test.ts` and `scripts/vision-smoke.ts`; their rendering is covered by
+   nothing.
+4. **One session, one account.** No revision conflict has reached the production browser, and no
+   ordinary member has created or deleted a goal, milestone or image here. The API behaviour is
+   pinned by `tests/goals.test.ts`, `tests/vision.test.ts` and `tests/goals.concurrent.test.ts`.
+5. **The CPU gate that set the caps was measured on the test Worker, never on production**, where
+   2 of 14 samples at the shipped caps still cost 14 ms against a documented 10 ms budget. The
+   production uploads were ~48 KB, nowhere near the 667 KB a capped request may carry.
+6. **Still no screen-reader pass, and `prefers-reduced-motion` was never emulated.** "Announced
+   politely" above means the live region was read out of the accessibility tree, not heard. This is
+   the same gap Stage 6 and Stage 8 both closed by owner decision, now inherited by a release.
+7. **No cap or rate limit was reached**, so `image_limit`, `storage_full`, `goal_limit`,
+   `milestone_limit` and a `429` with `Retry-After` have never been rendered by the live client.
+   The rate limit bites first: 30 uploads in fifteen minutes is a plausible first sitting.
+8. **Untouched mutations**: image reorder, linking an image to a goal and the cascade that unlinks
+   it, goal reorder, a goal year change, a milestone month change, and deleting a single milestone.
+   All are covered by the Workers-runtime tests and the test-Worker smoke checks.

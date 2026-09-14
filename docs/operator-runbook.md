@@ -175,8 +175,35 @@ Four weekly and three monthly copies. Weekly is the newest copy of each of the f
 weeks; monthly is the **oldest** copy of each of the three most recent calendar months, so a
 month's representative is fixed when the month's first backup lands rather than drifting all month.
 Pruning only ever considers files this tool wrote — the name has to match
-`<household>-<YYYY-MM-DD>-schema<N>-<8 hex>.backup.enc` exactly — so anything else in the directory
-is left strictly alone. The copy just written is never pruned by its own run.
+`<household>-<YYYY-MM-DD>T<HHMMSS>Z-schema<N>-<8 hex>.backup.enc` exactly — so anything else in the
+directory is left strictly alone. The copy just written is never pruned by its own run.
+
+**The timestamp in the name is UTC**, both halves of it, so a backup taken at 16:32 in Israel reads
+`T133256Z`. That is not new to the time: the date has always been UTC, which is why a backup taken
+just after midnight local time already lands under the previous day — and can land in the previous
+ISO week.
+
+**Renaming a stored copy is safe, and pinning one is the supported way to protect it.** The filename
+is not part of what the encryption authenticates, and `restore` and `verify --file` never parse it.
+So a copy that must survive a pruning pass — the last one before a schema change, say — can simply
+be given a name the pattern does not match, such as appending `.pinned`. Retention will not see it.
+Verify it afterwards with `verify --file <name>`, which bypasses the pattern; a pinned copy that
+nobody verifies is a copy that can rot unnoticed, and the directory sweep will not look at it again.
+
+#### Copies written before 2026-09-14 have no time in their names
+
+They parse, and they are treated as having landed at the start of their day. That is safe for
+ordering against anything else, but two *legacy* copies from the same day still cannot be told
+apart — which was a real defect, found on the production directory on 2026-09-14: `list` reported
+that the next pass would delete the 16:32 copy and keep the 08:58 one, because with the date tied
+the comparison fell through to a `randomBytes(4)` suffix. If a legacy same-day pair matters, read
+the true time out of the copy's own header, which is plaintext and needs no key:
+
+```sh
+python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['header']['createdAt'])" <file>
+```
+
+and rename the copies into the current scheme, then `verify` them.
 
 ```sh
 node scripts/backup.ts list   --out-dir ~/goal-tracker-backups
@@ -287,7 +314,7 @@ already been imported into.
    node scripts/backup.ts restore https://<drill-worker-host> \
      --out-dir ~/goal-tracker-backups \
      --key-file ~/.goal-tracker/backup.key \
-     --file <household>-<date>-schema4-<suffix>.backup.enc \
+     --file <household>-<stamp>-schema<N>-<suffix>.backup.enc \
      < .secrets.drill-operator
    ```
 

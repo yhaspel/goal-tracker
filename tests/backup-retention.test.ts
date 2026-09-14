@@ -10,6 +10,12 @@ function copy(date: string, suffix: string): StoredCopy {
   return { name: `goal-tracker-production-${date}-schema4-${suffix}.backup.enc`, date, schema: 4 };
 }
 
+/** A copy written by the current tool, which stamps the time of day as well as the date. */
+function timedCopy(date: string, time: string, suffix: string): StoredCopy {
+  const name = `goal-tracker-production-${date}T${time}Z-schema4-${suffix}.backup.enc`;
+  return { name, date, schema: 4, time };
+}
+
 describe('what a pruning pass keeps', () => {
   it('recognises only names this tool writes', () => {
     expect(parseCopyName('goal-tracker-production-2026-09-13-schema4-a1b2c3d4.backup.enc')).toEqual({
@@ -26,6 +32,57 @@ describe('what a pruning pass keeps', () => {
     ]) {
       expect(parseCopyName(stranger)).toBeNull();
     }
+  });
+
+  it('reads the time of day out of a current name and still reads a legacy one', () => {
+    expect(parseCopyName('goal-tracker-production-2026-09-14T133256Z-schema5-5a52a2d2.backup.enc')).toEqual({
+      name: 'goal-tracker-production-2026-09-14T133256Z-schema5-5a52a2d2.backup.enc',
+      date: '2026-09-14',
+      schema: 5,
+      time: '133256'
+    });
+    // Copies written before the time existed have to keep parsing, or retention stops seeing them.
+    expect(parseCopyName('goal-tracker-production-2026-09-13-schema4-a1b2c3d4.backup.enc')?.time).toBeUndefined();
+    // A half-written stamp is not a name this tool produces, so it is left alone like any stranger.
+    expect(parseCopyName('goal-tracker-production-2026-09-14T1332Z-schema5-5a52a2d2.backup.enc')).toBeNull();
+  });
+
+  /**
+   * The defect this pins, found on the real production directory on 2026-09-14.
+   *
+   * With only a date in the name, two copies taken on one day tie, and the tiebreak falls through
+   * to the filename — whose only varying part is `randomBytes(4)`. So which copy represented the
+   * week was a coin flip, and `list` really did report that the next pass would delete the 16:32
+   * copy and keep the 08:58 one.
+   */
+  it('lets the later copy of a day represent its week, whatever the random suffix says', () => {
+    const morning = timedCopy('2026-09-14', '085826', 'ffffffff');
+    const evening = timedCopy('2026-09-14', '133256', '00000000');
+    const nextWeek = timedCopy('2026-09-21', '090000', '22222222');
+    const monthOldest = timedCopy('2026-09-07', '090000', '11111111');
+
+    const keep = retainedCopies([monthOldest, morning, evening, nextWeek], [nextWeek.name]);
+    expect(keep.has(evening.name)).toBe(true);
+    expect(keep.has(morning.name)).toBe(false);
+
+    // Swapping only the suffixes must not change the answer: the time decides, the suffix does not.
+    const swappedMorning = timedCopy('2026-09-14', '085826', '00000000');
+    const swappedEvening = timedCopy('2026-09-14', '133256', 'ffffffff');
+    const swapped = retainedCopies([monthOldest, swappedMorning, swappedEvening, nextWeek], [nextWeek.name]);
+    expect(swapped.has(swappedEvening.name)).toBe(true);
+    expect(swapped.has(swappedMorning.name)).toBe(false);
+  });
+
+  it('treats a legacy copy as having landed at the start of its day', () => {
+    const legacy = copy('2026-09-14', 'ffffffff');
+    const timed = timedCopy('2026-09-14', '000001', '00000000');
+    const nextWeek = timedCopy('2026-09-21', '090000', '22222222');
+    // Something earlier has to hold September's monthly slot, or the legacy copy survives on that
+    // rule rather than on the weekly one this case is about.
+    const monthOldest = timedCopy('2026-09-07', '090000', '11111111');
+    const keep = retainedCopies([monthOldest, legacy, timed, nextWeek], [nextWeek.name]);
+    expect(keep.has(timed.name)).toBe(true);
+    expect(keep.has(legacy.name)).toBe(false);
   });
 
   it('puts a Sunday and the Monday before it in the same ISO week', () => {
