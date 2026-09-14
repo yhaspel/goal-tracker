@@ -854,3 +854,93 @@ throwaway digest key was used here by choice.
 
 **Off-machine survival.** The copy and its key are still on one laptop. That remains the largest
 real risk to this backup, and no drill can settle it.
+
+## Stage 8 deployed — 2026-09-14
+
+**Version `9e70b2ea-ed45-47f9-9ed0-ec7404225346`**, deployed by hand with `npm run deploy:prod` from
+commit `a31fa8f` on `main`. **Schema 4 → 5**: the first migration ever applied to a production
+object holding real data.
+
+### What was done first, and why it mattered
+
+The plan requires a verified backup immediately before the deploy, and migration 5 rehearsed
+against an object restored from a production-shaped copy before it ever meets production. Doing
+both in order is what found three defects that would have left this household with no working
+recovery path:
+
+1. The importer demanded **exact** schema equality, so the only existing backup — schema 4 — could
+   not be restored into schema-5 code. `409 schema_mismatch`, reproduced.
+2. The backup CLI refused to back up production at all, because it required the Worker to emit the
+   tool's own format version and production emitted the older one.
+3. A rolled-back Worker would have written a coherent-looking, silently empty backup, which would
+   have imported as a clean success while retention pruned the copies that still held the data.
+
+All three were fixed before the deploy. The rehearsal then ran against two successive throwaway
+drill Workers, the second on exactly the code that shipped: **22 of 22** checks, including every
+password hash and recovery digest byte-identical.
+
+### The deploy itself
+
+| Check | Result |
+| --- | --- |
+| `/api/v1/health` | `schemaVersion: 5` |
+| Data intact | Fresh backup taken immediately after: board revision **19**, 1 user, 3 columns, 2 cards — unchanged from before |
+| `/goals`, `/vision` | `200`, shell served `no-store` |
+| `/goalz` | `404` |
+| `/api/v1/goals`, `/api/v1/vision` to a stranger | `401` |
+| `POST /api/v1/operator/import` | `404` — still absent from the production build |
+| Headers | CSP `default-src 'none'` with `frame-ancestors 'none'`, `nosniff`, `no-referrer`, HSTS, `X-Frame-Options: DENY`, COOP `same-origin` |
+| CI | Run [34811586441](https://github.com/yhaspel/goal-tracker/actions/runs/34811586441), both jobs green |
+
+### An operational wrinkle worth fixing before the next migration
+
+The pre-deploy schema-4 copy was **pruned by the post-deploy backup**, because both fall in the same
+ISO week and retention keeps the newest of each week. The 2026-09-13 copy survives and is still
+schema 4, so a rollback path exists — but the intended safety net was thinner than planned for about
+a minute. Before the next schema change, either take the pre-deploy copy into a different directory
+or teach retention to pin a copy across a schema boundary.
+
+### The guest interface, walked in production
+
+Chrome, an isolated browser profile with no stored session, against the live production Worker.
+
+| Dimension | Covered |
+| --- | --- |
+| Widths | 390 (mobile emulation, touch), 834, 1440 |
+| Locales | `en`, `he`, `ru`, switched through the real language selector; `he` reports `dir="rtl"` |
+| Themes | Light and dark, via `prefers-color-scheme`; dark resolves to `#14191d` on `#e8eaec` |
+| Screens | `/login`, `/register`, `/recover`, plus the guest redirect from `/board`, `/goals` and `/vision` |
+
+- **No horizontal scroll** anywhere: `scrollWidth - clientWidth` is `0` on every width × locale × theme
+  combination above.
+- **No undersized target.** The two recovery-method radios measure 24 × 24 themselves but sit inside
+  a 300 × 44 `<label>`, which is the target a finger actually hits. The only element below 44px tall
+  is the skip link at 303 × 42 — keyboard-only, never touched, and comfortably over the 24px
+  absolute floor.
+- **Keyboard only.** Tabbing through `/login` reaches the email field, the password field, Submit,
+  both inline links, the skip link and the header link, and every one of them paints
+  `3px solid` at `2px` offset — the ring the design system's floor requires, unmodified in
+  production.
+- **No console errors.** The single console entry is the app's own session probe answering `401` to
+  a guest, which is the correct answer.
+- **`/board`, `/goals` and `/vision` all redirect a guest to `/login`** rather than rendering, which
+  is what shows the two new Stage 8 routes are wired into the deployed client router and not just
+  present in the bundle.
+
+### The deployed bundle is the commit that was built
+
+`https://…/assets/index-BQYashxT.js` as served by production is **byte-identical** to
+`web/dist/assets/index-BQYashxT.js` built locally from `a31fa8f` —
+SHA-256 `64599b5d690fd4da7c0523c82ff2a006f25d60d0a890953059f46edb3575d84f`. The Goals and Vision
+navigation strings are present in all three locales in that file (`Goals` / `מטרות` / `Цели`,
+`Vision` / `חזון` / `Мечты`), and `operator/import` does not appear in it.
+
+### What was not verified
+
+**No signed-in UI test.** Everything above is the guest surface. The Goals and Vision screens
+themselves were not opened against real production data, because that needs the owner's password,
+and the alternatives — creating a second account, or issuing an operator reset token against the
+owner — would both write to production. The same screens were walked exhaustively against a seeded
+local household at all three widths, in all three locales, light and dark, keyboard only; see
+[the Stage 8 completion report](stage-8-completion.md). What remains unproven is specifically that
+they behave correctly against **this household's** existing rows.
