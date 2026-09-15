@@ -664,7 +664,7 @@ export function BoardPage() {
       ) : null}
 
       {columnForm ? (
-        <Dialog title={columnForm.column ? t('board.renameColumn', { name: '' }) : t('board.addColumn')} onClose={() => setColumnForm(null)}>
+        <Dialog title={columnForm.column ? t('board.renameColumnHeading') : t('board.addColumn')} onClose={() => setColumnForm(null)}>
           <form
             onSubmit={event => {
               event.preventDefault();

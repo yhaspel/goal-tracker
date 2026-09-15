@@ -59,7 +59,7 @@ To create the first account, open `/bootstrap` on your local board and enter the
 does **not** need an invitation code. After confirming the recovery phrase, the owner
 is signed in. Open **Settings**: add each member's email to the allowed list, create an invitation for
 that address, and share its one-time code directly. The app sends no email. Each member
-uses **Join with invitation** (`/register`) with that code and the same email address.
+uses **Join with an invitation** (`/register`) with that code and the same email address.
 The owner setup page closes after the first owner account is created.
 
 ```sh
