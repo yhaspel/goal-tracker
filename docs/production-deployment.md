@@ -1066,3 +1066,135 @@ production has no evidence of its own.
 8. **Untouched mutations**: image reorder, linking an image to a goal and the cascade that unlinks
    it, goal reorder, a goal year change, a milestone month change, and deleting a single milestone.
    All are covered by the Workers-runtime tests and the test-Worker smoke checks.
+
+## Sixth production deployment, 2026-09-15 — the trilingual copy review
+
+**Version `690cf146-4757-4985-abfc-5358a4aa68d6`**, deployed by hand with `npm run deploy:prod`
+from commit `1ea5b82` on `main`. CI run
+[34994831415](https://github.com/yhaspel/goal-tracker/actions/runs/34994831415) — `checks: success`
+(including the dependency audit and both bundle dry runs) and `deploy-test: success` — ran on
+exactly that commit before the deploy.
+
+**Interface text only.** No schema change (`schemaVersion` stays **5**), no migration, no route, no
+contract, no validation rule, and no production data. One new dictionary key,
+`board.renameColumnHeading`, and one line of `BoardPage.tsx` that uses it; everything else is
+dictionary values. `check:i18n` reports **329** English keys, 328 before plus that one.
+
+What changed and why is [the copy review record](copy-review-2026-09-15.md), which carries the
+before and after of all 263 changed strings. In short: interpolating a member's own title into a
+sentence was leaving Hebrew prefix letters glued to Latin text and letting Russian participles take
+their gender from whatever the member had typed, so every card, goal and milestone announcement now
+names the object before the title. Three strings said the opposite of what was true — an unexpired
+invitation labelled "expired on" in Hebrew, unsaved text labelled "saved" in Hebrew and Russian.
+The recovery phrase got a settled Hebrew term, `ביטוי שחזור`. And the rename-column dialog stopped
+reusing an `aria-label` sentence with an empty name, which had left it reading `שינוי השם של`.
+
+### Verified on the deployed Worker, read-only
+
+| Check | Result |
+| --- | --- |
+| `GET /api/v1/health` | `200`, `schemaVersion: 5`, `Cache-Control: no-store` |
+| `/api/v1/board`, `/api/v1/goals`, `/api/v1/vision` with no session | `401` each |
+| `POST /api/v1/operator/import` | `404` — still absent from the production build |
+| All ten SPA routes | `200 text/html` with `no-store`; `/goalz` is `404` |
+| Served `index-dIFc2SgX.js` | SHA-256 `ab64f636…22598b73`, **byte-identical** to the local `web/dist` build and to what the test Worker serves |
+| Served `index-BvChO5FA.css` | SHA-256 `951cacce…c55f8f8dd`, byte-identical |
+| Strings in the served JS | `renameColumnHeading`, `ביטוי השחזור`, `Карточка «`, `שינוי שם העמודה`, `Переименование колонки` all present; `משפט השחזור`, `Часть чего` and `operator/import` all absent |
+
+### The guest interface, walked in production
+
+An isolated browser profile with no session, at **390** (CDP viewport override with touch), **834**
+and **1440**, in `en`, `he` and `ru`, on `/`, `/login`, `/register`, `/recover` and `/bootstrap`.
+
+- **Zero horizontal page scroll** in every width × locale × route combination.
+- `<html lang>` and `dir` follow the selector; `he` reports `dir="rtl"` and mirrors.
+- **The longer `nav.join` does not cost a header row.** At 834 the header stays a single 57px row in
+  all three locales, both links sharing one baseline — including the Russian
+  `Присоединиться по приглашению`, the longest at 243–254px.
+- At 390 the nav sheet is contained to 0→390 with 56px rows and the language selector at exactly
+  **44px**, in all three locales.
+- No wrong password was submitted here; production's rate limit protects a real account. That check
+  was done on the test Worker instead, where all three locales rendered `error.invalid_credentials`
+  into the assertive live region.
+
+### The signed-in interface, walked in production — strictly read-only
+
+The owner signed in themselves on their own browser profile. **This session never asked for, saw,
+typed or handled the password.** Walked `/board`, `/goals`, `/vision`, `/members` and `/account` at
+390 and 1440 in all three locales, plus 834 in Russian.
+
+- **`GET /api/v1/board` reported revision 30 before the walk and revision 30 after it**, with the
+  same three built-in columns and the same single card. Goals and vision revisions were likewise
+  unmoved. Nothing was created, edited, moved or deleted, and the allowed-email list was never
+  saved.
+- Every dialog was opened, read and closed with **Cancel** or **Escape**: the rename-column dialog,
+  the delete-column confirmation, the card edit dialog and the card delete confirmation, in each of
+  the three locales. The card survived each one.
+- **The new key renders on real data**: the rename dialog's title is `Rename column` /
+  `שינוי שם העמודה` / `Переименование колонки`, with the real column name in the field beneath it,
+  and the icon button keeps the full `board.renameColumn` sentence as its `aria-label`. That is the
+  split the change was for.
+- **Two things the test household could not show, both seen here on real rows.** An *assigned* card
+  renders `Assigned to:` / `באחריות:` / `Исполнитель:` beside a real member — every test card was
+  unassigned. And a **real invitation row** reads `בתוקף עד 21 בספט׳ 2026, 15:13` in Hebrew and
+  `Действует до 21 сент. 2026 г., 15:13` in Russian, which is the string that used to claim an
+  unexpired invitation had expired.
+- Hebrew built-in column names are `לביצוע`, `בתהליך`, `הושלם` — `board.column.todo` is the new
+  `לביצוע`, not the infinitive `לעשות`.
+- Keyboard: Enter opened a card's actions menu on its first item, Escape closed it and returned
+  focus to the trigger with `aria-expanded="false"`. The danger button in the delete confirmation is
+  **outlined, not filled** (transparent background), as the design system requires.
+- **Zero horizontal page scroll** on all five routes at 390 in all three locales. At 834 in Russian
+  the five nav links stay on one row with the signed-in address on a second, which is the documented
+  834–1199 behaviour rather than a regression.
+- No console errors. The only console entries across both halves are two of Chrome's own verbose DOM
+  hints (form nesting on `/recover`, a password form without a username field on `/account`), both
+  pre-existing and unrelated to copy.
+
+### Not verified, and why
+
+1. **The gated `ZZ copy` exception was offered and declined**, so the walk stayed read-only. This
+   production household has **no goal, no milestone, no image, and no card with a due date or a
+   milestone link**, so these surfaces were *not* seen against production data: the due badges
+   (`card.due`, `card.dueSoon`, `card.overdue`), `card.partOfBadge`, `card.unassigned` on a card,
+   all goal and milestone copy including `goals.progress` and `milestone.addTo`, and every vision
+   tile, carousel and image-edit string. All of them were exercised on the deployed **test** Worker
+   against seeded rows, and the production bundle is byte-identical to the one that was walked
+   there — but production has no evidence of its own.
+2. **Chrome only, and 390px was an emulated viewport, not a touched device.** Chrome clamps its
+   window to 500px on this machine, so 390 is reached through a CDP override — the same method and
+   the same caveat as the 2026-09-14 walk. No Safari or iOS pass.
+3. **No screen-reader pass.** Announcements were read out of the accessibility tree and the live
+   regions' text content, never heard. `prefers-reduced-motion` was not emulated. This is the same
+   standing gap Stage 6 and Stage 8 both closed by owner decision.
+4. **No error state was rendered in production.** The conflict banner, the field validation
+   messages, and the allowed-email limit messages were all proven on the test Worker; producing any
+   of them here would have meant writing to real data or spending a real account's rate limit.
+5. **Light theme only in production.** The dark-theme look was taken on the test Worker
+   (`/board` and `/goals` at 390 in Hebrew), where dark resolves to `#14191d` on `#e8eaec`. The
+   change moves text, not colour.
+
+### One cosmetic issue found and deliberately not fixed
+
+In Russian, `card.partOfBadge` is `В рамках «{milestone}»`, and the interpolated title is wrapped in
+a `<span dir="auto">` for bidi isolation. `.badge` is `display: flex` with `gap: 3.4px`, so that span
+becomes a flex item and the gap pushes **3.4px between each guillemet and the title** — it renders
+as `« ZZ copy Run a marathon »` rather than `«ZZ copy Run a marathon»`. The dictionary string is
+correct and `textContent` has no spaces; the gap is the pre-existing stylesheet rule meeting a newly
+quoted string. It is the only element on the board affected — `board.addCardTo` quotes a *column*
+name, which is not bidi-wrapped, and hugs correctly. Fixing it means changing `.badge`'s layout,
+which would put the `⚠`/`•` marker spacing that the accessibility floor depends on back in scope for
+a text-only release. Left as it is, recorded here and in the review record.
+
+### Rollback
+
+Interface text only — no schema, no migration, no API change, no data — so returning to the previous
+copy is a pure asset swap:
+
+```sh
+npx wrangler rollback 9e70b2ea-ed45-47f9-9ed0-ec7404225346 --env production
+```
+
+**`9e70b2ea-ed45-47f9-9ed0-ec7404225346`** is the version this deployment replaced (commit `a31fa8f`,
+the Stage 8 deploy). Reverting commit `1ea5b82` and running `npm run deploy:prod` reaches the same
+place.

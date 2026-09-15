@@ -399,3 +399,49 @@ those directories were converted to plain backticked paths so `check:links` — 
 against `git ls-files` — stays green in a fresh clone.
 
 **Next action:** Stage 7 (backup, hardening, release). Nothing in this deployment advances it.
+
+## 2026-09-15 — the trilingual copy review landed in production
+
+**State:** Stages 1–8 closed. This is not stage work: it is an interface-text change on top of the
+released application, and it advances no stage's gate.
+
+**Tested commit:** `1ea5b82`, CI
+[34994831415](https://github.com/yhaspel/goal-tracker/actions/runs/34994831415) — `checks: success`,
+`deploy-test: success`. **Production version:** `690cf146-4757-4985-abfc-5358a4aa68d6`, replacing
+`9e70b2ea-ed45-47f9-9ed0-ec7404225346`, which is the rollback target. Full evidence is in the
+production deployment record's sixth entry, and the strings themselves are in
+[the copy review record](copy-review-2026-09-15.md).
+
+Interface text only: `schemaVersion` stays 5, no route, contract, validation rule, focus contract or
+announcement *behaviour* moved, and no production data was touched. The announcement **strings**
+did change — that is the point of the review — but each one still fires at the same moment from the
+same code path. 263 dictionary values changed across three locales, plus one new key
+(`board.renameColumnHeading`, taking `check:i18n` from 328 to 329) and the one line of
+`BoardPage.tsx` that uses it. Served JS and CSS were compared byte for byte against the local build
+and against what the test Worker serves; all three match.
+
+Two browser passes: a full one on the deployed test Worker, where rows could be created and deleted
+(every one named `ZZ copy …`, all removed, board back to 3 columns and 0 cards, 0 goals, 0 images,
+and the smoke owner's language restored to `en`); and a read-only one on production, where the owner
+signed in themselves and this session never handled the password. Production's board revision read
+30 before the walk and 30 after it.
+
+**Open risks and gaps, unchanged or newly recorded:**
+
+- **Production data cannot exercise most of the change.** That household has no goal, milestone or
+  image, and no card with a due date or milestone link. The offer to create temporary rows behind a
+  verified backup was made and declined, so those surfaces are proven on the test Worker only —
+  against a byte-identical bundle, but not against production.
+- One cosmetic issue found and deliberately not fixed: Russian `card.partOfBadge` renders
+  `« title »` with 3.4px inside each guillemet, because `.badge` is a flex container with a gap and
+  the bidi-isolation span around the title becomes a flex item. The string is correct; the layout is
+  pre-existing. Fixing it would put badge marker spacing back in scope for a text-only release.
+- One register inconsistency left behind: Hebrew `vision.uploadHeading` is still the first-person
+  plural `מוסיפים תמונות` where the Russian equivalent became a noun.
+- No screen-reader review, and `prefers-reduced-motion` was not emulated. Still true, still the
+  standing gap.
+- Chrome only; 390 CSS px again needed an explicit CDP viewport override because Chrome clamps its
+  window to 500px on this machine. No Safari or iOS pass.
+
+**Next action:** none outstanding for this change. The standing gaps above are unchanged, and the
+backup/restore items at the end of the production deployment record remain the highest-value work.

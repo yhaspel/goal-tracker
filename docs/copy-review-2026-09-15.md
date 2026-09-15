@@ -111,13 +111,88 @@ and headings are nouns.
 - Historical records under `docs/` that quote the old strings are records, not copy, and were left
   as written. `README.md` was updated where it names the "Join with an invitation" link.
 
-## What this review did not check
+## What the browser passes showed
 
-Everything above was read, typed and machine-checked (`check:i18n`, `tsc`, `eslint`, and the
-dictionary assertions of `tests/web.ui.test.ts` re-run outside `workerd`). None of it was **seen
-rendered**. Wrapping of the longer strings at 390px — the Russian `board.addCardTo` and
-`card.discardDraft`, the Hebrew `vision.moveEarlier` — and the look of the new quotes in Russian
-badges are for the browser pass that lands this change.
+The change was landed on 2026-09-15 as commit `1ea5b82` and deployed to production as version
+`690cf146-4757-4985-abfc-5358a4aa68d6`. Two browser passes checked it: a full one on the deployed
+**test** Worker, where creating and deleting rows is allowed, and a read-only one on **production**.
+Both ran in Chrome at 390 (an emulated viewport), 834 and 1440, in `en`, `he` and `ru`. Full
+evidence is in [the production deployment record](production-deployment.md).
+
+### The long strings at 390, which is what was open
+
+- **Russian `board.addCardTo`** (`Добавить карточку в колонку «К выполнению»`, the longest of the
+  three) sits in the phone pager's add button. The button is **334×44 in every locale** — its box
+  does not grow with the string — and the text wraps inside it rather than clipping or ellipsising
+  (`white-space: normal`, and `scrollWidth`/`scrollHeight` never exceed the client box). No
+  horizontal page scroll at any width.
+- **Russian `card.discardDraft`** (`Сбросить изменения`) appears in the conflict footer, the
+  tightest layout in the product. At 390 that footer wraps to two rows: Discard and Cancel share the
+  first at 170×48 each, with the primary Save full-width at 349×48 beneath. The Discard label itself
+  wraps to two lines inside its 170px button and does not clip. Hebrew `ויתור על השינויים` and
+  English `Discard changes` behave the same.
+- **Hebrew `vision.moveEarlier`** (`הזזה למיקום הקודם`) is a menu item in the vision actions menu;
+  it renders on one line in a viewport-anchored menu and does not overflow.
+- **Hebrew `vision.addHelp`** at 390 starts in Hebrew and keeps `JPEG,‏ PNG או WebP` in that order —
+  the U+200F after the comma is doing its job — and `ל־JPEG` closes the sentence correctly.
+
+### The new quotes in Russian badges — one cosmetic issue, left as it is
+
+`card.partOfBadge` renders as `В рамках « ZZ copy Run a marathon »`, with a visible gap inside each
+guillemet. The dictionary string and the element's `textContent` are both correct, with no spaces:
+the gap is layout. `.badge` is `display: flex` with `gap: 3.4px`, and the interpolated title is
+wrapped in a `<span dir="auto">` for bidi isolation, so that span becomes a flex item and takes the
+gap on both sides. It is the only place affected — `board.addCardTo` quotes a *column* name, which
+is not bidi-wrapped, and its guillemets hug correctly. Fixing it means changing `.badge`'s layout,
+which would drag the `⚠`/`•` marker spacing into a text-only release, so it was recorded rather than
+changed.
+
+### What the grammar fix was for, seen working
+
+- Hebrew announcements name the object first, so the verb agrees with a noun this code knows:
+  `הכרטיס ZZ copy due today הורם…`, `אבן הדרך ZZ copy milestone B הוזזה למיקום 1.`,
+  `סימון ההשלמה הוסר מאבן הדרך ZZ copy Run a marathon.`
+- Russian participles agree with the noun, not the member's text: `Карточка «…» взята.`,
+  `Карточка «…» осталась в колонке «К выполнению».`, `Цель «ZZ copy goal» удалена.`
+- **A Latin milestone title inside a Hebrew badge is not reordered.** `במסגרת ZZ copy Run a marathon`
+  renders with the Hebrew word at the RTL line start and the Latin title running left-to-right after
+  it, on one 25px line, screenshotted at 1440.
+- Goal progress reads correctly at all three plural boundaries: `הושלמו 1 מתוך אבן דרך אחת`,
+  `הושלמו 1 מתוך שתי אבני דרך`, `הושלמו 1 מתוך 5 אבני דרך`; `Выполнено 1 из 1 этапа`,
+  `…из 2 этапов`, `…из 5 этапов`, capitalised.
+- `settings.tooMany` is correct for a count that used to break it: `Адресов в списке: 8. Максимум —
+  7, включая ваш.`
+- `invitations.expires` reads `בתוקף עד …` / `Действует до …` on a **real, unexpired** production
+  invitation — the string that previously claimed it had expired.
+- The new `board.renameColumnHeading` titles the rename dialog — `Rename column` /
+  `שינוי שם העמודה` / `Переименование колонки` — while the icon button keeps the full
+  `board.renameColumn` sentence as its `aria-label`, on both Workers.
+
+## What is still unchecked
+
+- **Safari and iOS, and any real touch device.** Both passes were Chrome only, and 390 CSS px was a
+  CDP viewport override because Chrome clamps its window to 500px on this machine.
+- **A real screen reader.** Every announcement above was read out of the accessibility tree or the
+  live region's text content. Nothing was heard. `prefers-reduced-motion` was not emulated.
+- **Surfaces production's own data cannot show.** That household has no goal, no milestone, no
+  image, and no card with a due date or a milestone link, and the offer to create temporary rows
+  behind a verified backup was declined. So the due badges, `card.partOfBadge`, `card.unassigned`,
+  all goal and milestone copy, and every vision string were proven only on the test Worker — against
+  a bundle byte-identical to production's, but not against production.
+- **`invitations.status.expired`** (`פג תוקף` / `Истекло`). Every invitation on both households is
+  either used or still in date, so the expired badge was never rendered.
+- **The transient upload statuses** `בהכנה` / `בהעלאה` / `Подготовка` / `Загрузка`. The test upload
+  finished in under 280ms, so only `vision.fileDone` was observable.
+- **Dark theme beyond one look.** Dark was checked on `/board` and `/goals` at 390 in Hebrew on the
+  test Worker; production was walked in light only. The change moves text, not colour.
+
+## A register inconsistency this review left behind
+
+Hebrew `vision.uploadHeading` is still `מוסיפים תמונות`, a first-person plural verb, even though the
+upload *statuses* beneath it became verbal nouns (`בהכנה`, `בהעלאה`) and the parallel Russian key was
+changed to a noun (`Добавление изображений`). The glossary above says Hebrew headings are verbal
+nouns, so `הוספת תמונות` would be consistent — but that is already the button's label, and this is
+register rather than grammar, so it was noted instead of changed.
 
 ## Every change
 
