@@ -1065,10 +1065,20 @@ button.icon {
   margin-block: var(--gt-space-6);
 }
 
+/*
+ * Deliberately NOT a flex container. A badge whose text is interpolated renders as several
+ * children — template text, a `dir="auto"` span holding a member-written title, more template
+ * text — and in a flex container each text run becomes an anonymous flex item, so `gap` lands
+ * between every part. Russian `card.partOfBadge` is `В рамках «{milestone}»`, which came out as
+ * `« title »` with the guillemets held off the title they quote. Inline-block keeps the whole
+ * label in one inline formatting context, so the quotes hug and each template's own trailing
+ * space does the spacing.
+ *
+ * `gap: 0` with a margin on the marker does NOT work: an anonymous flex item's trailing space is
+ * stripped, so the Hebrew and English templates would lose the space before their title.
+ */
 .badge {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--gt-space-1);
+  display: inline-block;
   border: 1px solid var(--gt-line);
   border-radius: var(--gt-radius-chip);
   background: var(--gt-surface);
@@ -1082,6 +1092,7 @@ button.icon {
 .badge::before {
   content: '•';
   color: var(--gt-ink-soft);
+  margin-inline-end: var(--gt-space-1);
 }
 
 .badge.warning {

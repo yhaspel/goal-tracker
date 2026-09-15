@@ -136,16 +136,41 @@ evidence is in [the production deployment record](production-deployment.md).
 - **Hebrew `vision.addHelp`** at 390 starts in Hebrew and keeps `JPEG,‏ PNG או WebP` in that order —
   the U+200F after the comma is doing its job — and `ל־JPEG` closes the sentence correctly.
 
-### The new quotes in Russian badges — one cosmetic issue, left as it is
+### The new quotes in Russian badges — found here, fixed on 2026-09-15
 
-`card.partOfBadge` renders as `В рамках « ZZ copy Run a marathon »`, with a visible gap inside each
-guillemet. The dictionary string and the element's `textContent` are both correct, with no spaces:
-the gap is layout. `.badge` is `display: flex` with `gap: 3.4px`, and the interpolated title is
-wrapped in a `<span dir="auto">` for bidi isolation, so that span becomes a flex item and takes the
-gap on both sides. It is the only place affected — `board.addCardTo` quotes a *column* name, which
-is not bidi-wrapped, and its guillemets hug correctly. Fixing it means changing `.badge`'s layout,
-which would drag the `⚠`/`•` marker spacing into a text-only release, so it was recorded rather than
-changed.
+`card.partOfBadge` rendered as `В рамках « ZZ copy Run a marathon »`, with a visible gap inside each
+guillemet. The dictionary string and the element's `textContent` were both correct, with no spaces:
+the gap was layout. `.badge` was `display: inline-flex` with `gap: 3.4px`, and the interpolated title
+is wrapped in a `<span dir="auto">` for bidi isolation — so in a flex container that span, and each
+run of template text around it, became separate (partly anonymous) flex items and the gap landed
+between every part.
+
+This record originally deferred the fix, on the ground that changing `.badge`'s layout "would drag
+the `⚠`/`•` marker spacing into a text-only release". **That justification was wrong and is
+withdrawn.** Three independent measurements in Chrome, against rigs reproducing the real rules,
+showed the marker and its 3.4px gap do not move at all: badge height stays 24.8px and the label
+keeps its offset from the badge's inline start, in every locale and in both the plain and `warning`
+variants.
+
+The fix, shipped on 2026-09-15, is that **`.badge` is deliberately no longer a flex container**. It
+is `display: inline-block`, and the marker's separation moved from `gap` to `margin-inline-end` on
+`.badge::before`. That keeps the whole label in one inline formatting context, so the guillemets hug
+and each template's own trailing space does the spacing. Measured byte-identical to the alternative
+(wrapping the label in an extra element) in all three locales, while touching no component file and
+— the reason it was preferred — removing the failure mode rather than documenting it, since a future
+multi-part badge cannot reintroduce it. This repository has no DOM test harness to catch such a
+regression: the suite runs in the Workers runtime with no jsdom, and jsdom performs no layout.
+
+Two corrections to what this section first claimed. `.badge` was `inline-flex`, not `flex`. And the
+board badge was **not** the only site with the construct: `milestone.cardChip` on the goals screen
+(`GoalsPage.tsx`) is the same shape, and merely had no visible symptom because its ` · ` separator
+already puts a space where the stray gap fell. `board.addCardTo` quotes a *column* name, which is
+not bidi-wrapped, and its guillemets always hugged correctly.
+
+One route that looks cheaper is genuinely broken, recorded so nobody reaches for it: keeping the flex
+container and setting `gap: 0` with a margin on the marker **loses** the space in the Hebrew and
+English templates, because an anonymous flex item's trailing whitespace is stripped. Only a fix that
+puts the whole label in one inline run works.
 
 ### What the grammar fix was for, seen working
 
@@ -186,13 +211,28 @@ changed.
 - **Dark theme beyond one look.** Dark was checked on `/board` and `/goals` at 390 in Hebrew on the
   test Worker; production was walked in light only. The change moves text, not colour.
 
-## A register inconsistency this review left behind
+## A register inconsistency this review left behind — also fixed on 2026-09-15
 
-Hebrew `vision.uploadHeading` is still `מוסיפים תמונות`, a first-person plural verb, even though the
-upload *statuses* beneath it became verbal nouns (`בהכנה`, `בהעלאה`) and the parallel Russian key was
-changed to a noun (`Добавление изображений`). The glossary above says Hebrew headings are verbal
-nouns, so `הוספת תמונות` would be consistent — but that is already the button's label, and this is
-register rather than grammar, so it was noted instead of changed.
+Hebrew `vision.uploadHeading` was `מוסיפים תמונות`, a present-tense finite verb — the only one used
+as a label anywhere in `he.ts`, apart from the deliberate imperative at `phrase.heading` that mirrors
+English's. The upload *statuses* beneath it had become verbal nouns (`בהכנה`, `בהעלאה`) and the
+parallel Russian key had been changed to a noun (`Добавление изображений`), so it was left as the
+lone outlier against the glossary's own rule that Hebrew headings are verbal nouns.
+
+It is now **`הוספת התמונות`** — "adding *the* images", definite. The obvious `הוספת תמונות` was
+rejected because it is byte-identical to `vision.addImages`, the button that opens the file chooser,
+and that button is only *disabled* while the upload list is on screen, never unmounted — so the two
+would paint the same phrase twice within a few pixels, and a screen reader would announce it once as
+a button and once as a level-2 heading. Definiteness is the distinction Hebrew has where English and
+Russian use a derivational one ("Add images" / "Adding images"; `Добавить изображения` /
+`Добавление изображений`), and it matches the house pattern for a heading that names a specific known
+object: `recover.heading` is `שחזור החשבון`, `board.renameColumnHeading` is `שינוי שם העמודה`.
+
+It also corrects an aspect error rather than only a register one. `outcomes` is set once per batch
+and never cleared, so the heading outlives the upload and sits above rows reading `נוספה` and
+`ההוספה נכשלה`. A verbal noun is aspectless and covers the finished state; "we are adding" asserts an
+action still in progress and is simply false by then. `הוספה` is also already this feature's verb in
+those row statuses, so the heading now ties to the vocabulary beneath it.
 
 ## Every change
 
@@ -328,6 +368,7 @@ Old and new value of every key that changed, per locale.
 | `vision.moveEarlier` | `העברה אחורה` | `הזזה למיקום הקודם` |
 | `vision.moveLater` | `העברה קדימה` | `הזזה למיקום הבא` |
 | `vision.moved` | `התמונה הועברה למיקום {position}.` | `התמונה הוזזה למיקום {position}.` |
+| `vision.uploadHeading` | `מוסיפים תמונות` | `הוספת התמונות` *(added 2026-09-15, see above)* |
 | `vision.fileQueued` | `ממתינה` | `בתור` |
 | `vision.filePreparing` | `מכינים` | `בהכנה` |
 | `vision.fileUploading` | `שולחים` | `בהעלאה` |

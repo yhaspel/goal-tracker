@@ -292,7 +292,7 @@ export const he: LocaleDictionary = {
   'vision.previous': 'התמונה הקודמת',
   'vision.next': 'התמונה הבאה',
   'vision.position': 'תמונה {n} מתוך {total}',
-  'vision.uploadHeading': 'מוסיפים תמונות',
+  'vision.uploadHeading': 'הוספת התמונות',
   'vision.fileQueued': 'בתור',
   'vision.filePreparing': 'בהכנה',
   'vision.fileUploading': 'בהעלאה',

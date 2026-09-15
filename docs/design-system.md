@@ -123,7 +123,7 @@ Classes, and what owns them:
 | `.busy-dots` | `Submit` | Three 3px squares. The label never changes mid-request; `aria-busy` is what assistive technology reads |
 | `.field`, `input`, `textarea`, `select` | `Field` | 12px label above, 6px gap, 13px help below. Invalid is a 2px danger border plus a `!` marker plus text |
 | `.panel`, `.card` | Screens | `.panel.narrow` caps at 34rem |
-| `.alert`, `.warning`, `.callout`, `.badge` | `Alert` and screens | `tone="error"` keeps `role="alert"`; notice does not, because the assertive region already carries urgent text. Every badge carries a mark as well as a colour |
+| `.alert`, `.warning`, `.callout`, `.badge` | `Alert` and screens | `tone="error"` keeps `role="alert"`; notice does not, because the assertive region already carries urgent text. Every badge carries a mark as well as a colour. **`.badge` is `inline-block`, never a flex container** — see the note below |
 | `.code`, `.phrase` | `PhraseStep`, `SettingsPage` | The one-time-secret block: 2px accent frame, steel cap, mono, `dir="ltr"` and isolated |
 | `.dialog*`, `.dialog-body` | `Dialog` | One component. Below 834px a class and a media query make it a sheet; the focus contract is identical |
 | `.nav-toggle`, `.nav-sheet` | `App` | The phone header. One control in both states: it swaps its icon and `aria-expanded`, never its accessible name |
@@ -146,6 +146,25 @@ Classes, and what owns them:
 Icons live in `web/src/components/icons.tsx`: inline SVG on a 20×20 box at 1.5px stroke. No icon
 package, and no glyph that depends on a font. **No icon carries meaning alone** — each sits
 beside visible text or inside a control named by an `aria-label` from the dictionary.
+
+### A badge is not a flex container, on purpose
+
+`.badge` is `display: inline-block`, and its `::before` marker is separated by `margin-inline-end`
+rather than by `gap`. That is load-bearing for bidi, not a style preference. A badge whose text is
+interpolated renders as several children — template text, a `dir="auto"` span holding a
+member-written title, more template text. In a flex container each run of text becomes an anonymous
+flex item, so `gap` lands between *every* part, not just between the marker and the label. Russian
+`card.partOfBadge` is `В рамках «{milestone}»`, and it shipped on 2026-09-15 rendering as
+`« title »`, with the guillemets held 3.4px off the title they quote.
+
+Do not "tidy" this back into `inline-flex`, and do not reach for the alternative that looks cheaper:
+keeping the flex container with `gap: 0` and a margin on the marker **loses** the space in the
+Hebrew and English templates, because an anonymous flex item's leading and trailing whitespace is
+stripped and the gap was silently supplying it. Only a badge whose whole label sits in one inline
+formatting context is correct.
+
+There is no automated guard. The test suite runs in the Workers runtime with no jsdom, and jsdom
+performs no layout, so this class of defect is reachable only by looking at a rendered badge.
 
 ### The card carries two controls, not five
 
