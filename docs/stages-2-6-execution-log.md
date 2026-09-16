@@ -554,6 +554,23 @@ utterances; `last phrase` returns the trailing hint and `text under cursor of vo
 element name; and a live-region announcement has to be scheduled with `setTimeout` and polled across,
 because triggering then querying loses the race.
 
-**Still open:** iOS and a real touch device, a signed-in WebKit walk, and dark theme in production.
+### The last two reachable checks, same day
 
-**Next action:** none outstanding.
+**Signed-in WebKit** over all five signed-in routes, with the session planted through WebDriver: zero
+horizontal overflow in all nine width × locale combinations, and the **real rendered card badge**
+measured in Safari at every width — Russian at gap 0 either side, the marker keeping its margin,
+height a consistent 24px. The badge fix is therefore verified on a genuinely rendered card in two
+engines rather than on a reconstruction in one. Also learned: Safari honours a real 390px window,
+where Chrome clamps to ~500px and needs a CDP override — worth preferring for narrow-width work.
+
+**Dark theme in production**, read-only across all five signed-in routes in three locales at 1440 and
+390: dark resolves to `#14191d` on `#e8eaec`, zero horizontal overflow anywhere, and **zero contrast
+failures** with a measured minimum of 5.91:1 against the 4.5:1 floor. The phone sheet holds its 56px
+rows and 44px selector in dark as in light.
+
+**Still open, and not closable here: iOS and a real touch device.** Every pass in this repository is
+desktop — Chromium and macOS WebKit. That one needs hardware.
+
+**Next action:** none outstanding. The interface work that began with the 2026-09-15 copy review is
+complete: three defects fixed and deployed, six verification gaps closed, and the single remaining
+gap is one only a physical device can close.

@@ -1410,12 +1410,34 @@ measurements show.
   tab. That happened once in this session, returned the owner's personal messages, and the output was
   discarded.
 
+### Signed-in WebKit, and dark theme in production — both closed the same day
+
+**The signed-in WebKit walk** ran against the deployed test Worker with a session cookie planted
+through WebDriver, over `/board`, `/goals`, `/vision`, `/members` and `/account`.
+
+- **Zero horizontal overflow in all nine** signed-in width × locale combinations, `dir` correct
+  throughout.
+- **The real card badge — not a probe element — measured in Safari at every width and locale.**
+  Russian `В рамках «ZZ wk Run a marathon»` renders with **gap 0 before and 0 after**, Hebrew and
+  English at gap 0, the `•` marker keeping `margin-inline-end: 3.4px`, badge height a consistent 24px.
+  The fix is now verified on a genuinely rendered card in a second engine, not only on a reconstruction.
+- Worth knowing for future work: **Safari honours a real 390px window**, where Chrome clamps to ~500px
+  and needs a CDP viewport override. `window.innerWidth` reported 390, 834 and 1440 exactly.
+
+**Dark theme in production** was walked read-only across `/board`, `/goals`, `/vision`, `/members` and
+`/account`, in all three locales, at 1440 and at 390.
+
+- Dark resolves to `#14191d` on `#e8eaec`, the values the Stage 8 record noted.
+- **Zero horizontal overflow** in every route × locale × width combination.
+- **Zero contrast failures.** Every visible text node was measured against its own effective
+  background: the minimum ratio is **5.91:1** on `/board` and 6.89:1 elsewhere, against the design
+  system's 4.5:1 floor for body text.
+- At 390 the phone sheet is contained 0→390 with 56px rows and the language selector at exactly 44px,
+  in dark as in light.
+
 ### Still not verified
 
-1. **iOS, and any real touch device.** The Safari pass is macOS desktop WebKit. iOS Safari has a
-   different input stack and browser chrome, and 390px here is still an emulated viewport rather than
-   a phone someone touched.
-2. **Signed-in Safari.** The WebKit pass covered the guest routes plus the badge measured against the
-   real stylesheet. A signed-in WebKit walk of the board, goals and vision screens has not been done.
-3. **Dark theme in production.** Checked on the test Worker only; the changes move text and one
-   layout mode, not colour.
+1. **iOS, and any real touch device.** The WebKit pass is macOS desktop Safari. iOS has a different
+   input stack and browser chrome, and every 390px measurement in this record is a window or an
+   emulated viewport rather than a phone someone touched. This one needs hardware; nothing on this
+   machine can close it.

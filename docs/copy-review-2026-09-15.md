@@ -291,16 +291,21 @@ can be judged rather than taken on trust.
   `board.column.todo` spoken as the new `לביצוע`. Method and the full transcript are in
   [the production deployment record](production-deployment.md).
 
+- **Signed-in WebKit**, over all five signed-in routes with a session planted through WebDriver.
+  Zero horizontal overflow in all nine width × locale combinations, and **the real rendered card
+  badge** measured in Safari at every width: Russian at gap 0 either side, Hebrew and English at
+  gap 0, the marker keeping its margin, height a consistent 24px. Safari also honours a genuine 390px
+  window, where Chrome clamps to ~500px.
+- **Dark theme in production**, read-only across all five signed-in routes in all three locales at
+  1440 and 390. Dark resolves to `#14191d` on `#e8eaec`; **zero horizontal overflow** and **zero
+  contrast failures** anywhere, with a measured minimum of **5.91:1** against the 4.5:1 floor.
+
 ## What is still unchecked
 
-- **iOS, and any real touch device.** The WebKit pass is macOS desktop Safari. iOS has a different
-  input stack and browser chrome, and 390px throughout this record is an emulated viewport rather
-  than a phone someone touched.
-- **Signed-in Safari.** The WebKit pass covered the guest routes plus the badge measured against the
-  real deployed stylesheet. A signed-in WebKit walk of the board, goals and vision screens has not
-  been done.
-- **Dark theme beyond one look.** Dark was checked on `/board` and `/goals` at 390 in Hebrew on the
-  test Worker; production was walked in light only. The change moves text, not colour.
+- **iOS, and any real touch device.** Every pass here is desktop — Chromium and macOS WebKit. iOS has
+  a different input stack and browser chrome, and every 390px measurement in this record is a window
+  or an emulated viewport rather than a phone someone touched. This needs hardware; nothing on the
+  development machine can close it.
 
 ## A register inconsistency this review left behind — also fixed on 2026-09-15
 
