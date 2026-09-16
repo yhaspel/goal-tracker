@@ -1198,3 +1198,96 @@ npx wrangler rollback 9e70b2ea-ed45-47f9-9ed0-ec7404225346 --env production
 **`9e70b2ea-ed45-47f9-9ed0-ec7404225346`** is the version this deployment replaced (commit `a31fa8f`,
 the Stage 8 deploy). Reverting commit `1ea5b82` and running `npm run deploy:prod` reaches the same
 place.
+
+## Seventh production deployment, 2026-09-15 — the two issues the copy release left open
+
+**Version `851c3705-7d55-4fa8-9f7b-750a301d9fc2`**, deployed by hand from commit `e1ff745`. CI run
+[35004244853](https://github.com/yhaspel/goal-tracker/actions/runs/35004244853), both jobs green.
+Interface only; `schemaVersion` stays 5 and no production data was touched.
+
+The sixth deployment recorded two problems and deferred both. They are fixed here, and one of the
+two reasons given for deferring turned out to be wrong.
+
+**The Russian badge.** `.badge` was `inline-flex` with `gap: 3.4px`. A badge whose text is
+interpolated renders as several children — template text, a `dir="auto"` span holding a
+member-written title, more template text — and in a flex container each run of text becomes an
+*anonymous flex item*, so the gap meant for the status marker landed between every part.
+`В рамках «{milestone}»` therefore shipped as `« title »`. The badge is now `inline-block` with the
+marker separated by `margin-inline-end`, which keeps the whole label in one inline formatting
+context.
+
+Three independent adversarial reviews measured this before it shipped, and between them corrected
+the original proposal on three counts: the extra stylesheet rule first proposed was a **measured
+no-op** (flex items are blockified anyway); `VisionPage.tsx` was wrongly listed as an affected site
+(it is a `<p class="help">` in the carousel, whose guillemets already hugged); and the deferral
+reason recorded in the review — that fixing it would disturb the `⚠`/`•` marker spacing — was
+**disproved**, since badge height stays 24.8px and the marker keeps its offset. A fourth finding is
+recorded in the stylesheet and the design system so nobody reaches for it: keeping the flex container
+and setting `gap: 0` with a margin on the marker **loses** the space in the Hebrew and English
+templates, because an anonymous flex item's trailing whitespace is stripped.
+
+Measured on production's own stylesheet after the deploy, against probe elements carrying the real
+classes:
+
+| Badge | display | height | gap before title | gap after title | marker |
+| --- | --- | --- | --- | --- | --- |
+| `В рамках «…»` | `inline-block` | 24.8px | **0** (was 3.4) | **0** (was 3.4) | `•` + 3.4px |
+| `במסגרת …` (RTL) | `inline-block` | 24.8px | 0 | — | `•` + 3.4px |
+| `Part of …` | `inline-block` | 24.8px | 0 | — | `•` + 3.4px |
+| `Due Sep 15, 2026` | `inline-block` | 24.8px | — | — | `⚠` + 3.4px |
+
+**The Hebrew upload heading.** `vision.uploadHeading` was `מוסיפים תמונות`, the only present-tense
+finite verb used as a label in the dictionary. It is now **`הוספת התמונות`**. Three independent
+proposals and three judges on separate lenses all converged on that exact string. The definite form
+is what keeps it distinct from the `הוספת תמונות` button, which is only *disabled* during an upload
+and never unmounted — confirmed on screen, with the heading and the button visible together and
+`identical: false`. It also corrects an aspect error: the upload list is never cleared, so the
+heading outlives the upload and sits above rows already reading `נוספה`, where "we are adding" is
+simply false.
+
+**Rollback:** `npx wrangler rollback 690cf146-4757-4985-abfc-5358a4aa68d6 --env production`.
+
+## Eighth production deployment, 2026-09-16 — the invitation expiry line
+
+**Version `a3342650-cc9f-4269-b251-c171988e7973`**, deployed by hand from commit `432b406`. CI run
+[35053028782](https://github.com/yhaspel/goal-tracker/actions/runs/35053028782), both jobs green.
+Interface only; `schemaVersion` stays 5, no production data touched. One new key,
+`invitations.expired`, taking `check:i18n` from 329 to 330.
+
+**A defect the copy review itself introduced, found only by rendering it.** The review changed
+`invitations.expires` from "expired on" to "valid until" because it was showing on invitations that
+had not expired. Right for the common case, wrong for the rare one: on an already expired row the
+date line asserted current validity beside a badge saying the opposite — `פג תוקף` next to
+`בתוקף עד 8 בספט׳ 2026`, a past date, and `Истекло` next to `Действует до`. The date line now follows
+the status, and Hebrew reuses the very string the review had removed, because `פג ב־{date}` was never
+wrong — only ever applied to the wrong rows. Pending, used and revoked rows are unchanged.
+
+This is the clearest argument in the whole exercise for rendering over reasoning: the string was
+correct, the review's analysis of it was correct, and the bug lived entirely in which rows it reached.
+
+**Rollback:** `npx wrangler rollback 851c3705-7d55-4fa8-9f7b-750a301d9fc2 --env production`.
+
+### Gaps closed alongside these two deployments
+
+Four of the six gaps the sixth deployment listed are now closed. Each method is named so the claim
+can be judged rather than trusted.
+
+| Gap | How it was closed | What it does **not** prove |
+| --- | --- | --- |
+| The transient upload statuses had never been seen | 6× CPU throttling + Slow 3G on the deployed test Worker with 17.5 MB PNGs, and a 40 ms sampler recording the transcript. All four states in all three locales: `בתור → בהכנה → בהעלאה → נוספה`, `В очереди → Подготовка → Загрузка → Добавлено`, `Waiting → Preparing → Uploading → Added`. `בהעלאה` held ~11s | That they are readable at normal CPU and network — they are not, which is why they were never seen |
+| `invitations.status.expired`, `pending` and `revoked` had never rendered | A **local Miniflare stage** with a throwaway household: invitation rows seeded with past expiries, a revoked timestamp and a consumed timestamp, so the server's own `invitationStatus` derivation produced each one. All four render in all three locales | Anything about the deployed runtime; the stage was local. It is, however, what found the defect above |
+| `prefers-reduced-motion` had never been emulated | A throwaway Chrome launched with `--force-prefers-reduced-motion=reduce`, driven over CDP against **production's own `/login`**, plus a control run without the flag. `matchMedia` flips, and every declaration in the `@media` block takes effect: `.busy-dots i` opacity 1 vs 0.35, skeleton background `none` vs gradient, `.card.dragging` transform `none` vs the tilt matrix, `.carousel-image` animation `none` vs `gt-fade-in` | dnd-kit's own JS reduced-motion branch, which needs a real drag. The carousel's position counter is component-rendered, not CSS, and was confirmed separately |
+| The cluster production's data cannot show | Two things. (a) All **1002** dictionary values across three locales appear **verbatim** in the JavaScript production serves — zero missing. (b) Every string in the cluster was rendered **on the production origin in a real signed-in session** from synthetic payloads supplied by a read-only `fetch` wrapper that refused `POST`, `PATCH`, `DELETE` and `PUT` (each probed and rejected). Board, goals and vision revisions identical before and after | That production's **own database** ever returned them. The offer to create temporary rows behind a verified backup was declined a second time. This is the one step no stub can reach |
+
+### Still not verified
+
+1. **Safari, iOS and any real touch device.** `safaridriver` is present and enabled, but Safari's
+   **Develop → Allow Remote Automation** is off and the owner chose to leave it off, so no WebKit
+   session could be created. **This matters more than it did before**: the badge fix is a CSS layout
+   change, and `inline-block` versus `inline-flex` is exactly the class of difference that can vary
+   between engines. It was measured in Chromium only.
+2. **No screen reader.** Announcements were read out of the accessibility tree and live-region text,
+   never heard.
+3. **Production's own stored rows**, as above.
+4. **Dark theme in production.** Checked on the test Worker only; the changes move text and one
+   layout mode, not colour.

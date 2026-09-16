@@ -445,3 +445,47 @@ signed in themselves and this session never handled the password. Production's b
 
 **Next action:** none outstanding for this change. The standing gaps above are unchanged, and the
 backup/restore items at the end of the production deployment record remain the highest-value work.
+
+## 2026-09-15/16 — the copy release's open issues fixed, and four gaps closed
+
+**State:** Stages 1–8 closed. Still not stage work — this finishes the interface-text change above.
+
+**Production versions:** `851c3705-7d55-4fa8-9f7b-750a301d9fc2` (commit `e1ff745`, CI
+[35004244853](https://github.com/yhaspel/goal-tracker/actions/runs/35004244853)) then
+`a3342650-cc9f-4269-b251-c171988e7973` (commit `432b406`, CI
+[35053028782](https://github.com/yhaspel/goal-tracker/actions/runs/35053028782)). Rollback target for
+the current version is `851c3705-…`; for that one, `690cf146-…`. Full evidence is in the production
+deployment record's seventh and eighth entries.
+
+`schemaVersion` stays 5 throughout and no production data was touched: the board revision read 30
+before this work and 30 after it, with goals at 8 and vision at 6, unchanged.
+
+Three fixes shipped. `.badge` is no longer a flex container, so a Russian badge's guillemets hug the
+title they quote; Hebrew `vision.uploadHeading` is `הוספת התמונות`; and an expired invitation no
+longer claims to be in force. The third was **a defect the copy review itself introduced** and is the
+clearest lesson here — the string was correct and the reasoning about it was correct, and the bug was
+entirely in which rows it reached. Only rendering it could have found that.
+
+**Two process notes worth keeping.**
+
+- A `pushState`-driven SPA walk does **not** pick up a new deployment. Twice in this session a
+  measurement was taken against a stale bundle because the document was never re-fetched. Hard-reload
+  before measuring anything after a deploy, and check the served asset hash in the same breath.
+- Chrome clamps its window to ~500px on this machine, so a "390px" `resize_page` silently measures
+  500px. Use a CDP viewport override and assert `window.innerWidth` in the same script.
+
+**Open risks and gaps, after this work:**
+
+- **Safari/WebKit and iOS remain unverified**, and this is now the most load-bearing gap: a CSS
+  layout rule changed, and engines can differ on it. `safaridriver` is enabled on this machine; only
+  Safari's *Allow Remote Automation* toggle stands in the way, and the owner chose to leave it off.
+- **No screen reader**, unchanged.
+- **Production's own rows still cannot show most of the reviewed copy.** Every string is verbatim in
+  production's bytes (1002/1002) and every one was rendered on the production origin from a
+  write-refusing stub, but production's database has never returned them. Creating temporary rows
+  behind a verified backup was offered twice and declined twice.
+- `prefers-reduced-motion` and the invitation status badges are **no longer** gaps; see the table in
+  the production deployment record.
+
+**Next action:** none outstanding. If Safari is ever enabled for automation, the WebKit pass is the
+single highest-value check left for the interface.
