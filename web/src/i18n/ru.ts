@@ -133,6 +133,7 @@ export const ru: LocaleDictionary = {
   'invitations.codeHeading': 'Код приглашения для {email}',
   'invitations.codeOnce': 'Скопируйте его сейчас. Он показывается только один раз.',
   'invitations.expires': 'Действует до {date}',
+  'invitations.expired': 'Истёк {date}',
   'invitations.none': 'Приглашений пока нет.',
   'invitations.revoke': 'Отозвать',
   'invitations.revokeFor': 'Отозвать приглашение для {email}',

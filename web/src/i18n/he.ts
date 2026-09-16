@@ -136,6 +136,7 @@ export const he: LocaleDictionary = {
   'invitations.codeHeading': 'קוד ההזמנה עבור {email}',
   'invitations.codeOnce': 'העתיקו אותו עכשיו. הוא מוצג פעם אחת בלבד.',
   'invitations.expires': 'בתוקף עד {date}',
+  'invitations.expired': 'פג ב־{date}',
   'invitations.none': 'עדיין אין הזמנות.',
   'invitations.revoke': 'ביטול',
   'invitations.revokeFor': 'ביטול ההזמנה של {email}',

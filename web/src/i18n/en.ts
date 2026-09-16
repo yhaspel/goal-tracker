@@ -127,6 +127,7 @@ export const en = {
   'invitations.codeHeading': 'Invitation code for {email}',
   'invitations.codeOnce': 'Copy it now. It is shown only once.',
   'invitations.expires': 'Expires {date}',
+  'invitations.expired': 'Expired on {date}',
   'invitations.none': 'No invitations yet.',
   'invitations.revoke': 'Revoke',
   /* Accessible names start with the visible label so the two never disagree. */

@@ -320,7 +320,16 @@ export function SettingsPage() {
                   {invitation.email}
                 </span>
                 <span className="badge">{t(`invitations.status.${invitation.status}`)}</span>
-                <span className="help">{t('invitations.expires', { date: formatDate(invitation.expiresAt) })}</span>
+                {/*
+                 * The date line has to follow the status. `invitations.expires` reads "valid
+                 * until", which is a claim about the present, and on an already-expired row it
+                 * sat next to an Expired badge asserting the opposite.
+                 */}
+                <span className="help">
+                  {t(invitation.status === 'expired' ? 'invitations.expired' : 'invitations.expires', {
+                    date: formatDate(invitation.expiresAt)
+                  })}
+                </span>
                 {invitation.status === 'pending' ? (
                   <button
                     type="button"

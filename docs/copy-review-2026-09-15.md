@@ -193,21 +193,95 @@ puts the whole label in one inline run works.
   `שינוי שם העמודה` / `Переименование колонки` — while the icon button keeps the full
   `board.renameColumn` sentence as its `aria-label`, on both Workers.
 
+## A defect this review introduced, found by rendering it — fixed 2026-09-16
+
+`invitations.expires` was `פג ב־{date}` — "expired on" — and the review changed it to
+`בתוקף עד {date}`, "valid until", because it was being shown on invitations that had *not* expired.
+That was right for the common case and wrong for the rare one. On an **already expired** row the
+date line then asserted current validity next to a badge saying the opposite:
+
+```
+zz-expired@example.test   פג תוקף   בתוקף עד 8 בספט׳ 2026     ← "expired" beside "in force until [a past date]"
+zz-expired@example.test   Истекло   Действует до 8 сент. 2026 г.
+```
+
+Nothing but rendering it could have caught this: the review reasoned about the string, and the
+string is correct — for pending rows. It was found only once an expired invitation was put on screen,
+which needed a seeded row because no invitation on either household has ever expired.
+
+The date line now follows the status. A new key, `invitations.expired`, is used when the status is
+`expired`, and Hebrew reuses the very string the review had removed — `פג ב־{date}` was never wrong,
+it was merely applied to the wrong rows:
+
+```
+zz-expired@example.test   פג תוקף   פג ב־8 בספט׳ 2026
+zz-expired@example.test   Истекло   Истёк 8 сент. 2026 г.
+zz-expired@example.test   Expired   Expired on Sep 8, 2026
+```
+
+Pending, used and revoked rows are untouched and still read `בתוקף עד` / `Действует до` / `Expires`.
+A used or revoked row can also carry a past expiry date, which reads a little oddly for the same
+reason, but there the badge is about a different event entirely — the invitation was consumed or
+cancelled, and when its window would have closed is genuinely just information. Only the expired row
+made the two statements contradict each other.
+
+## Closed on 2026-09-16
+
+Four of the six gaps this record first listed were closed, each by a method named here so the claim
+can be judged rather than taken on trust.
+
+- **The transient upload statuses.** Under 6× CPU throttling and Slow 3G on the deployed test
+  Worker, a multi-file upload of 17.5 MB PNGs holds each state long enough to read, and a 40 ms
+  sampler recorded the whole ordered transcript. All four render in all three locales:
+  `בתור → בהכנה → בהעלאה → נוספה`, `В очереди → Подготовка → Загрузка → Добавлено`,
+  `Waiting → Preparing → Uploading → Added`. `בהעלאה` held for about eleven seconds. The `busy-dots`
+  marker sits beside the uploading row, as the `aria-busy` contract requires.
+- **`invitations.status.expired`, and `pending` and `revoked` with it** — none of the three had ever
+  rendered. Reached on a **local Miniflare stage** with a throwaway household, by seeding invitation
+  rows with past expiries, a revoked timestamp and a consumed timestamp, so the *server's* own
+  derivation produced each status. All four render: `Expired` / `פג תוקף` / `Истекло`,
+  `Revoked` / `בוטלה` / `Отозвано`, `Used` / `נוצלה` / `Использовано`,
+  `Waiting` / `ממתינה` / `Ожидает`. This is also what found the defect described above. The stage was
+  torn down and the machine's previous local state restored.
+- **`prefers-reduced-motion`.** The MCP browser exposes no media emulation, so a throwaway Chrome was
+  launched with `--force-prefers-reduced-motion=reduce` and driven over CDP against
+  **production's own `/login`**, then again without the flag as a control. The browser evaluates the
+  query (`matchMedia` true vs false) and every declaration in the `@media` block takes effect on
+  real elements carrying the real classes:
+
+  | | `reduce` | `no-preference` |
+  | --- | --- | --- |
+  | `.busy-dots i` opacity | `1` — the static marker stays visible | `0.35`, mid-animation |
+  | `.busy-dots i` animation-duration | `1e-06s` | `1.1s` |
+  | `.skeleton-block` / `.skeleton-tile` background | `none` — flat | gradient shimmer |
+  | `.card.dragging` transform | `none` | the tilt matrix |
+  | `.carousel-image` animation | `none` | `gt-fade-in` |
+
+  What that does **not** prove: dnd-kit's own JavaScript reduced-motion branch, which needs a real
+  drag, and the fifth static marker — the carousel's position counter — which is component-rendered
+  rather than CSS and was confirmed separately by reading `תמונה 2 מתוך 2` out of the carousel.
+- **Every string, verbatim in what production serves.** All **999** dictionary values across the
+  three locales — including all 270 in the cluster production's own data cannot show — appear
+  literally in the JavaScript production hands the browser. Zero missing.
+
 ## What is still unchecked
 
-- **Safari and iOS, and any real touch device.** Both passes were Chrome only, and 390 CSS px was a
-  CDP viewport override because Chrome clamps its window to 500px on this machine.
-- **A real screen reader.** Every announcement above was read out of the accessibility tree or the
-  live region's text content. Nothing was heard. `prefers-reduced-motion` was not emulated.
-- **Surfaces production's own data cannot show.** That household has no goal, no milestone, no
-  image, and no card with a due date or a milestone link, and the offer to create temporary rows
-  behind a verified backup was declined. So the due badges, `card.partOfBadge`, `card.unassigned`,
-  all goal and milestone copy, and every vision string were proven only on the test Worker — against
-  a bundle byte-identical to production's, but not against production.
-- **`invitations.status.expired`** (`פג תוקף` / `Истекло`). Every invitation on both households is
-  either used or still in date, so the expired badge was never rendered.
-- **The transient upload statuses** `בהכנה` / `בהעלאה` / `Подготовка` / `Загрузка`. The test upload
-  finished in under 280ms, so only `vision.fileDone` was observable.
+- **Safari, iOS, and any real touch device.** `safaridriver` is present and enabled on this machine,
+  but Safari's **Develop → Allow Remote Automation** is off, and the owner chose to leave it off, so
+  no WebKit session could be created. This matters more than it did before 2026-09-16: the badge fix
+  is a **CSS layout change**, and `inline-block` versus `inline-flex` is exactly the class of thing
+  that can differ between engines. It was measured in Chromium only.
+- **A real screen reader.** Every announcement was read out of the accessibility tree or the live
+  region's text content. Nothing was heard.
+- **Production's own stored rows.** The household has no goal, no milestone, no image, and no card
+  with a due date or a milestone link, and the offer to create temporary rows behind a verified
+  backup was declined twice. Every string in that cluster *was* rendered **on the production origin,
+  in a real signed-in session, by production's own client bundle** — but from synthetic payloads
+  supplied by a read-only `fetch` wrapper that refused all four write verbs (verified by probing
+  `POST`, `PATCH`, `DELETE` and `PUT`, all rejected). Production's board, goals and vision revisions
+  were identical before and after. So: the strings render in production's real client, and they are
+  verbatim in production's bytes — but they have never been returned by production's own database.
+  That last step is the one thing no stub can reach.
 - **Dark theme beyond one look.** Dark was checked on `/board` and `/goals` at 390 in Hebrew on the
   test Worker; production was walked in light only. The change moves text, not colour.
 
@@ -261,6 +335,7 @@ Old and new value of every key that changed, per locale.
 | `settings.removalWarning` | `Removing an address ends that person’s access immediately on every device and cancels any unused invitation. Their account still uses a seat until you deactivate it.` | `Removing an address immediately ends that person’s access on every device and cancels any unused invitation. Their account still takes up a seat until you deactivate it.` |
 | `settings.yourText` | `Your text (kept)` | `Your text (not saved)` |
 | `invitations.revokeFor` | `Revoke {email}` | `Revoke the invitation for {email}` |
+| `invitations.expired` | *(new key, 2026-09-16)* | `Expired on {date}` |
 | `members.notAllowed` | `Removed from the allowed list, still using a seat` | `Removed from the allowed list but still using a seat` |
 | `members.deactivateConfirm` | `Deactivate {email}? This frees their seat, ends their sessions, and clears their card assignments. It cannot be undone.` | `Deactivate {email}? This frees their seat, signs them out everywhere, and unassigns them from their cards. It cannot be undone.` |
 | `board.renameColumnHeading` | *(new key)* | `Rename column` |
@@ -320,6 +395,7 @@ Old and new value of every key that changed, per locale.
 | `settings.tooMany` | `יש כאן {count} כתובות. המגבלה היא {max}, כולל שלכם.` | `ברשימה יש {count} כתובות, והמגבלה היא {max}, כולל הכתובת שלכם.` |
 | `settings.yourText` | `הטקסט שלכם (נשמר)` | `הטקסט שלכם (לא נשמר)` |
 | `invitations.expires` | `פג ב־{date}` | `בתוקף עד {date}` |
+| `invitations.expired` | *(new key, 2026-09-16)* | `פג ב־{date}` — the old string, now on the rows it was always right for |
 | `invitations.status.expired` | `פגה` | `פג תוקף` |
 | `members.heading` | `אנשים` | `משתמשים` |
 | `members.role.member` | `חבר/ה` | `משתמש/ת` |
@@ -425,6 +501,7 @@ Old and new value of every key that changed, per locale.
 | `settings.allowedConflict` | `Список изменился в другом месте. Ваш текст сохранён ниже; сравните его с текущим списком, прежде чем сохранять снова.` | `Список изменился в другом месте. Ваш текст оставлен ниже — сравните его с текущим списком, прежде чем сохранять снова.` |
 | `settings.tooMany` | `Здесь {count} адресов. Предел — {max}, включая ваш.` | `Адресов в списке: {count}. Максимум — {max}, включая ваш.` |
 | `settings.yourText` | `Ваш текст (сохранён)` | `Ваш текст (не сохранён)` |
+| `invitations.expired` | *(new key, 2026-09-16)* | `Истёк {date}` |
 | `members.deactivated` | `{email} отключён.` | `Аккаунт {email} отключён.` |
 | `board.renameColumn` | `Переименовать {name}` | `Переименовать «{name}»` |
 | `board.renameColumnHeading` | *(new key)* | `Переименование колонки` |
