@@ -1279,15 +1279,83 @@ can be judged rather than trusted.
 | `prefers-reduced-motion` had never been emulated | A throwaway Chrome launched with `--force-prefers-reduced-motion=reduce`, driven over CDP against **production's own `/login`**, plus a control run without the flag. `matchMedia` flips, and every declaration in the `@media` block takes effect: `.busy-dots i` opacity 1 vs 0.35, skeleton background `none` vs gradient, `.card.dragging` transform `none` vs the tilt matrix, `.carousel-image` animation `none` vs `gt-fade-in` | dnd-kit's own JS reduced-motion branch, which needs a real drag. The carousel's position counter is component-rendered, not CSS, and was confirmed separately |
 | The cluster production's data cannot show | Two things. (a) All **1002** dictionary values across three locales appear **verbatim** in the JavaScript production serves — zero missing. (b) Every string in the cluster was rendered **on the production origin in a real signed-in session** from synthetic payloads supplied by a read-only `fetch` wrapper that refused `POST`, `PATCH`, `DELETE` and `PUT` (each probed and rejected). Board, goals and vision revisions identical before and after | That production's **own database** ever returned them. The offer to create temporary rows behind a verified backup was declined a second time. This is the one step no stub can reach |
 
+## The cluster rendered from production's own database — 2026-09-16
+
+The one claim no stub could reach is now closed. The owner authorised temporary rows, and the gated
+procedure in the Stage 8 runbook was followed exactly.
+
+**A verified backup was taken first**, into its own directory so retention could not prune it:
+`goal-tracker-production-2026-09-16T072434Z-schema5-17f5998d.backup.enc`, *verified by decrypting the
+stored file* — board revision 30, vision revision 6, 2 users, 2 allowed addresses, 3 columns, 1 card,
+0 goals, 0 milestones, 0 images, 0 bytes.
+
+**The fewest rows that show the surfaces** were then created through the real API in a real signed-in
+session: one goal with notes, two milestones in two different months (one marked done, for a
+progress fraction), three cards carrying the three distinct due states, one of them linked to a
+milestone, and one image uploaded through the real in-browser downscale pipeline, captioned and
+linked to the goal. Nothing existing was touched — the household's one real card kept its title, its
+assignee and its empty due date throughout.
+
+Every string then rendered **from production's own stored rows**, in all three locales:
+
+| Surface | English | Hebrew | Russian |
+| --- | --- | --- | --- |
+| `card.overdue` | `Overdue Sep 10, 2026` | `באיחור מאז 10 בספט׳ 2026` | `Просрочено: 10 сент. 2026 г.` |
+| `card.dueSoon` | `Due Sep 16, 2026` | `עד 16 בספט׳ 2026` | `Срок: 16 сент. 2026 г.` |
+| `card.due` | `Due Sep 30, 2026` | `עד 30 בספט׳ 2026` | `Срок: 30 сент. 2026 г.` |
+| `card.partOfBadge` | `Part of ZZ copy Run a marathon` | `במסגרת ZZ copy Run a marathon` | `В рамках «ZZ copy Run a marathon»` |
+| `card.unassigned` | `Nobody` | `אף אחד` | `Не назначен` |
+| `goals.progress` | `1 of 2 milestones done` | `הושלמו 1 מתוך שתי אבני דרך` | `Выполнено 1 из 2 этапов` |
+| `milestone.addTo` | `Add a milestone to ZZ copy goal` | `הוספת אבן דרך למטרה ZZ copy goal` | `Добавить этап к цели «ZZ copy goal»` |
+| `milestone.cardChip` | `Card · ZZ copy due today` | `כרטיס · ZZ copy due today` | `Карточка · ZZ copy due today` |
+| `vision.tile` | `Open ZZ copy kitchen plans` | `פתיחת ZZ copy kitchen plans` | `Открыть «ZZ copy kitchen plans»` |
+| carousel | — | `תמונות · במסגרת ZZ copy goal · תמונה 1 מתוך 1` | `Изображения · В рамках «ZZ copy goal» · Изображение 1 из 1` |
+| image dialog | — | `עריכת תמונה`, `שיוך למטרה`, `ללא` | `Изменение изображения`, `Цель`, `Без привязки` |
+
+The carousel rendered **real pixels** from the stored image (900×675, `complete`), so the vision
+surfaces were seen over real content rather than a broken tile. Month groups came from `Intl`
+(`SEPTEMBER` / `ספטמבר` / `СЕНТЯБРЬ`). No horizontal overflow at any point. The badge fix was
+re-measured here on production's own stylesheet: Russian gaps **0 and 0**, every badge
+`inline-block` at 24.8px, the `⚠` marker carrying its 3.4px margin.
+
+**Everything created was deleted, and the result reconciled against the backup.** A second verified
+backup, `…2026-09-16T072830Z-schema5-5724c392.backup.enc`, reports **2 users, 2 allowed addresses, 3
+columns, 1 card, 0 goals, 0 milestones, 0 images, 0 bytes** — identical to the pre-walk copy in every
+count. Only the revisions moved: board 30 → 36, goals 8 → 13, vision 6 → 9, which is what revisions
+are for. `bytesUsed` returned to 0. The owner's interface language was restored to `en`.
+
+The one caveat worth keeping: SQLite does not return freed pages to the operating system, so the
+database's *size on disk* very likely did not fall when the image was deleted, even though the
+household's accounted `bytesUsed` did. That is a high-water mark, not a leak, and the Stage 8 walk
+had already raised it once.
+
 ### Still not verified
 
 1. **Safari, iOS and any real touch device.** `safaridriver` is present and enabled, but Safari's
-   **Develop → Allow Remote Automation** is off and the owner chose to leave it off, so no WebKit
-   session could be created. **This matters more than it did before**: the badge fix is a CSS layout
-   change, and `inline-block` versus `inline-flex` is exactly the class of difference that can vary
-   between engines. It was measured in Chromium only.
-2. **No screen reader.** Announcements were read out of the accessibility tree and live-region text,
-   never heard.
-3. **Production's own stored rows**, as above.
-4. **Dark theme in production.** Checked on the test Worker only; the changes move text and one
+   **Develop → Allow Remote Automation** is off. It cannot be enabled from a script: Safari's
+   preference container is TCC-protected, and `defaults write com.apple.Safari AllowRemoteAutomation`
+   fails with *"Could not write domain"* (attempted; nothing was changed). It has to be ticked in
+   Safari's own UI. **This matters more than it did before**: the badge fix is a CSS layout change,
+   and `inline-block` versus `inline-flex` is exactly the class of difference that can vary between
+   engines. It was measured in Chromium only.
+2. **No screen reader — attempted on 2026-09-16, and the attempt failed in a way worth recording**
+   so nobody repeats it. VoiceOver itself *can* be started (`open -a VoiceOver`; `activate` via
+   AppleScript times out, and Cmd+F5 does nothing). What cannot be done on this machine is capturing
+   what it says:
+   - `content of last phrase` refuses with `-1728` even after setting
+     `SCREnableAppleScript` in `com.apple.VoiceOver4/default` and restarting VoiceOver;
+   - `enabled of caption window` is not settable through AppleScript (`-10006`), so the caption panel
+     cannot be turned on that way;
+   - `screencapture` fails with *"could not create image from display"* — Screen Recording permission
+     is not granted — so the caption panel cannot be photographed either.
+
+   One further hazard, recorded because it nearly caused a privacy problem: driving the platform
+   accessibility tree through System Events targets `front window` of Google Chrome, which is
+   **whatever window the owner happens to have in front** — not the automated tab. That route reads
+   personal data and must not be used for this purpose. Any real screen-reader evidence needs a
+   person at the machine with VoiceOver on, or Screen Recording granted to a dedicated harness.
+
+   So this remains what it was: accessible names, roles, states and live-region text verified as the
+   *browser* computes them. Nothing has been heard.
+3. **Dark theme in production.** Checked on the test Worker only; the changes move text and one
    layout mode, not colour.

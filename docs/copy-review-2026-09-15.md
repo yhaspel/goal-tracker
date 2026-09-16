@@ -260,9 +260,20 @@ can be judged rather than taken on trust.
   What that does **not** prove: dnd-kit's own JavaScript reduced-motion branch, which needs a real
   drag, and the fifth static marker — the carousel's position counter — which is component-rendered
   rather than CSS and was confirmed separately by reading `תמונה 2 מתוך 2` out of the carousel.
-- **Every string, verbatim in what production serves.** All **999** dictionary values across the
-  three locales — including all 270 in the cluster production's own data cannot show — appear
+- **Every string, verbatim in what production serves.** All **1002** dictionary values across the
+  three locales — including every one in the cluster production's own data could not show — appear
   literally in the JavaScript production hands the browser. Zero missing.
+- **The cluster rendered from production's own database** (2026-09-16). The owner authorised
+  temporary rows, so a verified encrypted backup was taken first, the fewest rows that show the
+  surfaces were created through the real API, every string was read in all three locales, everything
+  was deleted, and a second verified backup reconciled **identically** on every count — 2 users,
+  2 allowed addresses, 3 columns, 1 card, 0 goals, 0 milestones, 0 images, 0 bytes. Only the
+  revisions moved. The due badges in all three states, `card.partOfBadge`, `card.unassigned` beside a
+  genuinely assigned card, the goal progress fraction, `milestone.addTo`, `milestone.cardChip`, the
+  vision tile, the carousel **over real pixels**, and the image edit dialog were all seen rendering
+  from rows production's own Worker returned. The badge fix was re-measured there: Russian gaps 0 and
+  0, every badge `inline-block` at 24.8px, the `⚠` marker keeping its 3.4px margin. Full detail is in
+  [the production deployment record](production-deployment.md).
 
 ## What is still unchecked
 
@@ -273,15 +284,14 @@ can be judged rather than taken on trust.
   that can differ between engines. It was measured in Chromium only.
 - **A real screen reader.** Every announcement was read out of the accessibility tree or the live
   region's text content. Nothing was heard.
-- **Production's own stored rows.** The household has no goal, no milestone, no image, and no card
-  with a due date or a milestone link, and the offer to create temporary rows behind a verified
-  backup was declined twice. Every string in that cluster *was* rendered **on the production origin,
-  in a real signed-in session, by production's own client bundle** — but from synthetic payloads
-  supplied by a read-only `fetch` wrapper that refused all four write verbs (verified by probing
-  `POST`, `PATCH`, `DELETE` and `PUT`, all rejected). Production's board, goals and vision revisions
-  were identical before and after. So: the strings render in production's real client, and they are
-  verbatim in production's bytes — but they have never been returned by production's own database.
-  That last step is the one thing no stub can reach.
+- **A real screen reader — attempted 2026-09-16, and it could not be done on this machine.**
+  VoiceOver can be started, but nothing can capture what it says: `content of last phrase` refuses
+  through AppleScript even with `SCREnableAppleScript` set, the caption panel cannot be enabled that
+  way, and `screencapture` is denied Screen Recording permission. Reading the platform accessibility
+  tree through System Events is *not* a substitute — it targets whatever Chrome window is frontmost,
+  which is the owner's own, so it reads personal data rather than the app. Real evidence needs a
+  person at the keyboard with VoiceOver on. Every announcement in this record was read out of the
+  browser's accessibility tree or the live region's text content. Nothing has been heard.
 - **Dark theme beyond one look.** Dark was checked on `/board` and `/goals` at 390 in Hebrew on the
   test Worker; production was walked in light only. The change moves text, not colour.
 

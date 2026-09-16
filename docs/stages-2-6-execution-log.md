@@ -489,3 +489,40 @@ entirely in which rows it reached. Only rendering it could have found that.
 
 **Next action:** none outstanding. If Safari is ever enabled for automation, the WebKit pass is the
 single highest-value check left for the interface.
+
+## 2026-09-16 — the cluster proven against production's own data; two gaps found to be unreachable
+
+**State:** unchanged in code. Production still runs `a3342650-cc9f-4269-b251-c171988e7973` from
+commit `432b406`; nothing was deployed. This entry records verification only.
+
+**The last open data gap is closed.** The owner authorised temporary rows in production, so the
+Stage 8 gated procedure ran: verified encrypted backup into its own directory first
+(`…2026-09-16T072434Z-schema5-17f5998d…`), then the fewest rows that show the surfaces — one goal,
+two milestones in two months with one done, three cards covering all three due states with one
+linked to a milestone, and one image uploaded through the real pipeline, captioned and linked. Every
+string in the cluster was read in all three locales from rows production's own Worker returned, the
+carousel over real pixels. Everything was deleted and a second verified backup reconciled
+**identically on every count**; only the revisions moved (board 30 → 36, goals 8 → 13, vision 6 → 9)
+and `bytesUsed` returned to 0. The household's one real card was never touched.
+
+**Two gaps turn out to be unreachable from here, and that is now written down rather than left to be
+rediscovered.**
+
+- **Safari** cannot be enabled by script. `safaridriver` is enabled, but *Allow Remote Automation*
+  lives behind Safari's TCC-protected preference container: `defaults write com.apple.Safari
+  AllowRemoteAutomation` fails with "Could not write domain". It must be ticked in Safari's UI.
+- **A screen reader** cannot be captured here. VoiceOver starts with `open -a VoiceOver`, but
+  `content of last phrase` refuses through AppleScript even with `SCREnableAppleScript` set, the
+  caption panel is not settable that way, and `screencapture` is denied Screen Recording permission.
+  **Do not fall back to the platform accessibility tree via System Events**: it targets `front window`
+  of Chrome, which is the owner's own frontmost window, so it reads personal data rather than the
+  app. That was hit once in this session and the output discarded. Any real screen-reader evidence
+  needs a person at the keyboard, or Screen Recording granted to a dedicated harness.
+
+Everything this session touched outside the repository was restored: VoiceOver switched off, the
+`com.apple.VoiceOver4` preference file it created deleted (it had not existed before), Safari
+preferences unchanged because every write was refused, and the local `wrangler dev` stage torn down
+with the machine's previous `.wrangler/state` put back.
+
+**Next action:** none. The two remaining gaps both need a human at the machine — one tick in Safari's
+Develop menu, and one person listening to VoiceOver.
