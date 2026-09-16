@@ -275,23 +275,30 @@ can be judged rather than taken on trust.
   0, every badge `inline-block` at 24.8px, the `⚠` marker keeping its 3.4px margin. Full detail is in
   [the production deployment record](production-deployment.md).
 
+- **Safari/WebKit** — the first WebKit pass this project has had, through `safaridriver` against
+  production (`AppleWebKit/605.1.15`, Safari 26.6.2, confirmed not Chromium). Zero horizontal
+  overflow in all nine width × locale combinations, `dir` correct, the self-hosted Barlow faces
+  loading, and **the badge fix holding**: `inline-block`, Russian guillemets at gap 0 either side,
+  `⚠` keeping its margin. Badge height is 24px in WebKit against 24.8px in Chromium — sub-pixel
+  rounding of the same box, not a defect.
+- **A real screen reader.** The owner enabled VoiceOver Utility's *Allow VoiceOver to be controlled
+  with AppleScript*, and VoiceOver's speech was read back verbatim. The two headline fixes of this
+  review were **heard**, out of the polite live region: `הכרטיס  ZZ vo card  נשמר.` and
+  `Карточка « ZZ vo card»  сохранена.` — the Hebrew naming the object before the title, the Russian
+  participle agreeing with `Карточка` rather than with member text. Also heard:
+  `card.dragInstructions` in full, the owner column strip's four buttons by name with `dimmed`
+  conveying the disabled state, `כרטיס אחד` as the Hebrew singular card count, and
+  `board.column.todo` spoken as the new `לביצוע`. Method and the full transcript are in
+  [the production deployment record](production-deployment.md).
+
 ## What is still unchecked
 
-- **Safari, iOS, and any real touch device.** `safaridriver` is present and enabled on this machine,
-  but Safari's **Develop → Allow Remote Automation** is off, and the owner chose to leave it off, so
-  no WebKit session could be created. This matters more than it did before 2026-09-16: the badge fix
-  is a **CSS layout change**, and `inline-block` versus `inline-flex` is exactly the class of thing
-  that can differ between engines. It was measured in Chromium only.
-- **A real screen reader.** Every announcement was read out of the accessibility tree or the live
-  region's text content. Nothing was heard.
-- **A real screen reader — attempted 2026-09-16, and it could not be done on this machine.**
-  VoiceOver can be started, but nothing can capture what it says: `content of last phrase` refuses
-  through AppleScript even with `SCREnableAppleScript` set, the caption panel cannot be enabled that
-  way, and `screencapture` is denied Screen Recording permission. Reading the platform accessibility
-  tree through System Events is *not* a substitute — it targets whatever Chrome window is frontmost,
-  which is the owner's own, so it reads personal data rather than the app. Real evidence needs a
-  person at the keyboard with VoiceOver on. Every announcement in this record was read out of the
-  browser's accessibility tree or the live region's text content. Nothing has been heard.
+- **iOS, and any real touch device.** The WebKit pass is macOS desktop Safari. iOS has a different
+  input stack and browser chrome, and 390px throughout this record is an emulated viewport rather
+  than a phone someone touched.
+- **Signed-in Safari.** The WebKit pass covered the guest routes plus the badge measured against the
+  real deployed stylesheet. A signed-in WebKit walk of the board, goals and vision screens has not
+  been done.
 - **Dark theme beyond one look.** Dark was checked on `/board` and `/goals` at 390 in Hebrew on the
   test Worker; production was walked in light only. The change moves text, not colour.
 

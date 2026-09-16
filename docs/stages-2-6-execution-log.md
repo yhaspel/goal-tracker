@@ -526,3 +526,34 @@ with the machine's previous `.wrangler/state` put back.
 
 **Next action:** none. The two remaining gaps both need a human at the machine — one tick in Safari's
 Develop menu, and one person listening to VoiceOver.
+
+### Later the same day — the owner ticked both, and both gaps closed
+
+Two settings, neither of which a script can set: Safari's **Develop → Allow Remote Automation**
+(TCC-protected container) and VoiceOver Utility's **Allow VoiceOver to be controlled with
+AppleScript** (VoiceOver ignores the equivalent `defaults` key).
+
+**Safari** now drives through `safaridriver`. Against production, on genuine WebKit
+(`AppleWebKit/605.1.15`, Safari 26.6.2): zero horizontal overflow in all nine width × locale
+combinations, `dir` correct, header heights identical to Chromium, the self-hosted Barlow faces
+loading, and the badge fix holding — `inline-block`, Russian guillemets at gap 0 either side, `⚠`
+keeping its 3.4px margin. The only engine difference is badge height, 24px against Chromium's 24.8px.
+That was the gap flagged as most load-bearing, because the badge fix was a CSS layout change; it is
+now measured in both engines.
+
+**VoiceOver** read the interface aloud and its speech was captured verbatim. The two headline fixes
+of the whole copy review were heard out of the polite live region — `הכרטיס  ZZ vo card  נשמר.` and
+`Карточка « ZZ vo card»  сохранена.` — along with `card.dragInstructions` in Hebrew, the column
+strip's four buttons by name with `dimmed` for the disabled ones, and `board.column.todo` spoken as
+the new `לביצוע`. Every previous report in this repository had to write "announced politely" meaning
+*read out of the accessibility tree*. That caveat is retired.
+
+Four practical notes are in the production deployment record so they are not rediscovered: VoiceOver
+only starts with `open -a VoiceOver`; it refuses Apple Events while speaking, so query it between
+utterances; `last phrase` returns the trailing hint and `text under cursor of vo cursor` returns the
+element name; and a live-region announcement has to be scheduled with `setTimeout` and polled across,
+because triggering then querying loses the race.
+
+**Still open:** iOS and a real touch device, a signed-in WebKit walk, and dark theme in production.
+
+**Next action:** none outstanding.

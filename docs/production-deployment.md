@@ -1329,33 +1329,93 @@ database's *size on disk* very likely did not fall when the image was deleted, e
 household's accounted `bytesUsed` did. That is a high-water mark, not a leak, and the Stage 8 walk
 had already raised it once.
 
+## Safari/WebKit, and a real screen reader — both closed, 2026-09-16
+
+The owner enabled two settings — Safari's **Develop → Allow Remote Automation**, and VoiceOver
+Utility's **Allow VoiceOver to be controlled with AppleScript**. Neither can be set from a script:
+Safari's preference container is TCC-protected (`defaults write com.apple.Safari
+AllowRemoteAutomation` fails with *"Could not write domain"*, attempted and refused, nothing
+changed), and VoiceOver ignores the equivalent `defaults` key. Both are ticks in a UI.
+
+### Safari — the first WebKit pass this project has ever had
+
+Driven through `safaridriver` (WebDriver), against **production**. Confirmed genuinely not Chromium:
+`AppleWebKit/605.1.15 … Version/26.6.2 Safari/605.1.15`.
+
+- **Zero horizontal overflow in all nine** width × locale combinations (390 / 834 / 1440 ×
+  `en` / `he` / `ru`); `lang` and `dir` follow the selector and `he` reports `rtl`.
+- Header height matches Chromium exactly — 65px at 390, 57px at 834 and 1440.
+- **The self-hosted fonts load in WebKit**: `Barlow` for body and `Barlow Condensed` for headings, at
+  every width. That had never been checked outside Chromium.
+- **The badge fix holds in WebKit**, measured against the real deployed stylesheet with the exact DOM
+  the component produces: every badge `display: inline-block`, the Russian
+  `В рамках «ZZ fix Run a marathon»` at **gap 0 before and 0 after** so the guillemets hug, Hebrew
+  and English at gap 0, and the `⚠` marker carrying `margin-inline-end: 3.4px`.
+- One honest engine difference: badge height is **24px in WebKit against 24.8px in Chromium**. That
+  is sub-pixel rounding of the same box, not a defect, and it is well inside every target-size floor.
+
+### A real screen reader — VoiceOver, heard rather than inferred
+
+VoiceOver was started, driven over the Hebrew and Russian interfaces, and its speech read back
+verbatim through its own AppleScript bridge (`content of last phrase`, `text under cursor of vo
+cursor`). The practical trick, recorded for next time: VoiceOver refuses Apple Events *while it is
+speaking* — a query mid-utterance times out after two minutes, the same query while idle answers in
+0.1s. Send the keystroke, let the speech finish, then read.
+
+**The two headline fixes of the whole copy review, spoken aloud:**
+
+| | What VoiceOver said |
+| --- | --- |
+| `card.saved`, Hebrew | `הכרטיס  ZZ vo card  נשמר.` — object named first, so the verb agrees with a noun the code knows |
+| `card.saved`, Russian | `Карточка « ZZ vo card»  сохранена.` — the participle agrees with `Карточка`, not with whatever the member typed |
+
+Both came out of the **polite live region**, which is exactly the thing every previous report had to
+describe as "announced politely — read out of the accessibility tree, not heard".
+
+Also captured, in Hebrew, reading the board:
+
+- `card.dragInstructions` in full: `לחצו על מקש הרווח או על Enter כדי להרים כרטיס, על מקשי החצים כדי
+  להזיז אותו, ושוב על הרווח או על Enter כדי להניח אותו.`
+- The owner column strip, every button named: `שינוי השם של לביצוע button`,
+  `הזזת לביצוע לכיוון ההתחלה dimmed button`, `הזזת לביצוע לכיוון הסוף button`, `מחיקת לביצוע button`
+  — note **`dimmed`**, which is how VoiceOver conveys the `disabled` attribute the design system
+  deliberately uses instead of `aria-disabled`.
+- Structure: `לביצוע list`, `ZZ vo card heading level 3`, `גרירת ZZ vo card button`.
+- The board's card count as the Hebrew singular: `כרטיס אחד`.
+- `card.editHeading` in Russian: `Изменение карточки dialog with 3 items` — the noun form the review
+  introduced.
+
+`board.column.todo` is therefore confirmed as `לביצוע` — the new value, not the old infinitive
+`לעשות` — in the words a screen reader actually speaks.
+
+One observation, not a defect: in the spoken stream a bidi-isolated title picks up a space at its
+element boundary (`הכרטיס  ZZ vo card  נשמר`, `« ZZ vo card»`). That is how the accessibility text is
+serialised across the isolation span; the *visual* rendering has no such gap, as the 0px badge
+measurements show.
+
+### What was needed to get here, recorded so it is not rediscovered
+
+- VoiceOver starts with `open -a VoiceOver`. `tell application "VoiceOver" to activate` times out and
+  Cmd+F5 does nothing.
+- The AppleScript bridge needs **VoiceOver Utility → General → Allow VoiceOver to be controlled with
+  AppleScript**. Writing `SCREnableAppleScript` into `com.apple.VoiceOver4/default` by hand does
+  *not* work; VoiceOver only honours the real toggle.
+- `content of last phrase` returns the **last** thing spoken, which is usually VoiceOver's trailing
+  hint ("You are currently on a button…"). For the element's own name use
+  `text under cursor of vo cursor` instead.
+- To catch a live-region announcement, schedule the action in the page with `setTimeout` and poll
+  VoiceOver from the shell across it. Triggering the action and then querying loses the race.
+- **Do not** fall back to reading the platform accessibility tree through System Events: it targets
+  `front window` of Google Chrome, which is whatever window the owner has in front, not the automated
+  tab. That happened once in this session, returned the owner's personal messages, and the output was
+  discarded.
+
 ### Still not verified
 
-1. **Safari, iOS and any real touch device.** `safaridriver` is present and enabled, but Safari's
-   **Develop → Allow Remote Automation** is off. It cannot be enabled from a script: Safari's
-   preference container is TCC-protected, and `defaults write com.apple.Safari AllowRemoteAutomation`
-   fails with *"Could not write domain"* (attempted; nothing was changed). It has to be ticked in
-   Safari's own UI. **This matters more than it did before**: the badge fix is a CSS layout change,
-   and `inline-block` versus `inline-flex` is exactly the class of difference that can vary between
-   engines. It was measured in Chromium only.
-2. **No screen reader — attempted on 2026-09-16, and the attempt failed in a way worth recording**
-   so nobody repeats it. VoiceOver itself *can* be started (`open -a VoiceOver`; `activate` via
-   AppleScript times out, and Cmd+F5 does nothing). What cannot be done on this machine is capturing
-   what it says:
-   - `content of last phrase` refuses with `-1728` even after setting
-     `SCREnableAppleScript` in `com.apple.VoiceOver4/default` and restarting VoiceOver;
-   - `enabled of caption window` is not settable through AppleScript (`-10006`), so the caption panel
-     cannot be turned on that way;
-   - `screencapture` fails with *"could not create image from display"* — Screen Recording permission
-     is not granted — so the caption panel cannot be photographed either.
-
-   One further hazard, recorded because it nearly caused a privacy problem: driving the platform
-   accessibility tree through System Events targets `front window` of Google Chrome, which is
-   **whatever window the owner happens to have in front** — not the automated tab. That route reads
-   personal data and must not be used for this purpose. Any real screen-reader evidence needs a
-   person at the machine with VoiceOver on, or Screen Recording granted to a dedicated harness.
-
-   So this remains what it was: accessible names, roles, states and live-region text verified as the
-   *browser* computes them. Nothing has been heard.
+1. **iOS, and any real touch device.** The Safari pass is macOS desktop WebKit. iOS Safari has a
+   different input stack and browser chrome, and 390px here is still an emulated viewport rather than
+   a phone someone touched.
+2. **Signed-in Safari.** The WebKit pass covered the guest routes plus the badge measured against the
+   real stylesheet. A signed-in WebKit walk of the board, goals and vision screens has not been done.
 3. **Dark theme in production.** Checked on the test Worker only; the changes move text and one
    layout mode, not colour.
