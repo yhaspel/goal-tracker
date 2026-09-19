@@ -135,6 +135,7 @@
   --gt-space-2: 6.8px;
   --gt-space-3: 10.2px;
   --gt-space-4: 13.6px;
+  --gt-space-5: 17px;
   --gt-space-6: 20.4px;
   --gt-space-8: 27.2px;
   --gt-space-12: 40.8px;
@@ -850,14 +851,49 @@ textarea[aria-invalid='true'] {
   cursor: pointer;
 }
 
+/*
+ * The global `appearance: none` on `input` strips a radio's native rendering, and `accent-color`
+ * does nothing once that is gone — so before this rule the two `/recover` options were identical
+ * empty squares whatever was checked. The state is drawn from the tokens instead: a round control
+ * with a dot. Round is deliberate deviation 12: a square radio reads as the checkbox this
+ * interface says it never has.
+ */
 .choice input[type='radio'] {
   inline-size: 24px;
   block-size: 24px;
   min-block-size: 0;
   /* A flex row would otherwise shrink it below the minimum on a long Russian label. */
   flex: none;
-  accent-color: var(--gt-accent-ink);
   margin: 0;
+  padding: 0;
+  border: 1px solid var(--gt-line);
+  border-radius: 50%;
+  background: var(--gt-surface);
+  display: inline-grid;
+  place-content: center;
+  cursor: pointer;
+}
+
+.choice input[type='radio']::before {
+  content: '';
+  inline-size: 12px;
+  block-size: 12px;
+  border-radius: 50%;
+  background: var(--gt-accent-ink);
+  transform: scale(0);
+}
+
+.choice input[type='radio']:checked {
+  border-color: var(--gt-accent-ink);
+}
+
+.choice input[type='radio']:checked::before {
+  transform: scale(1);
+}
+
+/* The `border` shorthand above outranks `input:hover`, so the hover cue every input has is restated. */
+.choice input[type='radio']:hover {
+  border-color: var(--gt-accent-ink);
 }
 
 /* --- buttons ----------------------------------------------------------------------------- */
@@ -911,6 +947,11 @@ button:active:not(:disabled) {
 button:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+/* Waiting on a request: the control keeps focus and its label; the busy squares say so. */
+button[aria-disabled='true'] {
+  cursor: progress;
 }
 
 /*
@@ -1357,6 +1398,13 @@ button.icon {
 }
 
 .board {
+  /*
+   * A positioned scroll container. The visually-hidden "Assigned to:" span in every card is
+   * absolutely positioned; without this its containing block is `.board-track`, and a card in a
+   * column that starts past the viewport edge parks that 1px box outside the track and scrolls the
+   * whole page sideways — 215px at 834 with four columns.
+   */
+  position: relative;
   list-style: none;
   margin: 0;
   padding: 0 0 var(--gt-space-4);
@@ -1546,6 +1594,7 @@ button.icon {
 
 .card-list .card {
   margin: 0;
+  position: relative;
   padding: var(--gt-space-3);
   background: var(--gt-raised);
   box-shadow: var(--gt-elev-sm);

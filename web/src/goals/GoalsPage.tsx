@@ -169,8 +169,8 @@ export function GoalsPage() {
         <p className="board-count">{plural('goals.milestoneCount', inYear.reduce((sum, goal) => sum + goal.milestones.length, 0))}</p>
         <button
           type="button"
+          id="add-goal"
           onClick={() => setGoalForm({ goal: null, draft: { title: '', notes: '', year } })}
-          disabled={pending}
         >
           <PlusIcon />
           {t('goals.addGoal')}
@@ -506,7 +506,7 @@ function GoalPlate({
       <div className="goal-head">
         <h2 className="goal-title">
           {/* The title is the edit affordance, the rule `.card-title-button` already follows. */}
-          <button type="button" className="card-title-button" dir="auto" onClick={onEdit} disabled={pending}>
+          <button type="button" className="card-title-button" dir="auto" onClick={onEdit}>
             {goal.title}
           </button>
         </h2>
@@ -557,7 +557,7 @@ function GoalPlate({
         </section>
       ))}
 
-      <button type="button" className="add-card" onClick={onAddMilestone} disabled={pending}>
+      <button type="button" className="add-card" id={`add-milestone-${goal.id}`} onClick={onAddMilestone}>
         <PlusIcon />
         {/* The goal's own title inside a translated sentence, so it keeps its own direction
             rather than being reordered by the surrounding one. */}
@@ -611,13 +611,15 @@ function MilestoneRow({
           className="milestone-toggle"
           aria-pressed={milestone.status === 'done'}
           aria-label={t('milestone.toggle', { title: milestone.title })}
-          disabled={pending}
-          onClick={onToggle}
+          aria-disabled={pending}
+          onClick={() => {
+            if (!pending) onToggle();
+          }}
         >
           {t('milestone.done')}
         </button>
         <h4 className="milestone-title">
-          <button type="button" className="card-title-button" dir="auto" onClick={onEdit} disabled={pending}>
+          <button type="button" className="card-title-button" dir="auto" onClick={onEdit}>
             {milestone.title}
           </button>
         </h4>

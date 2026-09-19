@@ -188,7 +188,14 @@ export function VisionPage() {
          * renders browser-supplied text in the *browser's* language rather than the app's, and
          * cannot be styled to the 44px target.
          */}
-        <button type="button" onClick={() => fileInput.current?.click()} disabled={pending || uploading}>
+        <button
+          type="button"
+          id="add-images"
+          aria-disabled={pending || uploading}
+          onClick={() => {
+            if (!pending && !uploading) fileInput.current?.click();
+          }}
+        >
           <PlusIcon />
           {t('vision.addImages')}
         </button>

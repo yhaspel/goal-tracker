@@ -141,6 +141,7 @@ export function SettingsPage() {
   };
 
   const revoke = async (id: string) => {
+    if (pending) return;
     setPending(true);
     try {
       await revokeInvitation(id);
@@ -333,8 +334,10 @@ export function SettingsPage() {
                 {invitation.status === 'pending' ? (
                   <button
                     type="button"
-                    onClick={() => void revoke(invitation.id)}
-                    disabled={pending}
+                    onClick={() => {
+                      if (!pending) void revoke(invitation.id);
+                    }}
+                    aria-disabled={pending}
                     aria-label={t('invitations.revokeFor', { email: invitation.email })}
                   >
                     {t('invitations.revoke')}
@@ -363,8 +366,10 @@ export function SettingsPage() {
               {member.role !== 'owner' && member.status === 'active' ? (
                 <button
                   type="button"
-                  onClick={() => setConfirmDeactivate(member)}
-                  disabled={pending}
+                  onClick={() => {
+                    if (!pending) setConfirmDeactivate(member);
+                  }}
+                  aria-disabled={pending}
                   aria-label={t('members.deactivateFor', { email: member.email })}
                 >
                   {t('members.deactivate')}

@@ -195,7 +195,13 @@ export function CardDialog({
            * sends the same text again against the reloaded revision. Neither is a new request.
            */}
           {changedElsewhere ? (
-            <button type="button" onClick={() => onDraftChange(draftFromCard(card))} disabled={pending}>
+            <button
+              type="button"
+              aria-disabled={pending}
+              onClick={() => {
+                if (!pending) onDraftChange(draftFromCard(card));
+              }}
+            >
               {t('card.discardDraft')}
             </button>
           ) : null}

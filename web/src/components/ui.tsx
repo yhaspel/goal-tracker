@@ -265,7 +265,8 @@ export function Dialog({
 // --- misc -----------------------------------------------------------------------------------
 
 /**
- * A submit button that cannot be double-fired while its request is in flight.
+ * A submit button that cannot be double-fired while its request is in flight, and that keeps
+ * keyboard focus while it waits: `aria-disabled`, never `disabled`.
  *
  * The label does not change while the request runs: a button whose accessible name rewrites
  * itself mid-action is disorienting, and one generic word cannot be right for signing in,
@@ -275,7 +276,18 @@ export function Dialog({
  */
 export function Submit({ pending, children }: { pending: boolean; children: ReactNode }) {
   return (
-    <button type="submit" className={pending ? 'primary busy' : 'primary'} disabled={pending} aria-busy={pending}>
+    <button
+      type="submit"
+      className={pending ? 'primary busy' : 'primary'}
+      aria-disabled={pending}
+      aria-busy={pending}
+      onClick={event => {
+        // The real `disabled` attribute would drop keyboard focus onto the document — inside a
+        // modal, out of the Tab trap. Clicks are refused here, and every form's submit handler
+        // already returns early while a request is in flight, so Enter in a field is safe too.
+        if (pending) event.preventDefault();
+      }}
+    >
       {children}
       {pending ? (
         <span className="busy-dots" aria-hidden="true">

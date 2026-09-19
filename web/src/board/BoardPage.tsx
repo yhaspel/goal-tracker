@@ -480,7 +480,7 @@ export function BoardPage() {
         {/* On a phone the dashed add-a-column plate at the end of the track has nowhere to
             live, so the owner's control sits in the header instead. */}
         {isOwner && phone ? (
-          <button type="button" onClick={openColumnForm}>
+          <button type="button" id="add-column" onClick={openColumnForm}>
             <PlusIcon />
             {t('board.addColumn')}
           </button>
@@ -571,7 +571,7 @@ export function BoardPage() {
             </p>
           </div>
         ) : (
-          <BoardTrack isOwner={isOwner} pending={pending} onAddColumn={openColumnForm} columnCount={columns.length}>
+          <BoardTrack isOwner={isOwner} onAddColumn={openColumnForm} columnCount={columns.length}>
             {columns.map((column, columnIndex) => (
               <ColumnView key={column.id} {...columnProps(column, columnIndex)} />
             ))}
@@ -710,13 +710,11 @@ export function BoardPage() {
 function BoardTrack({
   children,
   isOwner,
-  pending,
   onAddColumn,
   columnCount
 }: {
   children: ReactNode;
   isOwner: boolean;
-  pending: boolean;
   onAddColumn: () => void;
   columnCount: number;
 }) {
@@ -747,7 +745,7 @@ function BoardTrack({
         {children}
         {isOwner ? (
           <li role="listitem">
-            <button type="button" className="add-column" onClick={onAddColumn} disabled={pending}>
+            <button type="button" className="add-column" id="add-column" onClick={onAddColumn}>
               <PlusIcon />
               {t('board.addColumn')}
             </button>
@@ -834,33 +832,54 @@ function ColumnView({
        */}
       {isOwner ? (
         <div className="column-actions">
-          <button type="button" className="icon" onClick={onRename} disabled={pending} aria-label={t('board.renameColumn', { name: label })}>
+          <button
+            type="button"
+            className="icon"
+            id={`column-${column.id}-rename`}
+            aria-disabled={pending}
+            aria-label={t('board.renameColumn', { name: label })}
+            onClick={() => {
+              if (!pending) onRename();
+            }}
+          >
             <PencilIcon className="icon icon-sm" />
           </button>
           <button
             type="button"
             className="icon"
-            onClick={() => onMoveColumn(columnIndex - 1)}
-            disabled={pending || columnIndex === 0}
+            id={`column-${column.id}-move-start`}
+            disabled={columnIndex === 0}
+            aria-disabled={pending}
             aria-label={t('board.moveColumnStart', { name: label })}
+            onClick={() => {
+              if (!pending) onMoveColumn(columnIndex - 1);
+            }}
           >
             <ChevronStartIcon className="icon icon-sm" />
           </button>
           <button
             type="button"
             className="icon"
-            onClick={() => onMoveColumn(columnIndex + 1)}
-            disabled={pending || columnIndex === columns.length - 1}
+            id={`column-${column.id}-move-end`}
+            disabled={columnIndex === columns.length - 1}
+            aria-disabled={pending}
             aria-label={t('board.moveColumnEnd', { name: label })}
+            onClick={() => {
+              if (!pending) onMoveColumn(columnIndex + 1);
+            }}
           >
             <ChevronEndIcon className="icon icon-sm" />
           </button>
           <button
             type="button"
             className="icon"
-            onClick={onDelete}
-            disabled={pending || columns.length <= 1}
+            id={`column-${column.id}-delete`}
+            disabled={columns.length <= 1}
+            aria-disabled={pending}
             aria-label={t('board.deleteColumn', { name: label })}
+            onClick={() => {
+              if (!pending) onDelete();
+            }}
           >
             <TrashIcon className="icon icon-sm" />
           </button>
@@ -899,7 +918,7 @@ function ColumnView({
         ) : null}
       </ol>
 
-      <button type="button" className="add-card" onClick={onAddCard} disabled={pending}>
+      <button type="button" className="add-card" id={`add-card-${column.id}`} onClick={onAddCard}>
         <PlusIcon />
         {/* On a phone the button names the column it will add to, so a card can never land in
             the wrong one by accident. */}
@@ -995,7 +1014,7 @@ function CardView({
         <h3 className="card-title">
           {/* Activating the title opens Edit — that is how editing stays one step from the
               board, and what let four of the five per-card controls move into the menu. */}
-          <button type="button" className="card-title-button" dir="auto" onClick={onEdit} disabled={pending}>
+          <button type="button" className="card-title-button" dir="auto" onClick={onEdit}>
             {card.title}
           </button>
         </h3>
