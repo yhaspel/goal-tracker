@@ -574,3 +574,44 @@ desktop — Chromium and macOS WebKit. That one needs hardware.
 **Next action:** none outstanding. The interface work that began with the 2026-09-15 copy review is
 complete: three defects fixed and deployed, six verification gaps closed, and the single remaining
 gap is one only a physical device can close.
+
+## 2026-09-19 — the accessibility and design review, fixed and deployed
+
+**State.** `main` at the third commit below, level with `origin/main`, CI green, deployed to the test
+Worker by CI and to production by hand. Schema stays at **5**; this change touches no SQL, no API
+surface and no backup format.
+
+An accessibility audit and design critique of the shipped interface
+(`reviews/accessibility-and-design-review-2026-09-19.md`, now tracked) found 21 accessibility defects
+and 13 design defects. Its sixteen remediation items are done in three commits; the eight it marks
+advisory were deliberately left alone.
+
+1. `5330c61` — the radio checked state, `aria-disabled` instead of `disabled` on every
+   transient-pending control, `.board`/`.card` positioning, and the missing `--gt-space-5`.
+2. `f4c77d5` — focus after a move or a delete, the column and carousel announcements, per-route
+   `document.title`, the allowed-address field, the five select errors, badge truncation, and eight
+   new dictionary keys with two changed.
+3. `e01d6c4` — dark `--gt-line` to `#6f8190`, `--gt-on-steel`, the menu's real `role="group"`, the
+   unpressed toggle marker, the step line on step 1, and the records.
+
+**Deployed evidence.** Test Worker: the served bundle is byte-identical by sha256 to the local build,
+and the signed-in walk is summarised in the production deployment record — focus retained through a
+failed save inside a modal, focus placed after every move and delete including the end-of-travel
+fallback, the previously silent outcomes announced, goal plates at 17px, four columns at 834 with
+834 = 834 where the review measured 1049, an 80-character badge ellipsised with the column holding
+320px, dark card borders at 3.90 / 3.35 / 4.40:1, and a 75-combination sweep with zero overflow and
+zero sub-24px targets. Every `ZZ a11y` row it created was deleted; the household was left as found.
+
+Production: `a3342650-cc9f-4269-b251-c171988e7973` → **`55f98cba-3dcf-4ba9-bbfc-5c25c089abcf`**, health
+`200` at schema 5, all ten SPA routes `200 text/html no-store`, both served assets byte-identical to
+the local build, and a read-only guest walk over 60 route × width × locale × theme combinations with
+zero horizontal overflow.
+
+**Open risks.** No real screen reader was listened to in this pass; the invitation announcement and
+its focus move were never seen in a browser, because no allowed address on test lacks an account and
+the seats are full; the bootstrap step line was never seen rendered, because both environments have an
+owner; Chromium only, no touch device; and production's signed-in half was deliberately not walked,
+so every signed-in claim rests on the test Worker running byte-identical code.
+
+**Next action:** none outstanding. If the invitation path or the bootstrap step line needs real
+evidence, it requires a disposable household with a free seat — not this one.

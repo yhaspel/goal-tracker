@@ -1441,3 +1441,93 @@ through WebDriver, over `/board`, `/goals`, `/vision`, `/members` and `/account`
    input stack and browser chrome, and every 390px measurement in this record is a window or an
    emulated viewport rather than a phone someone touched. This one needs hardware; nothing on this
    machine can close it.
+
+## 2026-09-19 — the accessibility and design review, fixed and deployed
+
+The review at `reviews/accessibility-and-design-review-2026-09-19.md` found 21 accessibility defects
+and 13 design defects against WCAG 2.1 AA and this project's own floor. Its sixteen remediation items
+are implemented in three commits; the eight it marks advisory are deliberately untouched. That review
+is committed alongside the fix, so the evidence behind each finding stays with the repository.
+
+**Versions.** Live before: `a3342650-cc9f-4269-b251-c171988e7973` (2026-09-16) — that is the rollback
+target, and `npx wrangler rollback a3342650-cc9f-4269-b251-c171988e7973 --env production` is the way
+back. Live after: **`55f98cba-3dcf-4ba9-bbfc-5c25c089abcf`**. No migration: schema stays at 5, and
+nothing in this change touches SQL, the API surface or the backup format.
+
+**Checked on production, read-only.** `GET /api/v1/health` is `200` with `schemaVersion: 5`. All ten
+SPA routes answer `200 text/html` with `no-store`. The served `index-Dgeuu3Ka.js` and
+`index-DY40K2RC.css` are **byte-identical by sha256** to the local build, and the served JS contains
+`columnShown`, `positionWithCaption`, `methodLegend`, `Due soon:` and `בקרוב: עד`.
+
+The guest half was then walked in Chromium at **390 and 1440, in `en`, `he` and `ru`, light and dark**
+— 60 route × width × locale × theme combinations over `/`, `/login`, `/register`, `/recover` and
+`/bootstrap`. **Zero horizontal overflow in all 60.** The `/recover` radios render round at 24px with
+the dot visible only on the checked option, in every locale and both themes; the legend is the new
+question rather than a repeat of the heading; `/register` carries `Step 1 of 2`; every title reads
+`<heading> – Goal Tracker`, with `/` as `Goal Tracker` alone. No form was submitted, no wrong password
+was tried, and nothing was created, edited or deleted.
+
+One thing worth recording so it is not misread later: **production's `/bootstrap` briefly renders the
+form, and therefore the new step line, before its availability check returns.** Once the request
+resolves it shows `bootstrap.closed` and no step line, in all three locales. That flash is
+pre-existing — `bootstrap.body` behaved the same way before this change — and is a consequence of
+`available` starting unset while `bootstrapStatus()` is in flight, not of anything the review touched.
+
+**What production still has no evidence of its own for.** The signed-in half was not walked here: the
+owner's real rows were left alone, so every signed-in claim below rests on the deployed **test**
+Worker rather than on production. Specifically unproven against production are the focus behaviour
+after a move or a delete, the column and carousel announcements, the goal-plate padding, the badge
+truncation, and the dark border token on a real card. The code serving both is byte-identical, which
+is evidence, not a guarantee.
+
+### The test Worker pass behind this deploy
+
+Run against `https://family-board-test.yuval3000.workers.dev` at the same commit, signed in as the
+disposable smoke owner, with every row it created named `ZZ a11y …` and deleted afterwards. The
+household was left as it was found: no cards, no goals, no images, the three original columns, and the
+owner's saved language back to English.
+
+- **Focus is no longer dropped on the document.** A failed sign-in keeps focus on the Sign in button
+  in all three locales. A save refused for an empty title keeps focus on Save **inside the open
+  dialog**, and Tab from there still cycles within the dialog — the defect that previously put the
+  next Tab on the skip link behind the backdrop. The milestone toggle keeps focus when pressed by
+  keyboard. A card moved across columns lands focus on its own actions button; a deleted card on that
+  column's Add a card; a deleted milestone on its plate's add button; a deleted goal on Add a goal; a
+  deleted image on Add images; a deleted column on Add a column. A column moved to the end of its
+  travel hands focus to its Rename neighbour when its own button becomes structurally disabled —
+  measured, not inferred.
+- **The silent outcomes speak.** Column create, rename, move and delete each announce; the carousel
+  announces `Image 1 of 2` and `Image 2 of 2: ZZ a11y` as it steps, and its `alt` is now the caption;
+  an unreadable upload announces its reason assertively; the recovery-phrase step takes focus on its
+  own `<h2>`.
+- **The two rendering defects are gone.** A goal plate computes `padding: 17px` in both themes. With
+  four columns at 834, `document.documentElement.scrollWidth === clientWidth` (834 = 834) where the
+  review measured 1049. An 80-character milestone title in a card badge ellipsises — `scrollWidth`
+  459 against `clientWidth` 266 — and the column holds its 320px basis rather than stretching to 510.
+  `/members` at 390 in Russian measures 0 overflow against the review's 56px.
+- **Dark borders meet the floor on a real card**, measured from computed styles rather than from the
+  token: **3.90:1 on a card, 3.35:1 on the plate, 4.40:1 on the ground**, against 2.81 and 2.41 before.
+- **The allowed-address box no longer shouts.** Typing a malformed line sets `aria-invalid` and
+  `aria-describedby` on the textarea and renders one message inside the field, with **no `role="alert"`
+  element for it**. The draft was discarded by reload; the seven seats were not touched.
+- **The actions menu's group is a real group**: one `role="group"` labelled by "Move to column", zero
+  `role="presentation"` paragraphs, and no direct child of `role="menu"` that is neither a menuitem
+  nor a group. Its keyboard contract still opens on the first item with Enter and the last with ↑.
+- A **75-combination sweep** — five signed-in routes × 390/834/1440 × three locales, with dark added
+  at 390 and 1440 — found **zero horizontal overflow and zero interactive targets under 24px**. The
+  only element the detector flagged is the deliberately visually-hidden `<input type="file">`, which
+  is `tabindex="-1"`, `aria-hidden="true"` and labelled by a real button: deviation 9, and unchanged.
+
+### Not done, and why
+
+1. **No real screen reader was listened to** in this pass. Every announcement above was read from the
+   live region in the DOM. The VoiceOver work recorded earlier in this file is not repeated here.
+2. **The invitation outcome (R11c) was never seen.** It needs an allowed address with no account, and
+   on the test household all seven allowed addresses already have one; the seats are full, so the
+   allowed list must not be edited to manufacture one. The announcement and the focus move to the code
+   heading are therefore **unverified in a browser** — they are code-reviewed only.
+3. **The bootstrap step line was never seen rendered.** Both test and production have an owner account,
+   so `/bootstrap` shows `bootstrap.closed` in both. Only `/register`'s step line was observed.
+4. **Chromium only, no touch device.** Same gap as every other pass in this repository, and the same
+   one the review itself records.
+5. **The production signed-in half was not walked**, by choice: production holds real rows.
