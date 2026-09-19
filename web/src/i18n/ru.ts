@@ -87,6 +87,7 @@ export const ru: LocaleDictionary = {
   'recover.heading': 'Восстановление аккаунта',
   'recover.withPhrase': 'У меня есть фраза для восстановления',
   'recover.withToken': 'Владелец дал мне код сброса',
+  'recover.methodLegend': 'Как вы хотите восстановить доступ?',
   'recover.phraseBody': 'Введите адрес электронной почты, сохранённую фразу из 12 слов и новый пароль.',
   'recover.tokenBody':
     'Владелец может выдать одноразовый код сброса, убедившись, что это действительно вы. Код действует 15 минут.',
@@ -179,6 +180,12 @@ export const ru: LocaleDictionary = {
   'board.columnPosition': 'Колонка {n} из {total}',
   'board.addCardTo': 'Добавить карточку в колонку «{column}»',
   'board.scrollEnd': 'Прокрутить доску к концу',
+  'board.previousColumn': 'Предыдущая колонка',
+  'board.nextColumn': 'Следующая колонка',
+  'board.columnShown': 'Показана колонка «{name}», {n} из {total}.',
+  'board.columnSaved': 'Колонка «{name}» сохранена.',
+  'board.columnDeleted': 'Колонка «{name}» удалена.',
+  'board.columnMoved': 'Колонка «{name}» перемещена на позицию {position}.',
 
   'card.title': 'Название',
   'card.description': 'Описание',
@@ -193,7 +200,7 @@ export const ru: LocaleDictionary = {
   'card.moveDown': 'Переместить вниз',
   'card.moveToColumn': 'Переместить в колонку',
   'card.dragInstructions':
-    'Нажмите пробел или Enter, чтобы взять карточку, клавиши со стрелками — чтобы переместить её, и снова пробел или Enter — чтобы отпустить.',
+    'Нажмите пробел или Enter, чтобы взять карточку, клавиши со стрелками — чтобы переместить её, и снова пробел или Enter — чтобы отпустить. Чтобы отменить, нажмите Escape.',
   'card.dragPickedUp':
     'Карточка «{title}» взята. Позиция {position} в колонке «{column}». Перемещайте её клавишами со стрелками.',
   'card.dragOver': 'Карточка «{title}» над колонкой «{column}», позиция {position}.',
@@ -210,7 +217,7 @@ export const ru: LocaleDictionary = {
   'card.dueDate': 'Срок',
   'card.dueDateHelp': 'Только дата, без времени. Оставьте пустым, если срока нет.',
   'card.due': 'Срок: {date}',
-  'card.dueSoon': 'Срок: {date}',
+  'card.dueSoon': 'Скоро срок: {date}',
   'card.overdue': 'Просрочено: {date}',
   'card.partOf': 'Этап цели',
   'card.partOfNone': 'Без привязки',
@@ -296,6 +303,7 @@ export const ru: LocaleDictionary = {
   'vision.previous': 'Предыдущее изображение',
   'vision.next': 'Следующее изображение',
   'vision.position': 'Изображение {n} из {total}',
+  'vision.positionWithCaption': 'Изображение {n} из {total}: {caption}',
   'vision.uploadHeading': 'Добавление изображений',
   'vision.fileQueued': 'В очереди',
   'vision.filePreparing': 'Подготовка',

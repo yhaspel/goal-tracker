@@ -83,6 +83,7 @@ export const en = {
   'recover.heading': 'Recover your account',
   'recover.withPhrase': 'I have my recovery phrase',
   'recover.withToken': 'The owner gave me a reset code',
+  'recover.methodLegend': 'How do you want to recover?',
   'recover.phraseBody': 'Enter your email address, your saved 12-word recovery phrase, and a new password.',
   'recover.tokenBody':
     'The owner can issue a one-time reset code after confirming who you are. Codes expire after 15 minutes.',
@@ -174,6 +175,13 @@ export const en = {
   'board.columnPosition': 'Column {n} of {total}',
   'board.addCardTo': 'Add a card to {column}',
   'board.scrollEnd': 'Scroll the board towards the end',
+  /* Constant names for the pager's step buttons; the column that appears is announced instead. */
+  'board.previousColumn': 'Previous column',
+  'board.nextColumn': 'Next column',
+  'board.columnShown': 'Showing {name}, column {n} of {total}.',
+  'board.columnSaved': 'Column {name} saved.',
+  'board.columnDeleted': 'Column {name} deleted.',
+  'board.columnMoved': 'Column {name} moved to position {position}.',
 
   'card.title': 'Title',
   'card.description': 'Description',
@@ -187,7 +195,7 @@ export const en = {
   'card.moveUp': 'Move up',
   'card.moveDown': 'Move down',
   'card.moveToColumn': 'Move to column',
-  'card.dragInstructions': 'Press Space or Enter to pick up a card, use the arrow keys to move it, and press Space or Enter again to drop it.',
+  'card.dragInstructions': 'Press Space or Enter to pick up a card, use the arrow keys to move it, and press Space or Enter again to drop it. Press Escape to cancel.',
   'card.dragPickedUp': 'Picked up {title}. Position {position} in {column}. Use the arrow keys to move it.',
   'card.dragOver': '{title} over {column}, position {position}.',
   'card.dragCanceled': 'Move canceled. {title} stayed in {column}.',
@@ -205,7 +213,7 @@ export const en = {
   'card.dueDate': 'Due date',
   'card.dueDateHelp': 'A date without a time. Leave it empty if there is no due date.',
   'card.due': 'Due {date}',
-  'card.dueSoon': 'Due {date}',
+  'card.dueSoon': 'Due soon: {date}',
   'card.overdue': 'Overdue {date}',
   'card.partOf': 'Part of',
   'card.partOfNone': 'Nothing',
@@ -296,6 +304,7 @@ export const en = {
   'vision.next': 'Next image',
   /* Also the static marker under `prefers-reduced-motion`, where the transition is removed. */
   'vision.position': 'Image {n} of {total}',
+  'vision.positionWithCaption': 'Image {n} of {total}: {caption}',
   'vision.uploadHeading': 'Adding images',
   'vision.fileQueued': 'Waiting',
   'vision.filePreparing': 'Preparing',

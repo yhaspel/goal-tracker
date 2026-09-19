@@ -85,6 +85,9 @@ export function CardDialog({
   }));
   const known = new Set((goalsIndex?.milestones ?? []).map(milestone => milestone.id));
 
+  const assigneeError = fieldErrorText(translator, failure, 'assigneeUserId');
+  const milestoneError = fieldErrorText(translator, failure, 'milestoneId');
+
   return (
     <Dialog title={card ? t('card.editHeading') : t('card.createHeading')} onClose={onClose}>
       {changedElsewhere ? (
@@ -133,6 +136,8 @@ export function CardDialog({
             id="card-assignee"
             value={draft.assigneeUserId}
             onChange={event => onDraftChange({ ...draft, assigneeUserId: event.target.value })}
+            aria-invalid={assigneeError ? true : undefined}
+            aria-describedby={assigneeError ? 'card-assignee-error' : undefined}
           >
             <option value="">{t('card.unassigned')}</option>
             {members.map(member => (
@@ -145,8 +150,10 @@ export function CardDialog({
               <option value={assigneeId}>{assigneeId}</option>
             ) : null}
           </select>
-          {fieldErrorText(translator, failure, 'assigneeUserId') ? (
-            <span className="error">{fieldErrorText(translator, failure, 'assigneeUserId')}</span>
+          {assigneeError ? (
+            <span className="error" id="card-assignee-error">
+              {assigneeError}
+            </span>
           ) : null}
         </p>
 
@@ -158,6 +165,8 @@ export function CardDialog({
               id="card-milestone"
               value={draft.milestoneId}
               onChange={event => onDraftChange({ ...draft, milestoneId: event.target.value })}
+              aria-invalid={milestoneError ? true : undefined}
+              aria-describedby={milestoneError ? 'card-milestone-error' : undefined}
             >
               <option value="">{t('card.partOfNone')}</option>
               {groups.map(({ goal, milestones }) =>
@@ -182,8 +191,10 @@ export function CardDialog({
                 <option value={milestoneId}>{t('card.partOfUnknown')}</option>
               ) : null}
             </select>
-            {fieldErrorText(translator, failure, 'milestoneId') ? (
-              <span className="error">{fieldErrorText(translator, failure, 'milestoneId')}</span>
+            {milestoneError ? (
+              <span className="error" id="card-milestone-error">
+                {milestoneError}
+              </span>
             ) : null}
           </p>
         ) : null}

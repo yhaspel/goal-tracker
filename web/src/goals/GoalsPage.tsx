@@ -15,7 +15,7 @@ import { useSession } from '../auth/session';
 import { ActionsMenu, type MenuEntry } from '../components/ActionsMenu';
 import { errorText, fieldErrorText } from '../components/errors';
 import { PlusIcon } from '../components/icons';
-import { Alert, Dialog, Field, Submit, useAnnounce, useMonthNames, WithValue } from '../components/ui';
+import { Alert, Dialog, Field, Submit, useAnnounce, useFocusAfterRender, useMonthNames, WithValue } from '../components/ui';
 import { useTranslation } from '../i18n';
 import { useGoals } from './useGoals';
 
@@ -35,6 +35,7 @@ export function GoalsPage() {
   const months = useMonthNames();
   const { state, forgetSession } = useSession();
   const announce = useAnnounce();
+  const requestFocus = useFocusAfterRender();
   const { goals: snapshot, error, loading, refresh } = useGoals(state.status === 'active', forgetSession);
 
   const [pending, setPending] = useState(false);
@@ -161,6 +162,9 @@ export function GoalsPage() {
       if (saved) setMilestoneForm(null);
     });
   };
+
+  const yearError = fieldErrorText(translator, failure, 'year');
+  const monthError = fieldErrorText(translator, failure, 'month');
 
   return (
     <div className="goals-page">
@@ -290,6 +294,8 @@ export function GoalsPage() {
                 onChange={event =>
                   setGoalForm({ ...goalForm, draft: { ...goalForm.draft, year: Number(event.target.value) } })
                 }
+                aria-invalid={yearError ? true : undefined}
+                aria-describedby={yearError ? 'goal-year-error' : undefined}
               >
                 {yearChoices(goalForm.draft.year).map(entry => (
                   <option key={entry} value={String(entry)}>
@@ -297,8 +303,10 @@ export function GoalsPage() {
                   </option>
                 ))}
               </select>
-              {fieldErrorText(translator, failure, 'year') ? (
-                <span className="error">{fieldErrorText(translator, failure, 'year')}</span>
+              {yearError ? (
+                <span className="error" id="goal-year-error">
+                  {yearError}
+                </span>
               ) : null}
             </p>
             <div className="dialog-footer">
@@ -348,6 +356,8 @@ export function GoalsPage() {
                     draft: { ...milestoneForm.draft, month: Number(event.target.value) }
                   })
                 }
+                aria-invalid={monthError ? true : undefined}
+                aria-describedby={monthError ? 'milestone-month-error' : undefined}
               >
                 {months.map((name, index) => (
                   <option key={name} value={String(index + 1)}>
@@ -355,8 +365,10 @@ export function GoalsPage() {
                   </option>
                 ))}
               </select>
-              {fieldErrorText(translator, failure, 'month') ? (
-                <span className="error">{fieldErrorText(translator, failure, 'month')}</span>
+              {monthError ? (
+                <span className="error" id="milestone-month-error">
+                  {monthError}
+                </span>
               ) : null}
             </p>
             <div className="dialog-footer">
@@ -387,7 +399,9 @@ export function GoalsPage() {
                   void runMutation(
                     revision => deleteGoal(goal.id, { goalsRevision: revision }),
                     t('goals.deleted', { title: goal.title })
-                  );
+                  ).then(deleted => {
+                    if (deleted) requestFocus(['add-goal']);
+                  });
                 }}
               >
                 {t('app.delete')}
@@ -421,7 +435,9 @@ export function GoalsPage() {
                   void runMutation(
                     revision => deleteMilestone(milestone.id, { goalsRevision: revision }),
                     t('milestone.deleted', { title: milestone.title })
-                  );
+                  ).then(deleted => {
+                    if (deleted) requestFocus([`add-milestone-${milestone.goalId}`, 'add-goal']);
+                  });
                 }}
               >
                 {t('app.delete')}
@@ -560,10 +576,14 @@ function GoalPlate({
       <button type="button" className="add-card" id={`add-milestone-${goal.id}`} onClick={onAddMilestone}>
         <PlusIcon />
         {/* The goal's own title inside a translated sentence, so it keeps its own direction
-            rather than being reordered by the surrounding one. */}
-        <WithValue template={t('milestone.addTo')} name="title">
-          <span dir="auto">{goal.title}</span>
-        </WithValue>
+            rather than being reordered by the surrounding one. One span around the whole
+            sentence: the button is a flex row, and without it the template text and the title
+            were separate flex items that wrapped side by side at 390px. */}
+        <span>
+          <WithValue template={t('milestone.addTo')} name="title">
+            <span dir="auto">{goal.title}</span>
+          </WithValue>
+        </span>
       </button>
     </li>
   );

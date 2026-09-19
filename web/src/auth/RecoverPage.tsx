@@ -1,4 +1,4 @@
-import { type FormEvent, useState } from 'react';
+import { type FormEvent, useEffect, useRef, useState } from 'react';
 import type { CredentialRotationStartResponse } from '../../../shared/api';
 import {
   confirmOperatorRecovery,
@@ -7,7 +7,7 @@ import {
   startPhraseRecovery
 } from '../api/endpoints';
 import { errorText, fieldErrorText } from '../components/errors';
-import { Alert, Field, Submit } from '../components/ui';
+import { Alert, Field, Submit, useAnnounce } from '../components/ui';
 import { useTranslation } from '../i18n';
 import { Link } from '../router';
 import { PhraseStep } from './PhraseStep';
@@ -17,6 +17,8 @@ type Method = 'phrase' | 'operator';
 export function RecoverPage() {
   const translator = useTranslation();
   const { t } = translator;
+  const announce = useAnnounce();
+  const doneHeading = useRef<HTMLHeadingElement>(null);
 
   const [method, setMethod] = useState<Method>('phrase');
   const [email, setEmail] = useState('');
@@ -26,6 +28,10 @@ export function RecoverPage() {
   // Challenge and replacement phrase stay here until confirmation, then vanish.
   const [started, setStarted] = useState<CredentialRotationStartResponse | null>(null);
   const [done, setDone] = useState(false);
+  // Confirming unmounts the phrase step, which had focus; the done panel's heading takes it.
+  useEffect(() => {
+    if (done) doneHeading.current?.focus();
+  }, [done]);
   const [failure, setFailure] = useState<unknown>(null);
   const [pending, setPending] = useState(false);
 
@@ -64,6 +70,7 @@ export function RecoverPage() {
       else await confirmOperatorRecovery(body);
       setStarted(null);
       setDone(true);
+      announce(t('recover.done'));
     } catch (error) {
       setFailure(error);
     } finally {
@@ -74,7 +81,9 @@ export function RecoverPage() {
   if (done) {
     return (
       <section className="panel narrow">
-        <h1>{t('recover.heading')}</h1>
+        <h1 ref={doneHeading} tabIndex={-1}>
+          {t('recover.heading')}
+        </h1>
         <Alert tone="notice">{t('recover.done')}</Alert>
         <p className="link-action">
           <Link to="/login">{t('nav.signIn')}</Link>
@@ -103,7 +112,7 @@ export function RecoverPage() {
       <h1>{t('recover.heading')}</h1>
 
       <fieldset className="choice">
-        <legend>{t('recover.heading')}</legend>
+        <legend>{t('recover.methodLegend')}</legend>
         {(['phrase', 'operator'] as const).map(option => (
           <label key={option}>
             <input

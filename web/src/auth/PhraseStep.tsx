@@ -1,4 +1,4 @@
-import { type FormEvent, useState } from 'react';
+import { type FormEvent, useEffect, useRef, useState } from 'react';
 import { CopyButton, Field, Submit } from '../components/ui';
 import { useTranslation } from '../i18n';
 
@@ -24,6 +24,13 @@ export function PhraseStep({
 }) {
   const { t } = useTranslation();
   const [entered, setEntered] = useState('');
+  const heading = useRef<HTMLHeadingElement>(null);
+
+  // The step replaces a form without a navigation, and it shows the one-time phrase: focus goes to
+  // its heading so the change is announced and the keyboard position is at the top of it.
+  useEffect(() => {
+    heading.current?.focus();
+  }, []);
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -36,7 +43,9 @@ export function PhraseStep({
       {/* Nothing is written until this step succeeds, so saying where it sits in the flow is
           what tells someone that abandoning here costs — and creates — nothing. */}
       <p className="help">{t('flow.step', { n: 2, total: 2 })}</p>
-      <h2>{t('phrase.heading')}</h2>
+      <h2 ref={heading} tabIndex={-1}>
+        {t('phrase.heading')}
+      </h2>
       <p>{t('phrase.body')}</p>
       <p className="warning">
         <strong>{t('phrase.onceWarning')}</strong> {t('phrase.noStorage')}

@@ -132,6 +132,12 @@ describe('translation', () => {
     expect(russian.plural('board.cardCount', 21)).toBe('21 карточка');
   });
 
+  it('gives the due-soon badge its own sentence, so the state never rests on the tint', () => {
+    for (const locale of LOCALES) {
+      expect(DICTIONARIES[locale]['card.dueSoon']).not.toBe(DICTIONARIES[locale]['card.due']);
+    }
+  });
+
   it('keeps the product name identical in every locale', () => {
     // The one string the redesign deliberately does not translate. A household that mixes
     // languages would otherwise see a different product name per person, and the Russian

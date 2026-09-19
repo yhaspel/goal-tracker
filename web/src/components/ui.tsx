@@ -265,6 +265,35 @@ export function Dialog({
 // --- misc -----------------------------------------------------------------------------------
 
 /**
+ * Moves focus after the next commit, but only if focus was lost to the document.
+ *
+ * A control that a mutation removes or re-mounts — a deleted card's menu, a card moved to another
+ * column, a column button that just became structurally disabled — drops focus onto `<body>`. The
+ * caller names candidates in order; the first that exists and is enabled gets focus. If none
+ * does, the main landmark keeps the keyboard position sensible, as the dialog already does.
+ */
+export function useFocusAfterRender(): (candidates: readonly string[]) => void {
+  const pending = useRef<readonly string[] | null>(null);
+  useEffect(() => {
+    const candidates = pending.current;
+    if (candidates === null) return;
+    pending.current = null;
+    if (document.activeElement !== null && document.activeElement !== document.body) return;
+    for (const id of candidates) {
+      const element = document.getElementById(id);
+      if (element instanceof HTMLElement && !(element instanceof HTMLButtonElement && element.disabled)) {
+        element.focus();
+        return;
+      }
+    }
+    document.getElementById('main')?.focus();
+  });
+  return useCallback((candidates: readonly string[]) => {
+    pending.current = candidates;
+  }, []);
+}
+
+/**
  * A submit button that cannot be double-fired while its request is in flight, and that keeps
  * keyboard focus while it waits: `aria-disabled`, never `disabled`.
  *

@@ -10,6 +10,7 @@ import { BrandMark, CloseIcon, MenuIcon } from './components/icons';
 import { useMediaQuery, WithValue } from './components/ui';
 import { GoalsPage } from './goals/GoalsPage';
 import { useTranslation } from './i18n';
+import type { TranslationKey } from './i18n/en';
 import { LanguageSelector } from './i18n/LanguageSelector';
 import { SettingsPage } from './members/SettingsPage';
 import { Link, type RoutePath, useRouter } from './router';
@@ -20,6 +21,20 @@ import { WelcomePage } from './WelcomePage';
 const GUEST_ONLY: ReadonlySet<RoutePath> = new Set(['/login', '/register', '/recover', '/bootstrap']);
 /** Screens that need a live session. */
 const MEMBER_ONLY: ReadonlySet<RoutePath> = new Set(['/board', '/goals', '/vision', '/account', '/members']);
+
+/** The heading each route shows, so the tab, the history and a screen reader can tell them apart. */
+const TITLE_KEY: Record<RoutePath, TranslationKey | null> = {
+  '/': null,
+  '/login': 'signIn.heading',
+  '/register': 'register.heading',
+  '/recover': 'recover.heading',
+  '/bootstrap': 'bootstrap.heading',
+  '/board': 'board.heading',
+  '/goals': 'goals.heading',
+  '/vision': 'vision.heading',
+  '/account': 'account.heading',
+  '/members': 'settings.heading'
+};
 
 /** Below this the header collapses to the brand plus one menu button. */
 const PHONE = '(max-width: 833px)';
@@ -56,6 +71,12 @@ export default function App() {
       navigate('/board', { replace: true });
     }
   }, [state, path, navigate]);
+
+  // The title follows the screen and the language. `<title>` in index.html is only the first paint.
+  useEffect(() => {
+    const key = TITLE_KEY[path];
+    document.title = key === null ? t('app.name') : `${t(key)} – ${t('app.name')}`;
+  }, [path, t]);
 
   // Moving focus to the start of the new screen is what makes client-side navigation
   // announce itself and keeps the keyboard position sensible.

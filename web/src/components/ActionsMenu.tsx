@@ -36,11 +36,13 @@ const PHONE = '(max-width: 833px)';
 export function ActionsMenu({
   entries,
   triggerLabel,
-  menuLabel
+  menuLabel,
+  triggerId
 }: {
   entries: readonly MenuEntry[];
   triggerLabel: string;
   menuLabel: string;
+  triggerId?: string;
 }) {
   const { dir } = useTranslation();
   const phone = useMediaQuery(PHONE);
@@ -157,6 +159,7 @@ export function ActionsMenu({
         type="button"
         className="icon"
         ref={trigger}
+        id={triggerId}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={triggerLabel}

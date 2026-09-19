@@ -50,6 +50,7 @@ import {
   Submit,
   useAnnounce,
   useCalendarDay,
+  useFocusAfterRender,
   useMediaQuery,
   WithValue
 } from '../components/ui';
@@ -98,6 +99,7 @@ export function BoardPage() {
   const { t, plural, dir } = translator;
   const { state, forgetSession } = useSession();
   const announce = useAnnounce();
+  const requestFocus = useFocusAfterRender();
   const phone = useMediaQuery(PHONE);
 
   const isOwner = state.status === 'active' && state.user.role === 'owner';
@@ -241,13 +243,16 @@ export function BoardPage() {
             position: targetIndex + 1
           })
         );
+        // A card that changed column was re-mounted under another list, which destroyed whatever
+        // control had focus. A move within a column keeps its node, and the hook then does nothing.
+        requestFocus([`card-actions-${card.id}`]);
       } else {
         setOptimistic(previous);
         announce(t('card.moveRejected', { title: card.title }), 'assertive');
         await refresh();
       }
     },
-    [board, runMutation, setOptimistic, announce, t, refresh]
+    [board, runMutation, setOptimistic, announce, t, refresh, requestFocus]
   );
 
   /** Resolves the card a drag operation is carrying, if the board still knows about it. */
@@ -434,6 +439,14 @@ export function BoardPage() {
   const activeColumn = columns[active];
   const openColumnForm = () => setColumnForm({ column: null, name: '' });
 
+  /** Steps the phone pager and says where it landed; the buttons themselves keep constant names. */
+  const showColumn = (index: number) => {
+    const next = columns[index];
+    if (!next) return;
+    setPagerIndex(index);
+    announce(t('board.columnShown', { name: columnLabel(next, t), n: index + 1, total: columns.length }));
+  };
+
   const columnProps = (column: BoardColumn, columnIndex: number) => ({
     column,
     columnIndex,
@@ -447,7 +460,13 @@ export function BoardPage() {
     onRename: () => setColumnForm({ column, name: columnLabel(column, t) }),
     onDelete: () => setDeletingColumn(column),
     onMoveColumn: (index: number) =>
-      void runMutation(revision => moveColumn(column.id, { boardRevision: revision, targetIndex: index })),
+      void runMutation(revision => moveColumn(column.id, { boardRevision: revision, targetIndex: index }), {
+        announceOnSuccess: t('board.columnMoved', { name: columnLabel(column, t), position: index + 1 })
+      }).then(moved => {
+        // The button that was pressed keeps focus unless it just reached an end of the board and
+        // became disabled; then its Rename neighbour takes over.
+        if (moved) requestFocus([`column-${column.id}-move-${index < columnIndex ? 'start' : 'end'}`, `column-${column.id}-rename`, `pager-tab-${column.id}`]);
+      }),
     onEditCard: openEdit,
     onDeleteCard: setDeletingCard,
     onMoveCard: requestMove
@@ -469,7 +488,7 @@ export function BoardPage() {
     // A mostly-vertical drag is the list scrolling, not a column change.
     if (Math.abs(deltaX) < 56 || Math.abs(deltaX) <= Math.abs(deltaY)) return;
     const towardsEnd = dir === 'rtl' ? deltaX > 0 : deltaX < 0;
-    setPagerIndex(current => Math.min(Math.max(current + (towardsEnd ? 1 : -1), 0), columns.length - 1));
+    showColumn(Math.min(Math.max(active + (towardsEnd ? 1 : -1), 0), columns.length - 1));
   };
 
   return (
@@ -540,8 +559,8 @@ export function BoardPage() {
                 type="button"
                 className="icon"
                 disabled={active === 0}
-                aria-label={columnLabel(columns[active - 1] ?? activeColumn, t)}
-                onClick={() => setPagerIndex(active - 1)}
+                aria-label={t('board.previousColumn')}
+                onClick={() => showColumn(active - 1)}
               >
                 <ChevronStartIcon />
               </button>
@@ -553,8 +572,8 @@ export function BoardPage() {
                 type="button"
                 className="icon"
                 disabled={active === columns.length - 1}
-                aria-label={columnLabel(columns[active + 1] ?? activeColumn, t)}
-                onClick={() => setPagerIndex(active + 1)}
+                aria-label={t('board.nextColumn')}
+                onClick={() => showColumn(active + 1)}
               >
                 <ChevronEndIcon />
               </button>
@@ -615,6 +634,8 @@ export function BoardPage() {
                   setDeletingCard(null);
                   void runMutation(revision => deleteCard(card.id, { boardRevision: revision }), {
                     announceOnSuccess: t('card.deleted', { title: card.title })
+                  }).then(deleted => {
+                    if (deleted) requestFocus([`add-card-${card.columnId}`]);
                   });
                 }}
               >
@@ -647,7 +668,11 @@ export function BoardPage() {
                 onClick={() => {
                   const column = deletingColumn;
                   setDeletingColumn(null);
-                  void runMutation(revision => deleteColumn(column.id, { boardRevision: revision }));
+                  void runMutation(revision => deleteColumn(column.id, { boardRevision: revision }), {
+                    announceOnSuccess: t('board.columnDeleted', { name: columnLabel(column, t) })
+                  }).then(deleted => {
+                    if (deleted) requestFocus(['add-column']);
+                  });
                 }}
               >
                 {t('app.delete')}
@@ -669,10 +694,12 @@ export function BoardPage() {
             onSubmit={event => {
               event.preventDefault();
               const form = columnForm;
-              void runMutation(revision =>
-                form.column
-                  ? renameColumn(form.column.id, { boardRevision: revision, name: form.name })
-                  : createColumn({ boardRevision: revision, name: form.name })
+              void runMutation(
+                revision =>
+                  form.column
+                    ? renameColumn(form.column.id, { boardRevision: revision, name: form.name })
+                    : createColumn({ boardRevision: revision, name: form.name }),
+                { announceOnSuccess: t('board.columnSaved', { name: form.name }) }
               ).then(saved => {
                 if (saved) setColumnForm(null);
               });
@@ -1036,6 +1063,7 @@ function CardView({
             entries={cardMenuEntries(card, index, column, columns, pending, t, onEdit, onDelete, onMove)}
             triggerLabel={t('card.actions', { title: card.title })}
             menuLabel={t('card.actions', { title: card.title })}
+            triggerId={`card-actions-${card.id}`}
           />
         </div>
       </div>

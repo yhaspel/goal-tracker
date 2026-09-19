@@ -802,7 +802,8 @@ input[type='date']::-webkit-calendar-picker-indicator:hover {
 }
 
 input[aria-invalid='true'],
-textarea[aria-invalid='true'] {
+textarea[aria-invalid='true'],
+select[aria-invalid='true'] {
   border-color: var(--gt-danger);
   border-width: 2px;
   background: var(--gt-danger-fill);
@@ -1149,6 +1150,23 @@ button.icon {
   color: var(--gt-warning-ink);
 }
 
+/*
+ * A card badge or a milestone chip carries member text of up to 200 characters. It is cut with an
+ * ellipsis, still on one line, rather than allowed to widen its column or scroll the page. Only
+ * the box changes: the badge stays `inline-block`, so the bidi note above still holds.
+ */
+.card-badges .badge,
+.milestone-cards .badge {
+  max-inline-size: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* A status badge in a list is a short sentence that must stay readable, so it wraps instead. */
+.list .badge {
+  white-space: normal;
+}
+
 /* --- lists ------------------------------------------------------------------------------- */
 
 .list {
@@ -1447,6 +1465,12 @@ button.icon {
 .column {
   flex: 0 0 272px;
   scroll-snap-align: start;
+  /*
+   * A flex item's automatic minimum size is its min-content width, and this column's was the
+   * widest nowrap badge or address inside it — an 80-character milestone title made a 320px
+   * column 510px wide. The basis is the width; the content below is what gives way.
+   */
+  min-inline-size: 0;
   background: var(--gt-plate);
   border: 1px solid var(--gt-line);
   border-radius: var(--gt-radius);
@@ -1689,6 +1713,7 @@ button.icon {
   line-height: 1.45;
   color: var(--gt-ink-soft);
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
   overflow: hidden;
   display: -webkit-box;
   -webkit-box-orient: vertical;

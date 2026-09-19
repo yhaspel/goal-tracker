@@ -14,7 +14,7 @@ import { useSession } from '../auth/session';
 import { ActionsMenu, type MenuEntry } from '../components/ActionsMenu';
 import { errorText, fieldErrorText } from '../components/errors';
 import { ChevronEndIcon, ChevronStartIcon, PlusIcon } from '../components/icons';
-import { Alert, Dialog, Field, Submit, useAnnounce, WithValue } from '../components/ui';
+import { Alert, Dialog, Field, Submit, useAnnounce, useFocusAfterRender, WithValue } from '../components/ui';
 import { useTranslation } from '../i18n';
 import { prepareImage, TooLargeAfterEncodingError, UnreadableImageError } from './prepare';
 import { useVision } from './useVision';
@@ -29,6 +29,7 @@ export function VisionPage() {
   const { t, plural } = translator;
   const { state, forgetSession } = useSession();
   const announce = useAnnounce();
+  const requestFocus = useFocusAfterRender();
   const { vision, error, loading, refresh } = useVision(state.status === 'active', forgetSession);
 
   const [pending, setPending] = useState(false);
@@ -114,16 +115,19 @@ export function VisionPage() {
           update(key, 'done');
           added += 1;
         } catch (cause) {
-          if (cause instanceof UnreadableImageError) {
-            update(key, 'failed', t('vision.fileUnreadable'));
-          } else if (cause instanceof TooLargeAfterEncodingError) {
-            update(key, 'failed', t('error.image_too_large'));
-          } else {
-            update(key, 'failed', errorText(translator, cause));
-            if (cause instanceof ApiError && cause.status === 401) {
-              forgetSession();
-              break;
-            }
+          const reason =
+            cause instanceof UnreadableImageError
+              ? t('vision.fileUnreadable')
+              : cause instanceof TooLargeAfterEncodingError
+                ? t('error.image_too_large')
+                : errorText(translator, cause);
+          update(key, 'failed', reason);
+          // A success is announced once at the end; a failure is announced as it happens, because
+          // the list it lands in is not a live region.
+          announce(reason, 'assertive');
+          if (cause instanceof ApiError && cause.status === 401) {
+            forgetSession();
+            break;
           }
         }
       }
@@ -164,6 +168,8 @@ export function VisionPage() {
       </div>
     );
   }
+
+  const goalError = fieldErrorText(translator, failure, 'goalId');
 
   const submitEdit = (event: FormEvent) => {
     event.preventDefault();
@@ -313,6 +319,8 @@ export function VisionPage() {
                   id="image-goal"
                   value={editing.goalId}
                   onChange={event => setEditing({ ...editing, goalId: event.target.value })}
+                  aria-invalid={goalError ? true : undefined}
+                  aria-describedby={goalError ? 'image-goal-error' : undefined}
                 >
                   <option value="">{t('vision.goalNone')}</option>
                   {goalsIndex.goals.map(goal => (
@@ -324,8 +332,10 @@ export function VisionPage() {
                     <option value={editing.goalId}>{t('card.partOfUnknown')}</option>
                   ) : null}
                 </select>
-                {fieldErrorText(translator, failure, 'goalId') ? (
-                  <span className="error">{fieldErrorText(translator, failure, 'goalId')}</span>
+                {goalError ? (
+                  <span className="error" id="image-goal-error">
+                    {goalError}
+                  </span>
                 ) : null}
               </p>
             ) : null}
@@ -357,7 +367,9 @@ export function VisionPage() {
                   void runMutation(
                     revision => deleteVisionImage(image.id, { visionRevision: revision }),
                     t('vision.deleted')
-                  );
+                  ).then(deleted => {
+                    if (deleted) requestFocus(['add-images']);
+                  });
                 }}
               >
                 {t('app.delete')}
@@ -488,9 +500,18 @@ function Carousel({
   const image = images[at]!;
   const goal = goalsIndex?.goals.find(entry => entry.id === image.goalId) ?? null;
 
+  const announce = useAnnounce();
   const step = (delta: number) => {
     const next = (at + delta + images.length) % images.length;
     onStep(next);
+    // The image changes with `alt=""` on it, so without this a screen-reader user pressing Next
+    // hears nothing at all. The caption, when there is one, is the only description an image has.
+    const shown = images[next]!;
+    announce(
+      shown.caption === null
+        ? t('vision.position', { n: next + 1, total: images.length })
+        : t('vision.positionWithCaption', { n: next + 1, total: images.length, caption: shown.caption })
+    );
   };
 
   /**
@@ -524,7 +545,7 @@ function Carousel({
           className="carousel-image"
           key={image.id}
           src={visionImageUrl(image.id, 'full')}
-          alt=""
+          alt={image.caption ?? ''}
           width={image.width}
           height={image.height}
           style={{ aspectRatio: `${image.width} / ${image.height}` }}

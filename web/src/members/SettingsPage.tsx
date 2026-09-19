@@ -94,6 +94,21 @@ export function SettingsPage() {
   const ownerMissing = ownerEmail.length > 0 && !entries.includes(ownerEmail);
   const removals = allowed ? allowed.emails.filter(email => !entries.includes(email)) : [];
 
+  /**
+   * Live validation, as one message tied to the field through `Field`'s `error` — never as a
+   * `role="alert"`, which re-announced every keystroke, and never without `aria-invalid` and
+   * `aria-describedby` on the box it is about.
+   */
+  const liveError = duplicate
+    ? t('settings.duplicate', { email: duplicate })
+    : malformed
+      ? t('settings.invalidEntry', { entry: malformed })
+      : ownerMissing
+        ? t('field.emails.owner_required')
+        : entries.length > MAX_ALLOWED
+          ? t('settings.tooMany', { count: entries.length, max: MAX_ALLOWED })
+          : undefined;
+
   const saveList = async (event: FormEvent) => {
     event.preventDefault();
     if (pending || !allowed) return;
@@ -132,7 +147,10 @@ export function SettingsPage() {
       const created = await createInvitation({ email: normalize(inviteEmail) });
       setIssued(created);
       setInviteEmail('');
+      announce(t('invitations.codeHeading', { email: created.email }));
       await load();
+      // The code is the whole outcome, and it renders below the form: focus goes to it.
+      document.getElementById('invitation-code-heading')?.focus();
     } catch (error) {
       setInviteError(error);
     } finally {
@@ -262,13 +280,8 @@ export function SettingsPage() {
             rows={8}
             autoComplete="off"
             isolate
+            error={liveError}
           />
-          {duplicate ? <Alert tone="error">{t('settings.duplicate', { email: duplicate })}</Alert> : null}
-          {malformed ? <Alert tone="error">{t('settings.invalidEntry', { entry: malformed })}</Alert> : null}
-          {ownerMissing ? <Alert tone="error">{t('field.emails.owner_required')}</Alert> : null}
-          {entries.length > MAX_ALLOWED ? (
-            <Alert tone="error">{t('settings.tooMany', { count: entries.length, max: MAX_ALLOWED })}</Alert>
-          ) : null}
           {removals.length > 0 ? <Alert tone="notice">{t('settings.removalWarning')}</Alert> : null}
           <Submit pending={pending}>{t('settings.allowedSave')}</Submit>
         </form>
@@ -296,7 +309,7 @@ export function SettingsPage() {
 
         {issued ? (
           <div className="callout">
-            <h3>
+            <h3 id="invitation-code-heading" tabIndex={-1}>
               <WithValue template={t('invitations.codeHeading')} name="email">
                 <span className="isolate" dir="ltr">
                   {issued.email}
