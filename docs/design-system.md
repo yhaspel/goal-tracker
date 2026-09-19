@@ -59,11 +59,13 @@ Read them from `web/src/style.css`. The roles, rather than the values:
 | Accent | `--gt-accent` | Chrome, icons, the column underline. Not text |
 | Accent ink | `--gt-accent-ink` | Links, the primary fill, accent-coloured text |
 | Pressed accent | `--gt-accent-deep` | Hover and active one and two ramp steps on |
-| Steel | `--gt-steel` | The Done cap and the app mark, and nothing else |
+| Steel | `--gt-steel`, `--gt-on-steel` | The Done cap and the app mark, and the text and check on the cap — and nothing else |
 | Focus | `--gt-focus` | The ring. 8.8:1 light, 12.1:1 dark |
 | Status | `--gt-danger`, `--gt-warning-*`, `--gt-notice-*`, `--gt-success` | Each with a `-fill` |
 
-Spacing is Industry's 0.85 density: `--gt-space-1` (3.4px) through `--gt-space-12` (40.8px).
+Spacing is Industry's 0.85 density: `--gt-space-1` (3.4px) through `--gt-space-12` (40.8px) — the
+steps are 1, 2, 3, 4, 5, 6, 8 and 12; a step that is not on the list does not exist, and a rule that
+names one computes to nothing.
 Elevation is `--gt-elev-sm|md|lg`; on a dark ground shadow is inert, so those steps add a 1px
 inset top highlight instead. Motion is `--gt-dur-fast|base|slow` with `--gt-ease-out` and
 `--gt-ease-in-out`.
@@ -109,6 +111,12 @@ regions in the product allowed to scroll horizontally, and both are contained. T
 by the layout, not by clipping the body, so the verification pass can still see a real overflow
 if one is introduced.
 
+`.board` is `position: relative` and `.column` is `min-inline-size: 0` for two reasons the
+verification pass found: an absolutely positioned visually-hidden span inside a card otherwise
+escapes the scroll container and stretches the page, and a flex column otherwise grows to the
+widest nowrap badge or address inside it. Card badges and milestone chips truncate with an
+ellipsis; status badges in a list wrap.
+
 `BoardPage.tsx` reads `useMediaQuery('(max-width: 833px)')` as well as the stylesheet. That is
 what removes the drag handle from the DOM on a phone rather than merely hiding it, and what
 renders one column at a time behind the pager. Anything expressible in CSS alone stays in CSS.
@@ -133,7 +141,7 @@ Classes, and what owns them:
 | `.avatar` | `BoardPage` | Derived purely from the address: first character of the local part, uppercased, on a fill hashed from the whole address. The letter carries the meaning; the colour is decoration |
 | `.card-menu`, `.menu`, `.menu-item` | `ActionsMenu` | The actions menu, now shared by the board, the goals screen and the vision board. Anchored to the **viewport**, because the board track is a scroll container on both axes and an absolutely positioned menu is clipped at the column's foot |
 | `.pager*` | `BoardPage` | The phone column pager |
-| `.card-badges`, `.badge.warning` | `BoardPage` | The due and "part of" badges. Neither is a control, so the card still carries exactly two |
+| `.card-badges`, `.badge.warning` | `BoardPage` | The due and "part of" badges. Neither is a control, so the card still carries exactly two. Both truncate with an ellipsis at the card's width rather than widening the column. |
 | `.skeleton-*` | `BoardPage`, `GoalsPage`, `VisionPage` | First load only. A background refetch never blanks the screen |
 | `.year-strip`, `.year-chip` | `GoalsPage` | The year switcher. It **wraps**; it does not scroll. Its own classes rather than `.pager-*`, which is `display: none` above 834px |
 | `.goal-plate`, `.goal-head`, `.goal-title`, `.goal-progress` | `GoalsPage` | One goal. The title is the edit affordance, the same rule the card follows |
@@ -161,7 +169,8 @@ Do not "tidy" this back into `inline-flex`, and do not reach for the alternative
 keeping the flex container with `gap: 0` and a margin on the marker **loses** the space in the
 Hebrew and English templates, because an anonymous flex item's leading and trailing whitespace is
 stripped and the gap was silently supplying it. Only a badge whose whole label sits in one inline
-formatting context is correct.
+formatting context is correct. Setting `max-inline-size`, `overflow`, `text-overflow` or, in a
+list, `white-space` on a badge is fine — `display` is what must not change.
 
 There is no automated guard. The test suite runs in the Workers runtime with no jsdom, and jsdom
 performs no layout, so this class of defect is reachable only by looking at a rendered badge.
@@ -183,7 +192,8 @@ move group. Move up and move down are **disabled, not hidden**, at the ends of a
 
 This is a floor, not a target. A change may raise it and must not lower it.
 
-- 4.5:1 for body text and 3:1 for borders and large text, **in both themes**.
+- 4.5:1 for body text and 3:1 for borders and large text, **in both themes**. Dark `--gt-line` is
+  `#6f8190`: 3.35:1 on the plate, which is the tightest ground it sits on.
 - A 3px focus ring at 2px offset, never removed, re-checked against any new background.
 - 24px absolute minimum target, 44px wherever a finger reaches. An inline link inside a sentence
   is the one WCAG exception, and even those are padded to 24px here.
@@ -193,6 +203,13 @@ This is a floor, not a target. A change may raise it and must not lower it.
 - `aria-busy` plus a marker that is still visible under `prefers-reduced-motion`.
 - Emails, codes and phrase words are `dir="ltr"` and bidi-isolated inside Hebrew sentences;
   member-written text is `dir="auto"` so it takes direction from what was typed.
+- A control that is waiting on a request is `aria-disabled`, never `disabled`: the real attribute
+  strips focus from the control that was just activated, which inside a modal defeats the Tab trap.
+  A control with a label to keep (`Submit`) adds `aria-busy` and the busy squares. Real `disabled`
+  is for structural states only — the ends of a list, the last column, the pager at its ends.
+- When a mutation removes or re-mounts the control that had focus, `useFocusAfterRender` puts focus
+  on a named neighbour (the list's add control, the moved card's menu) and falls back to `main`.
+  The document title follows the route (`Board – Goal Tracker`).
 
 ## Motion
 
@@ -251,6 +268,9 @@ Do not "fix" these; each is a decision with a reason.
     isolation and the template has to: each is a separator plus two U+2068/U+2069-isolated
     placeholders, and contains no translatable word. `tests/web.ui.test.ts` names them, with
     `app.name`, as the asserted exceptions to the never-identical rule.
+12. **The `/recover` radios are round.** The global `appearance: none` strips a radio's native
+    rendering, so the checked state is drawn from the tokens; a square one reads as the checkbox
+    this interface says it never has, so it is the one round control in the system.
 
 ## Verifying a UI change
 
@@ -269,7 +289,10 @@ in both themes, and confirm:
 - the focus ring is visible on every new control, against its own background;
 - no icon carries meaning without text or an `aria-label`;
 - addresses, codes and phrase words stay left-to-right inside Hebrew sentences;
-- every announcement string is unchanged.
+- every announcement string is unchanged;
+- the document title names the screen;
+- every mutation that can move or remove the focused control leaves focus on something (never on
+  the document).
 
 A guest session and a signed-in session reach different routes — the guest-only screens redirect
 once a session exists — so walk them separately rather than assuming one pass covered both.

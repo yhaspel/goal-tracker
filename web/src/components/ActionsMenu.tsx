@@ -1,4 +1,4 @@
-import { Fragment, type KeyboardEvent as ReactKeyboardEvent, useEffect, useRef, useState } from 'react';
+import { Fragment, type KeyboardEvent as ReactKeyboardEvent, useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from '../i18n';
 import { MoreIcon } from './icons';
 import { useMediaQuery } from './ui';
@@ -59,6 +59,7 @@ export function ActionsMenu({
   const [anchor, setAnchor] = useState<DOMRect | null>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const items = useRef<Array<HTMLButtonElement | null>>([]);
+  const menuId = useId();
 
   const reachable = entries
     .map((entry, position) => (entry.disabled ? -1 : position))
@@ -151,7 +152,15 @@ export function ActionsMenu({
     }
   };
 
-  let openedGroup: string | null = null;
+  // Consecutive entries that share a `group` render inside one labelled `role="group"`, which is
+  // what a menu may contain. A bare paragraph between menu items is not, and was never read as the
+  // group's name.
+  const runs: Array<{ group: string | undefined; entries: Array<{ entry: MenuEntry; position: number }> }> = [];
+  entries.forEach((entry, position) => {
+    const last = runs[runs.length - 1];
+    if (last !== undefined && last.group === entry.group) last.entries.push({ entry, position });
+    else runs.push({ group: entry.group, entries: [{ entry, position }] });
+  });
 
   return (
     <div className="card-menu">
@@ -181,41 +190,43 @@ export function ActionsMenu({
         <>
           <div className="menu-backdrop" onMouseDown={() => close(false)} />
           <div className="menu" role="menu" aria-label={menuLabel} style={placement} onKeyDown={onMenuKeyDown}>
-            {entries.map((entry, position) => {
-              const heading = entry.group !== undefined && entry.group !== openedGroup;
-              if (entry.group !== undefined) openedGroup = entry.group;
+            {runs.map((run, runIndex) => {
+              const rows = run.entries.map(({ entry, position }) => (
+                <button
+                  key={entry.key}
+                  type="button"
+                  role="menuitem"
+                  ref={element => {
+                    items.current[position] = element;
+                  }}
+                  tabIndex={position === activeItem ? 0 : -1}
+                  className={
+                    entry.danger === true
+                      ? 'menu-item danger'
+                      : entry.group !== undefined
+                        ? 'menu-item menu-item-column'
+                        : 'menu-item'
+                  }
+                  disabled={entry.disabled}
+                  dir={entry.autoDir === true ? 'auto' : undefined}
+                  onFocus={() => setActiveItem(position)}
+                  onClick={() => {
+                    close(true);
+                    entry.run();
+                  }}
+                >
+                  {entry.label}
+                </button>
+              ));
+              if (run.group === undefined) return <Fragment key={`run-${runIndex}`}>{rows}</Fragment>;
+              const labelId = `${menuId}-group-${runIndex}`;
               return (
-                <Fragment key={entry.key}>
-                  {heading ? (
-                    <p className="menu-group-label" role="presentation">
-                      {entry.group}
-                    </p>
-                  ) : null}
-                  <button
-                    type="button"
-                    role="menuitem"
-                    ref={element => {
-                      items.current[position] = element;
-                    }}
-                    tabIndex={position === activeItem ? 0 : -1}
-                    className={
-                      entry.danger === true
-                        ? 'menu-item danger'
-                        : entry.group !== undefined
-                          ? 'menu-item menu-item-column'
-                          : 'menu-item'
-                    }
-                    disabled={entry.disabled}
-                    dir={entry.autoDir === true ? 'auto' : undefined}
-                    onFocus={() => setActiveItem(position)}
-                    onClick={() => {
-                      close(true);
-                      entry.run();
-                    }}
-                  >
-                    {entry.label}
-                  </button>
-                </Fragment>
+                <div role="group" aria-labelledby={labelId} key={`run-${runIndex}`}>
+                  <p className="menu-group-label" id={labelId}>
+                    {run.group}
+                  </p>
+                  {rows}
+                </div>
               );
             })}
           </div>

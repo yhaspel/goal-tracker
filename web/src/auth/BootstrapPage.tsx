@@ -91,6 +91,7 @@ export function BootstrapPage() {
         </>
       ) : (
         <>
+          <p className="help">{t('flow.step', { n: 1, total: 2 })}</p>
           <p>{t('bootstrap.body')}</p>
           {failure ? <Alert tone="error">{errorText(translator, failure)}</Alert> : null}
           <form onSubmit={prepare} noValidate>

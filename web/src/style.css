@@ -169,6 +169,7 @@
   --gt-accent-deep: #2c455d;
   --gt-steel: #1d2d3d;
   --gt-on-accent: #f2f2f3;
+  --gt-on-steel: #f2f2f3;
   --gt-focus: #2c455d;
   --gt-danger: #8c2020;
   --gt-danger-fill: #fbeaea;
@@ -216,6 +217,9 @@
  * Dark is a palette, not an inversion: the ground is the accent ramp's darkest step pulled
  * toward neutral, cards rise by lightness rather than by shadow, and the accent moves to
  * step 400 so it can carry body text.
+ *
+ * `--gt-line` is 3.35:1 on the plate, 3.90:1 on a card and 4.40:1 on the ground — the previous
+ * value met 3:1 on the ground only.
  */
 @media (prefers-color-scheme: dark) {
   :root {
@@ -224,13 +228,14 @@
     --gt-plate: #22303d;
     --gt-ink: #e8eaec;
     --gt-ink-soft: #a3adb6;
-    --gt-line: #5a6a75;
+    --gt-line: #6f8190;
     --gt-line-soft: #35414a;
     --gt-accent: #94bce3;
     --gt-accent-ink: #94bce3;
     --gt-accent-deep: #b5d9fd;
     --gt-steel: #22303d;
     --gt-on-accent: #14191d;
+    --gt-on-steel: #f2f2f3;
     --gt-focus: #b5d9fd;
     --gt-danger: #f0a8a8;
     --gt-danger-fill: #2b1c1c;
@@ -238,7 +243,7 @@
     --gt-warning-line: #a8843a;
     --gt-warning-fill: #2a2312;
     --gt-notice-fill: #1a242e;
-    --gt-notice-line: #5a6a75;
+    --gt-notice-line: #6f8190;
     --gt-success: #7fc9a2;
     --gt-success-fill: #17251e;
     --gt-elev-sm: inset 0 1px 0 #35414a;
@@ -985,7 +990,7 @@ button.primary:active:not(:disabled) {
   button.primary:active:not(:disabled) {
     background: var(--gt-accent-deep);
     border-color: var(--gt-accent-deep);
-    color: #14191d;
+    color: var(--gt-on-accent);
   }
 }
 
@@ -1518,14 +1523,14 @@ button.icon {
 
 .column.column-done .column-header h2,
 .column.column-done .column-count {
-  color: #f2f2f3;
+  color: var(--gt-on-steel);
 }
 
 .done-check {
   inline-size: 18px;
   block-size: 18px;
   flex: none;
-  stroke: #f2f2f3;
+  stroke: var(--gt-on-steel);
   fill: none;
   stroke-width: 2;
   stroke-linecap: round;
@@ -1843,6 +1848,21 @@ button.icon {
 }
 
 .menu-item:last-child {
+  border-block-end: 0;
+}
+
+/* The labelled group is a block inside the column flex menu; its rows stack like the rest. */
+.menu [role='group'] {
+  display: flex;
+  flex-direction: column;
+}
+
+/* The hairline between a group's last row and the row after it survives the grouping. */
+.menu [role='group'] .menu-item:last-child {
+  border-block-end: 1px solid var(--gt-line-soft);
+}
+
+.menu [role='group']:last-child .menu-item:last-child {
   border-block-end: 0;
 }
 
@@ -2222,10 +2242,14 @@ button.icon {
   color: var(--gt-raised);
 }
 
-/* A mark as well as a colour, the same rule every status in the product follows. */
+/* A mark as well as a colour in both states, the same rule every status in the product follows. */
+.milestone-toggle::before {
+  content: '○';
+  margin-inline-end: var(--gt-space-1);
+}
+
 .milestone-toggle[aria-pressed='true']::before {
   content: '✓';
-  margin-inline-end: var(--gt-space-1);
 }
 
 .milestone-cards {

@@ -69,6 +69,7 @@ export function RegisterPage() {
         />
       ) : (
         <>
+          <p className="help">{t('flow.step', { n: 1, total: 2 })}</p>
           <p>{t('register.body')}</p>
           <p className="help">{t('register.inviteHow')}</p>
           <p>

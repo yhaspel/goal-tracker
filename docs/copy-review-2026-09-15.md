@@ -615,3 +615,29 @@ Old and new value of every key that changed, per locale.
 | `field.data.invalid` | `Это изображение не удалось прочитать.` | `Не удалось прочитать это изображение.` |
 | `field.mediaType.invalid` | `Такой вид изображения здесь использовать нельзя.` | `Этот формат изображения здесь не поддерживается.` |
 | `field.width.invalid` | `Такой размер изображения недопустим.` | `Недопустимые размеры изображения.` |
+
+## Addendum 2026-09-19 — accessibility review
+
+The accessibility audit and design critique in `reviews/accessibility-and-design-review-2026-09-19.md`
+found five copy defects behind its findings: the phone pager's step buttons were named after the
+adjacent column rather than after what they do, column changes and the carousel were silent, the
+due-soon badge repeated the plain due sentence word for word, and the recovery method's legend
+repeated the page heading. These eight keys were added and two changed.
+
+| Key | `en.ts` | `he.ts` | `ru.ts` |
+| --- | --- | --- | --- |
+| `board.previousColumn` | `Previous column` | `העמודה הקודמת` | `Предыдущая колонка` |
+| `board.nextColumn` | `Next column` | `העמודה הבאה` | `Следующая колонка` |
+| `board.columnShown` | `Showing {name}, column {n} of {total}.` | `מוצגת העמודה {name}, עמודה {n} מתוך {total}.` | `Показана колонка «{name}», {n} из {total}.` |
+| `board.columnSaved` | `Column {name} saved.` | `העמודה {name} נשמרה.` | `Колонка «{name}» сохранена.` |
+| `board.columnDeleted` | `Column {name} deleted.` | `העמודה {name} נמחקה.` | `Колонка «{name}» удалена.` |
+| `board.columnMoved` | `Column {name} moved to position {position}.` | `העמודה {name} הוזזה למיקום {position}.` | `Колонка «{name}» перемещена на позицию {position}.` |
+| `vision.positionWithCaption` | `Image {n} of {total}: {caption}` | `תמונה {n} מתוך {total}: {caption}` | `Изображение {n} из {total}: {caption}` |
+| `recover.methodLegend` | `How do you want to recover?` | `איך תרצו לשחזר את החשבון?` | `Как вы хотите восстановить доступ?` |
+
+Changed:
+
+| Key | `en.ts` | `he.ts` | `ru.ts` |
+| --- | --- | --- | --- |
+| `card.dueSoon` | `Due soon: {date}` | `בקרוב: עד {date}` | `Скоро срок: {date}` |
+| `card.dragInstructions` | appends ` Press Escape to cancel.` | appends ` לביטול, לחצו על Escape.` | appends ` Чтобы отменить, нажмите Escape.` |

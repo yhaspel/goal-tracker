@@ -54,7 +54,7 @@ The rules most easily broken by accident, stated here so they are not missed:
 
 Barlow and Barlow Condensed are self-hosted from `web/public/fonts/` and ship with the build. Do not reintroduce a runtime font request. Neither face has a Cyrillic cut, so Russian falls through to the platform UI face exactly as Hebrew does; that is expected, not a defect.
 
-The design system document also lists eleven deliberate deviations — from Industry, and from the applied plan — each with its reason. Check that list before "fixing" something that looks wrong.
+The design system document also lists twelve deliberate deviations — from Industry, and from the applied plan — each with its reason. Check that list before "fixing" something that looks wrong.
 
 A UI change is not verified by a passing build. Walk the routes it touches at 390, 834 and 1440, in `en`, `he` and `ru`, light and dark, keyboard only, with guest and signed-in sessions walked separately, and record what you actually checked and what you did not.
 
@@ -74,6 +74,7 @@ A UI change is not verified by a passing build. Walk the routes it touches at 39
 | `web/src/components/` | Shared interface primitives — announcer, `Field`, `Dialog`, `Submit` — and the inline-SVG icon set |
 | `web/public/fonts/` | Self-hosted Barlow and Barlow Condensed woff2 subsets, copied into the build |
 | `docs/design-system.md` | The interface design system: tokens, rules, components, the accessibility floor, and how to verify a UI change |
+| `reviews/` | Accessibility and design reviews of the shipped interface; each records what was measured and what was not |
 | `scripts/check-i18n.ts` | Release check for dictionary completeness, placeholders, and plural categories |
 | `worker/src/index.ts` | API-first routing, explicit API and SPA route allowlists, body and content-type bounds |
 | `worker/src/household-do.ts` | Durable Object request dispatch, SQLite migration startup, and test-only diagnostics |
