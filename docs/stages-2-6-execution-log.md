@@ -615,3 +615,35 @@ so every signed-in claim rests on the test Worker running byte-identical code.
 
 **Next action:** none outstanding. If the invitation path or the bootstrap step line needs real
 evidence, it requires a disposable household with a free seat — not this one.
+
+## 2026-09-23 — the app installs from Chrome, in production
+
+**State.** `main` at the records commit that follows `340946c`, level with `origin/main`. `340946c`
+is the change itself, CI run [35907151869](https://github.com/yhaspel/goal-tracker/actions/runs/35907151869)
+green on both jobs. It was deployed to the test Worker by CI as
+`a73222ba-4631-4b00-b81f-5ee2876c9b24`, and to production by hand:
+`55f98cba-3dcf-4ba9-bbfc-5c25c089abcf` → **`7d17ea4e-64f7-4331-bee7-bf24d2fd4565`**. Schema stays at
+**5**; no SQL, no API surface, no backup format, and nothing under `web/src` changed.
+
+The content security policy gains `manifest-src 'self'`. Without it, `default-src 'none'` refused any
+manifest, so no browser could ever offer installation. The shell links a web app manifest and an
+icon set cut from the app mark on the steel tile, and there is deliberately no service worker.
+
+**Deployed evidence.** On both Workers every new file is served with its expected type and is
+byte-identical to the build, `/sw.js` answers `404`, and the CSP carries `manifest-src 'self'` and
+no `worker-src`. Both bundles are byte-identical to what production already served. Headless
+Chromium 141 went from `no-manifest` on production before the deploy to no installability errors
+and one `beforeinstallprompt` on test and on production after it. Chrome 153 shows a clean guest
+console on both. The owner then installed the app from production in their own Chrome and reported
+the right name and steel icon in the dialog, their own window opening on the board signed in, a
+title bar matching the header, and the steel icon in the Dock. The full table is in
+[the production deployment record](production-deployment.md), under its 2026-09-23 entry.
+
+**Open risks.** The Claude-in-Chrome extension was not connected, so no agent read the owner's own
+browser; its checks ran in a separate Chrome 153 on its own profile. Stable Chrome's installability
+verdict comes only from the owner's successful install, since the CDP verdict is headless
+Chromium 141's. The title bar was reported in one theme only. Android, iPhone and every non-macOS
+platform are untried. The rollback was not exercised.
+
+**Next action:** none outstanding. Installation on a phone needs the owner's own device: Chrome's
+menu on Android, **Add to Home Screen** in Safari on an iPhone.

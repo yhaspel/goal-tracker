@@ -1531,3 +1531,95 @@ owner's saved language back to English.
 4. **Chromium only, no touch device.** Same gap as every other pass in this repository, and the same
    one the review itself records.
 5. **The production signed-in half was not walked**, by choice: production holds real rows.
+
+## 2026-09-23 — the app installs from Chrome
+
+**Versions.** Live before: `55f98cba-3dcf-4ba9-bbfc-5c25c089abcf` (2026-09-19), the rollback target.
+Live after: **`7d17ea4e-64f7-4331-bee7-bf24d2fd4565`**, deployed by hand with `npm run deploy:prod`
+at 19:10Z from commit `340946c`. That was after CI run
+[35907151869](https://github.com/yhaspel/goal-tracker/actions/runs/35907151869) passed `checks` on
+that exact commit, and `deploy-test` put it on the test Worker as
+`a73222ba-4631-4b00-b81f-5ee2876c9b24`. No migration: schema stays at 5, and nothing in this change
+touches SQL, the API surface, the backup format or anything under `web/src`.
+
+**What changed.** Production's content security policy was `default-src 'none'` with no
+`manifest-src`, so Chromium refused any web app manifest and no browser could ever offer to install
+the app. The policy now carries `manifest-src 'self'`, and the shell links a manifest (`Goal
+Tracker`, `id` and `scope` `/`, `start_url` `/board`, `standalone`) plus an icon set cut from the app
+mark on the steel tile: `favicon.ico` at 16, 32 and 48px, `icons/icon.svg` for the tab, a 180px
+`apple-touch-icon.png`, and the 192px, 512px and maskable 512px PNGs. Two `theme-color` tags equal
+`--gt-raised` in each theme, so an installed window's title bar runs into the header. Every such
+colour is a literal copy of a token, which is deviation 13 in the
+[design system](design-system.md#deliberate-deviations) and is pinned by
+`tests/app-install.test.ts`; [the app icon](design-system.md#the-app-icon) says how each file is
+composed. There is deliberately no service worker: Chromium no longer needs one to offer
+installation, the app has no offline mode, and the shell must never be cached. `AGENTS.md` records
+the rules any future one must keep. Wrangler uploaded exactly eight files (`index.html`, the manifest
+and the six icon files) and reused the other twelve, so the two bundles production serves are the
+bytes it served before.
+
+### Verified, and how
+
+| Check | How | Result |
+| --- | --- | --- |
+| Local suite | `npm ci`, `lint`, `typecheck`, `check:links`, `check:i18n`, `npm test`, `npm run build` | All pass. 338 English keys, unchanged; 23 files and 273 tests, three of them in `tests/app-install.test.ts`. `web/dist/assets/` holds exactly `index-Dgeuu3Ka.js` and `index-DY40K2RC.css`, and there is no `sw.js` |
+| CI | Run 35907151869 on `340946c` | `checks` green, including the dependency audit and both bundle dry runs; `deploy-test` green, including its own routing and health check |
+| Health | `curl`, test and production | `200`, `schemaVersion: 5` |
+| The shell | `curl GET /board`, test and production | `200 text/html`, `no-store`; the CSP contains `manifest-src 'self'` and no `worker-src` |
+| Manifest and icons | `curl` each file on test and production, and compare its sha256 with `web/dist/` | `/manifest.webmanifest` is `200 application/manifest+json`, `/favicon.ico` `image/vnd.microsoft.icon`, `/icons/icon.svg` `image/svg+xml`, the four PNGs `image/png`. All seven are byte-identical to the build |
+| No service worker | `curl GET /sw.js` | `404` on both |
+| The bundles | The shell's asset links, and the sha256 of each served file | `index-Dgeuu3Ka.js` and `index-DY40K2RC.css` on both, byte-identical to the local build. The same comparison against production **before** the deploy, at 19:07Z, matched too |
+| Production API and routes | `curl`, no session | `/api/v1/board`, `/api/v1/goals` and `/api/v1/vision` `401`; `POST /api/v1/operator/import` `404`; all ten SPA routes `200 text/html`, `no-store`; an unknown path `404` |
+| Chromium's own verdict | A throwaway Playwright 1.56.0 probe outside the repository: one guest load of `/board` in a persistent profile, then `Page.getAppManifest` and `Page.getInstallabilityErrors` over CDP | The table below |
+| Chrome's console and manifest | Google Chrome 153 in a fresh isolated context, as a guest, on `/login` on test and then on production | Only the guest's own `401` session probe: no `Refused to load manifest` and no CSP report. The manifest link, both icon links, the touch icon and both `theme-color` tags are present. The manifest reads `Goal Tracker`, `start_url` `/board` and three icons, each answering `200`, as do the three linked icons. No service worker |
+| The page itself | One screenshot of test's `/login` at 1440 in English | Renders as before, no horizontal overflow; dark, which was the system appearance at the time |
+| The install | The owner, in their own Chrome on macOS, on production | Below |
+
+The probe, headless Chromium 141.0.7390.37, the same script each time:
+
+| Field | Production before (19:07:41Z, `55f98cba`) | Test (19:09:31Z, `a73222ba`) | Production after (19:10:59Z, `7d17ea4e`) |
+| --- | --- | --- | --- |
+| `landedOn`, `title` | `/login`, `Sign in – Goal Tracker` | the same | the same |
+| `manifestUrl` | `""` | `…/manifest.webmanifest` | `…/manifest.webmanifest` |
+| `manifestErrors` | `[]` | `[]` | `[]` |
+| `installabilityErrors` | **`[{ errorId: "no-manifest" }]`** | **`[]`** | **`[]`** |
+| `beforeinstallprompt` | 0 | 1 | 1 |
+| `serviceWorkers` | 0 | 0 | 0 |
+| `consoleErrors` | one `404`, whose message names no URL; `/favicon.ico` answered `404` at the time | none | none |
+
+**The owner installed it from production** in their own Chrome, and reported, in answer to four
+fixed questions:
+
+- the install dialog named **Goal Tracker** and showed the steel icon;
+- the app opened in its own window, on the board, already signed in;
+- the window's title bar matched the header's colour;
+- the Dock or Launchpad showed the steel icon.
+
+That is their report. No agent saw any of it: the install icon, the dialog and the installed window
+are browser and operating-system chrome, and nobody clicked the install UI for them.
+
+### Not verified, and why
+
+1. **The owner's own Chrome was never driven by an agent.** The plan was to read its console through
+   the Claude-in-Chrome extension, which was not connected in this session. The console and manifest
+   checks therefore ran in a separate Google Chrome 153, launched by the Chrome DevTools MCP on its
+   own profile. The owner's install is the only evidence from their own browser.
+2. **Stable Chrome's installability verdict was never read directly.** The CDP verdict above is
+   headless Chromium 141's. Chrome 153 was not asked, and its page network log does not list the
+   manifest, because Chrome fetches the manifest on demand. The owner's successful install is the
+   evidence that stable Chrome agrees.
+3. **The title bar was reported in one theme**: whichever the owner's system was in at the time. It
+   was not re-checked with the system appearance switched.
+4. **No phone.** Chrome on Android and Safari's **Add to Home Screen** on an iPhone were not tried, so
+   the maskable icon's crop and the touch icon on a home screen are unverified. So are Windows, Linux,
+   ChromeOS and every Chromium browser other than Chrome.
+5. **No interface walk**, because the bundles are byte-identical to what production already served.
+   The one screenshot above is the whole visual check.
+6. **Nothing was signed in by an agent**, in either environment. The signed-in window is the owner's
+   observation.
+7. **The rollback was not exercised.**
+
+**Rollback:** `npx wrangler rollback 55f98cba-3dcf-4ba9-bbfc-5c25c089abcf --env production`, or
+revert `340946c` and `npm run deploy:prod`. Static files, `index.html` and one CSP directive: no
+schema, no migration, no API change, no data. A copy someone already installed keeps its window and
+icon after a rollback, and simply opens the site as it was.
