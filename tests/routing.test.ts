@@ -67,6 +67,8 @@ describe('front Worker routing', () => {
       expect(csp).toContain("frame-ancestors 'none'");
       expect(csp).toContain("base-uri 'none'");
       expect(csp).toContain("object-src 'none'");
+      // Installation: the manifest would be blocked by `default-src 'none'` without its own rule.
+      expect(csp).toContain("manifest-src 'self'");
       // The one allowance, and the only one: inline style attributes. Never scripts, never eval.
       expect(csp).toContain("style-src 'self' 'unsafe-inline'");
       expect(csp).not.toContain('unsafe-eval');

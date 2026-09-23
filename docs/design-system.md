@@ -155,6 +155,26 @@ Icons live in `web/src/components/icons.tsx`: inline SVG on a 20×20 box at 1.5p
 package, and no glyph that depends on a font. **No icon carries meaning alone** — each sits
 beside visible text or inside a control named by an `aria-label` from the dictionary.
 
+### The app icon
+
+The installed app, the browser tab and a phone's home screen all show the app mark — `BrandMark`,
+geometry unchanged — in `--gt-on-steel` on a square `--gt-steel` tile. That is the app mark's own
+use of steel, not a third one, and the tile is square because rule 2 says so. The platforms add
+their own shape on top: Android crops the maskable icon to its circle or squircle, and iOS rounds
+the touch icon.
+
+| File | Where it shows | Composition |
+| --- | --- | --- |
+| `web/public/icons/icon-192.png`, `icon-512.png` | The installed window, the dock or taskbar, the launcher | The mark centred on its ink box at 15/512 of the tile per grid unit, so it spans 63% of the width |
+| `web/public/icons/icon-maskable-512.png` | Android's adaptive icon | 14/512 per unit, which keeps every stroke inside the 40% safe circle |
+| `web/public/apple-touch-icon.png` | An iPhone's home screen, 180px | As the standard icons |
+| `web/public/icons/icon.svg`, `web/public/favicon.ico` | The browser tab; the ICO carries 16, 32 and 48px | 1.21/32 per unit, with a 1.8 stroke rather than 1.5 so the mark still reads at 16px |
+
+The mark's ink box, round caps included, runs x 2.25–23.75 and y 2.75–21.25 on its 24-unit grid,
+so it is centred on (13, 12). The PNGs and the ICO are rendered from exactly that geometry: if
+`BrandMark` changes, every file in the table is re-rendered in the same change. Their colours are
+copies of tokens — deviation 13.
+
 ### A badge is not a flex container, on purpose
 
 `.badge` is `display: inline-block`, and its `::before` marker is separated by `margin-inline-end`
@@ -271,6 +291,14 @@ Do not "fix" these; each is a decision with a reason.
 12. **The `/recover` radios are round.** The global `appearance: none` strips a radio's native
     rendering, so the checked state is drawn from the tokens; a square one reads as the checkbox
     this interface says it never has, so it is the one round control in the system.
+13. **The install surface carries literal colours.** The web app manifest, the two `theme-color`
+    tags in `web/index.html` and the icon files are read by the browser and the operating system,
+    never by CSS, so none of them can name a custom property. Each value is a copy of a token: the
+    theme colour is `--gt-raised` in each theme, so an installed window's title bar runs straight
+    into the header; the manifest's splash background is light `--gt-surface`; the icons are light
+    `--gt-steel` and `--gt-on-steel`. The manifest holds a single theme colour, so it carries the
+    light one and the dark `theme-color` tag takes over once the page has loaded.
+    `tests/app-install.test.ts` reads the built stylesheet and fails if any copy drifts.
 
 ## Verifying a UI change
 

@@ -54,7 +54,9 @@ The rules most easily broken by accident, stated here so they are not missed:
 
 Barlow and Barlow Condensed are self-hosted from `web/public/fonts/` and ship with the build. Do not reintroduce a runtime font request. Neither face has a Cyrillic cut, so Russian falls through to the platform UI face exactly as Hebrew does; that is expected, not a defect.
 
-The design system document also lists twelve deliberate deviations — from Industry, and from the applied plan — each with its reason. Check that list before "fixing" something that looks wrong.
+The app installs as a Chrome app. The installed window, the tab and a phone's home screen show the app mark on the steel tile, and the icon files, the web app manifest and the two `theme-color` tags carry literal copies of design tokens because nothing that reads them reads CSS. `tests/app-install.test.ts` compares every copy with the built stylesheet; the design system document's section on the app icon says how each file is composed, and every one of them is re-rendered if `BrandMark` changes.
+
+The design system document also lists thirteen deliberate deviations — from Industry, and from the applied plan — each with its reason. Check that list before "fixing" something that looks wrong.
 
 A UI change is not verified by a passing build. Walk the routes it touches at 390, 834 and 1440, in `en`, `he` and `ru`, light and dark, keyboard only, with guest and signed-in sessions walked separately, and record what you actually checked and what you did not.
 
@@ -73,6 +75,7 @@ A UI change is not verified by a passing build. Walk the routes it touches at 39
 | `web/src/style.css` | The one stylesheet: design tokens for both themes, `@font-face`, and every component rule |
 | `web/src/components/` | Shared interface primitives — announcer, `Field`, `Dialog`, `Submit` — and the inline-SVG icon set |
 | `web/public/fonts/` | Self-hosted Barlow and Barlow Condensed woff2 subsets, copied into the build |
+| `web/public/manifest.webmanifest`, `web/public/icons/`, `web/public/favicon.ico`, `web/public/apple-touch-icon.png` | Installation as an app: the web app manifest, and the icon set cut from the app mark |
 | `docs/design-system.md` | The interface design system: tokens, rules, components, the accessibility floor, and how to verify a UI change |
 | `reviews/` | Accessibility and design reviews of the shipped interface; each records what was measured and what was not |
 | `scripts/check-i18n.ts` | Release check for dictionary completeness, placeholders, and plural categories |
@@ -123,7 +126,9 @@ The test Worker is `https://family-board-test.yuval3000.workers.dev` and product
 
 Stage 7 adds `BACKUP_OPERATOR_SECRET` (a distinct 32-byte value per environment, authorising the operator backup routes) and `BACKUP_HOUSEHOLD_ID` (trusted configuration, a tracked `var` for production and test, set per drill with `wrangler secret put` on `restore`). Both operator routes fail closed. The import route lives **only** in the restore build: `__ENABLE_RESTORE_IMPORT__` is a build-time `define`, true only for `restore`, and CI fails if `operator/import` or `restore_import_marker` ever appears in the production dry-run bundle. The operator routes are bearer-authenticated, never cookie-authenticated, and are therefore exempt from `assertSameOrigin()`, which a CLI could never satisfy; every refusal answers with the same JSON `404` an unknown path gets, with the reason going to `security-log.ts`.
 
-Every response carries `nosniff`, `Referrer-Policy: no-referrer` and HSTS; documents and assets also carry a `default-src 'none'` CSP with `frame-ancestors 'none'`. `style-src` allows `'unsafe-inline'` because React and the drag projection set `style=` attributes — that is a required allowance, not a convenience, and `script-src` never gets one. The SPA shell is `no-store` on every route.
+Every response carries `nosniff`, `Referrer-Policy: no-referrer` and HSTS; documents and assets also carry a `default-src 'none'` CSP with `frame-ancestors 'none'`. `style-src` allows `'unsafe-inline'` because React and the drag projection set `style=` attributes — that is a required allowance, not a convenience, and `script-src` never gets one. `manifest-src 'self'` exists for installation and nothing else: without it, `default-src 'none'` blocks the web app manifest. The SPA shell is `no-store` on every route.
+
+**There is deliberately no service worker.** Chrome no longer needs one before it offers to install an app — on 2026-09-23 headless Chromium 141 reported no installability errors and fired `beforeinstallprompt` with no service worker registered — and the app has no offline mode for one to serve. If one is ever added, it must never cache: the shell is `no-store` because one `index.html` serves `/register` and `/recover`, a recovery phrase must never reach a service-worker cache, and a cached shell would outlive the hashed assets of the deploy it came from. It would also need `worker-src 'self'` in the CSP, and once shipped it can only be retired by shipping a version that unregisters itself.
 
 Stage 2 provisioned four disposable **test** secrets — `BOOTSTRAP_SECRET`, `RECOVERY_DIGEST_KEY`, `CSRF_SECRET`, and `RATE_LIMIT_KEY` — and the account routes fail closed with `503 unavailable` when any of the last three is missing. The test household now holds a disposable owner and six members; its seven seats are full, so re-running the full bootstrap flow needs a reset disposable namespace. Local development needs the same four values in a Git-ignored `.dev.vars`; see the root `README.md`.
 

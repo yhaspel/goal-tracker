@@ -5,6 +5,19 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <!-- A private household board. It should never be indexed or followed. -->
     <meta name="robots" content="noindex, nofollow" />
+    <!--
+      Installation: the web app manifest, the icon set drawn from the app mark, and the colour of
+      the browser's own chrome. Each theme colour is the header's raised token in that theme, so an
+      installed window's title bar runs straight into the header. tests/app-install.test.ts pins
+      every colour here to web/src/style.css.
+    -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48" />
+    <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-title" content="Goal Tracker" />
+    <meta name="theme-color" content="#f5f5f8" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#1d2429" media="(prefers-color-scheme: dark)" />
     <title>Goal Tracker</title>
   </head>
   <body>

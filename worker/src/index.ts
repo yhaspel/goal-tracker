@@ -121,6 +121,9 @@ const BASE_SECURITY_HEADERS: ReadonlyArray<readonly [string, string]> = [
  * `style-src` governs `style=` attributes as well as `<style>` elements, and both React and
  * the board's drag projection set inline transforms. There is no inline script, no `eval`, and
  * no third-party origin anywhere in the bundle — the fonts are served from this same origin.
+ *
+ * `manifest-src` is what makes the app installable: without it, `default-src 'none'` blocks the
+ * web app manifest outright. There is no service worker, so there is no `worker-src` either.
  */
 const CONTENT_SECURITY_POLICY = [
   "default-src 'none'",
@@ -129,6 +132,7 @@ const CONTENT_SECURITY_POLICY = [
   "img-src 'self'",
   "font-src 'self'",
   "connect-src 'self'",
+  "manifest-src 'self'",
   "base-uri 'none'",
   "form-action 'self'",
   "frame-ancestors 'none'",
